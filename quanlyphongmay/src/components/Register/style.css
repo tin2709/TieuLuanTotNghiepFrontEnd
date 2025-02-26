@@ -1,0 +1,159 @@
+/* Hero Section */
+.hero-section {
+    position: relative;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.hero-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.7;
+}
+
+.content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+}
+
+/* Card Styling */
+.custom-card {
+    background-color: white;
+    padding: 40px;
+    border-radius: 1rem;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    width: 100%;
+    max-width: 600px; /* Increased card size */
+    margin: auto;
+}
+
+.card-body {
+    text-align: center;
+    padding: 40px;
+}
+
+h3 {
+    font-size: 2.5rem; /* Increase heading size */
+    color: black; /* Set color to black */
+}
+
+/* Form Styling */
+form {
+    display: grid;
+    grid-template-columns: 1fr; /* All elements on a single column */
+    grid-gap: 20px;
+}
+
+.form-group {
+    display: flex;
+    justify-content: space-between; /* Align label and input on the same row */
+    align-items: center;
+}
+
+.form-group label {
+    font-size: 1.2rem; /* Increase label font size */
+    font-weight: bold;
+    width: 30%; /* Ensure label has a fixed width */
+    margin-bottom: 5px;
+}
+
+input.form-control {
+    font-size: 1.1rem; /* Increase input font size */
+    padding: 12px; /* Increase input padding */
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    width: 65%; /* Ensure inputs take up remaining space */
+}
+
+button.btn {
+    font-size: 1.1rem; /* Increase button font size */
+    padding: 12px;
+    border-radius: 5px;
+    border: none;
+}
+
+button.btn:hover {
+    background-color: #0056b3;
+    transform: translateY(-2px);
+}
+
+/* Avatar Upload */
+.upload-label {
+    cursor: pointer;
+    display: inline-block;
+    text-align: center;
+    margin-top: 20px;
+    font-size: 1.1rem;
+}
+
+.img-cont {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.user-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.form-check-label {
+    font-size: 1.1rem;
+}
+
+small {
+    font-size: 1rem;
+    color: #bbb;
+}
+
+a {
+    font-size: 1.1rem;
+    color: #007bff;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* Add some margin for mobile responsiveness */
+@media (max-width: 768px) {
+    .content {
+        padding: 20px;
+    }
+
+    .custom-card {
+        padding: 30px;
+        max-width: 90%;
+    }
+
+    h3 {
+        font-size: 2rem;
+    }
+
+    .form-group {
+        flex-direction: column; /* Stack label and input vertically on small screens */
+        align-items: flex-start;
+    }
+
+    .form-group label {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    input.form-control {
+        width: 100%; /* Make input take up full width on small screens */
+    }
+}
+label{
+    color: #000;
+}
