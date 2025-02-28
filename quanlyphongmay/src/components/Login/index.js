@@ -90,14 +90,19 @@ export default function Home() {
                     </button>
                   </div>
                 </form>
+                <br/>
 
                 {/* Link to Register page */}
-                <p className="text-center mb-0">
-                  Không có tài khoản?{" "}
+
                   <Link to="/register" className="text-primary">
                     Register here
                   </Link>
-                </p>
+               <br/><br/>
+
+                  <Link to="/forgotpass" className="text-primary">
+                    Quên mật khẩu
+                  </Link>
+
               </div>
             </div>
           </div>
