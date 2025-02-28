@@ -1,5 +1,6 @@
 import axios from "axios";
-import { history } from "..";
+import history from "./history"; // Import the history object
+
 
 // luu data ra local storage
 export const configs = {
@@ -223,7 +224,7 @@ export const {
 const TOKEN_CYBERSOFT = "270903";
 
 export const http = axios.create({
-    baseURL: `http://localhost:8080`,
+    baseURL: `https://localhost:8080`,
     timeout: 20000, // thoi gian duy tri ???
 });
 

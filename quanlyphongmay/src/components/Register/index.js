@@ -1,21 +1,26 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import ava from "../../img/addAvatar.png";
-import Swal from "sweetalert2";
+import { useDispatch } from "react-redux";
+import { saveUserAccount } from "../../redux/reducers/userReducer"; // Import Redux action
+import Swal from "sweetalert2"; // Import SweetAlert
 import "./style.css";
 
-export default function Home() {
+
+
+export default function Register() {
   const [ckbRemeber, setCkbRemeber] = useState(true);
   const [avatar, setAvatar] = useState({
     file: null,
     url: "",
   });
   const [formData, setFormData] = useState({
-    fullName: "",
     username: "",
     email: "",
     password: "",
   });
+
+  const navigate = useNavigate(); // Hook for navigation
 
   // Avatar upload handler
   const handleAvatar = (e) => {
@@ -42,31 +47,82 @@ export default function Home() {
   };
 
   // Form submit handler
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     // Check if all required fields are filled
-    const { fullName, username, email, password } = formData;
+    const { username, email, password } = formData;
 
-    if (!fullName || !username || !email || !password) {
+    if (!username || !email || !password) {
       Swal.fire({
         icon: "error",
-        title: "Oops...",
+        title: "Đăng ký thất bại",
         text: "Vui lòng điền đầy đủ thông tin!",
       });
     } else {
-      Swal.fire({
-        icon: "success",
-        title: "Đăng ký thành công!",
-        text: "Bạn đã đăng ký thành công!",
-      });
-      // Submit the form (you can add your form submission logic here)
+      try {
+        // Prepare user data (added maQuyen as 1 by default)
+        const student = {
+          tenDangNhap: username,
+          matKhau: password,
+          maQuyen: 1, // Default role
+          email: email,
+        };
+
+        // Create a FormData object for the avatar image and other data
+        const formDataToSend = new FormData();
+        formDataToSend.append("tenDangNhap", student.tenDangNhap);
+        formDataToSend.append("matKhau", student.matKhau);
+        formDataToSend.append("maQuyen", student.maQuyen);
+        formDataToSend.append("email", student.email);
+
+        // If avatar file is uploaded, add it to the formData
+        if (avatar.file) {
+          formDataToSend.append("imageFile", avatar.file);
+        }
+        for (let pair of formDataToSend.entries()) {
+          console.log(pair[0] + ": " + pair[1]);
+        }
+
+        // Send request using fetch
+        const response = await fetch("https://localhost:8080/luutaikhoan", {
+          method: "POST",
+
+          body: formDataToSend, // Send FormData directly
+        });
+
+        if (response.ok) {
+          // Success alert
+          Swal.fire({
+            icon: "success",
+            title: "Đăng ký thành công!",
+            text: "Tài khoản đã được lưu. Bạn sẽ được chuyển hướng đến trang đăng nhập.",
+          }).then(() => {
+            // Redirect to login page
+            navigate("/login");
+          });
+        } else {
+          // Error alert in case of failure
+          Swal.fire({
+            icon: "error",
+            title: "Đăng ký thất bại",
+            text: "Có lỗi xảy ra. Vui lòng thử lại sau!",
+          });
+        }
+      } catch (error) {
+        // Error alert in case of failure
+        Swal.fire({
+          icon: "error",
+          title: "Đăng ký thất bại",
+          text: error.response ? error.response.data : "Có lỗi xảy ra. Vui lòng thử lại sau!",
+        });
+        console.error(error);
+      }
     }
   };
 
   return (
       <div className="container">
-        {/* Hero Section */}
         <main className="hero-section">
           <img
               src="https://i.pinimg.com/736x/1c/fb/ec/1cfbec7b6e28bc517fa5c9c3e66cf22e.jpg"
@@ -80,22 +136,6 @@ export default function Home() {
 
                 {/* Registration Form */}
                 <form onSubmit={handleSubmit}>
-                  {/* Full Name */}
-                  <div className="form-group mb-4">
-                    <label htmlFor="fullName" className="form-label">
-                      Tên đầy đủ
-                    </label>
-                    <input
-                        type="text"
-                        id="fullName"
-                        name="fullName"
-                        className="form-control"
-                        placeholder="Nhập tên đầy đủ"
-                        value={formData.fullName}
-                        onChange={handleInputChange}
-                    />
-                  </div>
-
                   {/* Username */}
                   <div className="form-group mb-4">
                     <label htmlFor="username" className="form-label">
@@ -114,22 +154,6 @@ export default function Home() {
 
                   {/* Email */}
                   <div className="form-group mb-4">
-                    <label htmlFor="email" className="form-label">
-                      Email
-                    </label>
-                    <input
-                        type="email"
-                        id="email"
-                        name="email"
-                        className="form-control"
-                        placeholder="Nhập email"
-                        value={formData.email}
-                        onChange={handleInputChange}
-                    />
-                  </div>
-
-                  {/* Password */}
-                  <div className="form-group mb-4">
                     <label htmlFor="password" className="form-label">
                       Mật khẩu
                     </label>
@@ -144,6 +168,22 @@ export default function Home() {
                     />
                   </div>
 
+                  {/* Password */}
+
+                  <div className="form-group mb-4">
+                    <label htmlFor="email" className="form-label">
+                      Email
+                    </label>
+                    <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        className="form-control"
+                        placeholder="Nhập email"
+                        value={formData.email}
+                        onChange={handleInputChange}
+                    />
+                  </div>
                   {/* Avatar Upload */}
                   <div className="form-group mb-4">
                     <input
@@ -163,8 +203,6 @@ export default function Home() {
                       <span>Upload an image</span>
                     </label>
                   </div>
-
-
 
                   {/* Submit Button */}
                   <div className="mb-4">
