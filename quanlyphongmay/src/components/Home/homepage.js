@@ -1,7 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { HomeOutlined, EditOutlined, DeleteOutlined, MessageOutlined, PlusOutlined } from '@ant-design/icons';
 import { Button, Input, Select, Table } from 'antd';
 import Swal from "sweetalert2";
+import * as DarkReader from 'darkreader';
+import { SunOutlined, MoonOutlined } from '@ant-design/icons';
 
 const { Option } = Select;
 
@@ -19,11 +21,58 @@ const labRooms = [
     { id: "10", name: "Lab E1.0.3", description: "Phòng máy E1.0.3", computers: 10, software: 3, status: "Trống" },
 ];
 
+const DarkModeToggle = () => {
+    const [isDarkMode, setIsDarkMode] = useState(false);
+
+    // Toggle Dark Mode
+    const toggleDarkMode = () => {
+        if (isDarkMode) {
+            DarkReader.disable();  // Disable Dark mode
+        } else {
+            DarkReader.enable({     // Enable Dark mode with default settings
+                brightness: 100,
+                contrast: 90,
+                sepia: 10,
+            });
+        }
+        setIsDarkMode(!isDarkMode); // Toggle state
+    };
+
+    // Effect to initialize DarkReader based on system color scheme on mount
+    useEffect(() => {
+        DarkReader.auto({
+            brightness: 100,
+            contrast: 90,
+            sepia: 10,
+        });
+
+        return () => {
+            DarkReader.disable(); // Cleanup when component unmounts
+        };
+    }, []);
+
+    return (
+        <Button
+            icon={isDarkMode ? <SunOutlined /> : <MoonOutlined />}
+            onClick={toggleDarkMode}
+            style={{
+                backgroundColor: 'transparent',
+                border: 'none',
+                fontSize: '24px',
+                cursor: 'pointer'
+            }}>
+        </Button>
+    );
+};
+
 export default function LabManagement() {
     const [search, setSearch] = useState("");
 
     return (
         <div className="p-6">
+            {/* Dark Mode Toggle */}
+            <DarkModeToggle />
+
             {/* Breadcrumb */}
             <nav className="flex items-center space-x-1 text-sm text-muted-foreground mb-6">
                 <a href="/" className="flex items-center hover:text-primary">
