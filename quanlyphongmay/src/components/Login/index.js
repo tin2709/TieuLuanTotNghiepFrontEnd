@@ -1,27 +1,34 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import "./style.css";
-import ava from "../../img/addAvatar.png";
 
-export default function Home() {
+export default function Login() {
   const [ckbRemeber, setCkbRemeber] = useState(true);
-  const [avatar, setAvatar] = useState({
-    file: null,
-    url: "",
-  });
+  const navigate = useNavigate(); // Hook for navigation
 
   // Checkbox handler for remember me
   const handleChangeCheckbox = (e) => {
     setCkbRemeber(e.target.checked);
   };
+  const [formData, setFormData] = useState({
+    username: "",
+    password: "",
+  });
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({
+      ...formData,
+      [name]: value,
+    });
+  };
 
   // Handle form submission for login
-  const handleSubmitLogin = (e) => {
+  const handleSubmitLogin = async (e) => {
     e.preventDefault();
+    const { username,password } = formData;
 
-    const username = document.getElementById("username").value;
-    const password = document.getElementById("password").value;
+
 
     // Validate inputs
     if (!username || !password) {
@@ -31,12 +38,70 @@ export default function Home() {
         text: "Vui lòng điền đầy đủ thông tin!",
       });
     } else {
-      // Handle login submission (this part can be your login logic)
-      Swal.fire({
-        icon: "success",
-        title: "Đăng nhập thành công!",
-        text: "Bạn đã đăng nhập thành công!",
-      });
+      try {
+        const student = {
+          username: username,
+          password: password,
+
+        };
+        // Prepare the data to be sent to the backend
+        const formData = new FormData();
+        formData.append("username", student.username);
+        formData.append("password", student.password);
+
+        // Send login request using fetch
+        const response = await fetch("https://localhost:8080/login", {
+          method: "POST",
+          body: formData, // Send FormData directly
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const token = data.token;
+
+          // Save the token (in localStorage or state)
+          localStorage.setItem("authToken", token); // You could use a global state for this as well
+
+          // Success alert
+          Swal.fire({
+            icon: "success",
+            title: "Đăng nhập thành công!",
+            text: "Bạn đã đăng nhập thành công!",
+          }).then(() => {
+            // Redirect to home page or dashboard
+            navigate("/homepage");
+          });
+        } else if (response.status === 401) {
+          // Unauthorized error (wrong username or password)
+          Swal.fire({
+            icon: "error",
+            title: "Đăng nhập thất bại",
+            text: "Mật khẩu hoặc tài khoản không đúng!",
+          });
+        } else if (response.status === 404) {
+          // Account not found error
+          Swal.fire({
+            icon: "error",
+            title: "Đăng nhập thất bại",
+            text: "Tài khoản không tồn tại!",
+          });
+        } else {
+          // General error
+          Swal.fire({
+            icon: "error",
+            title: "Có lỗi xảy ra",
+            text: "Vui lòng thử lại sau!",
+          });
+        }
+      } catch (error) {
+        // Handle any errors that occur during the fetch
+        Swal.fire({
+          icon: "error",
+          title: "Có lỗi xảy ra",
+          text: error.message || "Vui lòng thử lại sau!",
+        });
+        console.error(error);
+      }
     }
   };
 
@@ -56,7 +121,6 @@ export default function Home() {
 
                 {/* Login Form */}
                 <form onSubmit={handleSubmitLogin}>
-
                   {/* Username */}
                   <div className="form-group mb-4">
                     <label htmlFor="username" className="form-label">
@@ -65,12 +129,15 @@ export default function Home() {
                     <input
                         type="text"
                         id="username"
+                        name="username"
                         className="form-control"
                         placeholder="Nhập tài khoản"
+                        value={formData.username}
+                        onChange={handleInputChange}
                     />
                   </div>
 
-                  {/* Password */}
+                  {/* Email */}
                   <div className="form-group mb-4">
                     <label htmlFor="password" className="form-label">
                       Mật khẩu
@@ -78,8 +145,11 @@ export default function Home() {
                     <input
                         type="password"
                         id="password"
+                        name="password"
                         className="form-control"
                         placeholder="Nhập mật khẩu"
+                        value={formData.password}
+                        onChange={handleInputChange}
                     />
                   </div>
 
@@ -90,19 +160,18 @@ export default function Home() {
                     </button>
                   </div>
                 </form>
-                <br/>
+                <br />
 
                 {/* Link to Register page */}
+                <Link to="/register" className="text-primary">
+                  Register here
+                </Link>
+                <br />
+                <br />
 
-                  <Link to="/register" className="text-primary">
-                    Register here
-                  </Link>
-               <br/><br/>
-
-                  <Link to="/forgotpass" className="text-primary">
-                    Quên mật khẩu
-                  </Link>
-
+                <Link to="/forgotpass" className="text-primary">
+                  Quên mật khẩu
+                </Link>
               </div>
             </div>
           </div>
