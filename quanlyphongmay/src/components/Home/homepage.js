@@ -68,6 +68,25 @@ const DarkModeToggle = () => {
 export default function LabManagement() {
     const [search, setSearch] = useState("");
 
+    // Add the script dynamically when component mounts
+    useEffect(() => {
+        const script1 = document.createElement("script");
+        script1.src = "https://cdn.botpress.cloud/webchat/v2/inject.js";
+        script1.async = true;
+        document.body.appendChild(script1);
+
+        const script2 = document.createElement("script");
+        script2.src = "https://mediafiles.botpress.cloud/1d0997ec-87ba-4ea8-8a5c-c2fba00d5019/webchat/v2/config.js";
+        script2.async = true;
+        document.body.appendChild(script2);
+
+        // Cleanup scripts on unmount
+        return () => {
+            document.body.removeChild(script1);
+            document.body.removeChild(script2);
+        };
+    }, []);
+
     return (
         <div className="p-6">
             {/* Dark Mode Toggle */}
@@ -149,7 +168,6 @@ export default function LabManagement() {
             </div>
 
             {/* Footer */}
-
         </div>
     );
 }
