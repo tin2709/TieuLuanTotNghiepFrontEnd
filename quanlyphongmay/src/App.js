@@ -1,7 +1,8 @@
 import './App.css';
 import Login from './components/Login';
 import Home from './components/Home/index';
-import HomePage from './components/Home/homepage';
+import PhongMay from './components/PhongMay/phongmay';
+import EditPhongMay from './components/PhongMay/editphongmay';
 import Register from './components/Register';
 import ForgotPass from './components/Login/forgotpassword';
 import VerifyOtp from './components/Login/verifyotp';
@@ -14,7 +15,8 @@ function App() {
     <BrowserRouter>
     <Routes>
     <Route path="/home" element={<Home />} />
-      <Route path="/homepage" element={<HomePage />} />
+      <Route path="/phongmay" element={<PhongMay />} />
+      <Route path="/editphongmay" element={<EditPhongMay />} />
     <Route path="/login" element={<Login />} />
     <Route path="/register" element={<Register />} />
     <Route path="/forgotpass" element={<ForgotPass />} />
