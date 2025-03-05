@@ -69,7 +69,7 @@ export default function Login() {
             text: "Bạn đã đăng nhập thành công!",
           }).then(() => {
             // Redirect to home page or dashboard
-            navigate("/homepage");
+            navigate("/phongmay");
           });
         } else if (response.status === 401) {
           // Unauthorized error (wrong username or password)
