@@ -3,6 +3,10 @@ import Login from './components/Login';
 import Home from './components/Home/index';
 import PhongMay from './components/PhongMay/phongmay';
 import EditPhongMay from './components/PhongMay/editphongmay';
+import AddPhongMay from './components/PhongMay/addphongmay';
+import Tang from './components/Tang/tang';
+import EditTang from './components/Tang/edittang';
+import AddTang from './components/Tang/addtang';
 import Register from './components/Register';
 import ForgotPass from './components/Login/forgotpassword';
 import VerifyOtp from './components/Login/verifyotp';
@@ -17,6 +21,10 @@ function App() {
     <Route path="/home" element={<Home />} />
       <Route path="/phongmay" element={<PhongMay />} />
       <Route path="/editphongmay" element={<EditPhongMay />} />
+      <Route path="/addphongmay" element={<AddPhongMay />} />
+      <Route path="/tang" element={<Tang />} />
+      <Route path="/edittang" element={<EditTang />} />
+      <Route path="/addtang" element={<AddTang />} />
     <Route path="/login" element={<Login />} />
     <Route path="/register" element={<Register />} />
     <Route path="/forgotpass" element={<ForgotPass />} />
