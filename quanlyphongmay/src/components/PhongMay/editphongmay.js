@@ -24,7 +24,7 @@ export default function AddLabRoom() {
 
     const fetchPhongMays = async () => {
         setLoading(true);
-        const token = localStorage.getItem("authToken");
+        const token = sessionStorage.getItem("authToken");
 
         if (!token) {
             Swal.fire("Error", "Bạn chưa đăng nhập", "error");
@@ -80,7 +80,7 @@ export default function AddLabRoom() {
 
     const handleSubmit = async () => {
         setLoading(true);
-        const token = localStorage.getItem("authToken");
+        const token = sessionStorage.getItem("authToken");
 
         if (!token) {
             Swal.fire("Error", "Bạn chưa đăng nhập", "error");
