@@ -16,13 +16,13 @@ export default function AddLabRoom() {
         soMay: 0,
         trangThai: "Trống",  // default state
     });
-    const [phongMays, setPhongMays] = useState([]); // Changed from Tangs to PhongMays
+    const [tangs, setTangs] = useState([]); // Changed from PhongMays to Tangs
 
     useEffect(() => {
-        fetchPhongMays();
+        fetchTangs();
     }, []);
 
-    const fetchPhongMays = async () => {
+    const fetchTangs = async () => {
         setLoading(true);
         const token = localStorage.getItem("authToken");
 
@@ -33,7 +33,7 @@ export default function AddLabRoom() {
         }
 
         try {
-            const url = `https://localhost:8080/DSPhongMay?token=${token}`;
+            const url = `https://localhost:8080/DSTang?token=${token}`;
             console.log("Fetching Tangs URL:", url);
 
             const response = await fetch(url, {
@@ -51,14 +51,11 @@ export default function AddLabRoom() {
             }
 
             const data = await response.json();
-            console.log("PhongMays Data:", data);
+            console.log("Tangs Data:", data);
 
-            // Log the tenTang values from each PhongMay to the console
-            const tenTangs = data.map(phongMay => phongMay.tang.tenTang);
-            console.log("Ten Tangs:", tenTangs);
-            setPhongMays(data); // Store the PhongMay data
+            setTangs(data); // Store the Tang data
         } catch (error) {
-            console.error("Error fetching PhongMays:", error);
+            console.error("Error fetching Tangs:", error);
             console.log("Error Message:", error.message);
             Swal.fire("Error", "Có lỗi xảy ra khi tải dữ liệu tầng: " + error.message, "error");
         } finally {
@@ -76,6 +73,15 @@ export default function AddLabRoom() {
 
     const handleStateChange = (value) => {
         setFormData({ ...formData, trangThai: value }); // Update trangThai when state changes
+    };
+    const handleReset = () => {
+        setFormData({
+            tenPhong: "",
+            maTang: null,
+            moTa: "",
+            soMay: 0,
+            trangThai: "Trống",
+        });
     };
 
     const handleSubmit = async () => {
@@ -173,10 +179,10 @@ export default function AddLabRoom() {
                                 suffixIcon={<span className="select-arrow">▼</span>}
                                 placeholder="Chọn tầng"
                             >
-                                {phongMays.length > 0 ? (
-                                    phongMays.map((phongMay) => (
-                                        <Option key={phongMay.tang.maTang} value={phongMay.tang.maTang}>
-                                            {phongMay.tang.tenTang} {/* Access the tenTang property */}
+                                {tangs.length > 0 ? (
+                                    tangs.map((tang) => (
+                                        <Option key={tang.maTang} value={tang.maTang}>
+                                            {tang.tenTang}
                                         </Option>
                                     ))
                                 ) : (
@@ -226,6 +232,9 @@ export default function AddLabRoom() {
                         <Space>
                             <Button type="primary" className="save-button" onClick={handleSubmit} loading={loading}>
                                 Tạo mới
+                            </Button>
+                            <Button onClick={handleReset}>
+                                Khôi phục
                             </Button>
                         </Space>
                     </Form.Item>
