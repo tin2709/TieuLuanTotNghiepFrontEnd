@@ -6,19 +6,31 @@ import {
     MessageOutlined,
     PlusOutlined,
     FileAddOutlined,
+    LogoutOutlined, // Import LogoutOutlined icon
 } from "@ant-design/icons";
-import { Button, Input, Select, Table, Checkbox, Dropdown, Menu } from "antd";
+import {
+    Button,
+    Input,
+    Select,
+    Table,
+    Checkbox,
+    Dropdown,
+    Menu,
+    Layout,
+} from "antd"; // Import Layout
 import Swal from "sweetalert2";
 import * as DarkReader from "darkreader";
 import { SunOutlined, MoonOutlined } from "@ant-design/icons";
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
-import * as XLSX from 'xlsx';
-import font from '../../font/font';
+import jsPDF from "jspdf";
+import "jspdf-autotable";
+import * as XLSX from "xlsx";
+import font from "../../font/font";
 import { useNavigate } from "react-router-dom"; // Import the useNavigate hook
 
-import ImportFileModal from './ImportFileModal'; // Import the ImportFileModal
+import ImportFileModal from "./ImportFileModal"; // Import the ImportFileModal
+
 const { Option } = Select;
+const { Header, Content } = Layout; // Destructure Header and Content from Layout
 
 const DarkModeToggle = () => {
     const [isDarkMode, setIsDarkMode] = useState(false);
@@ -50,7 +62,13 @@ const DarkModeToggle = () => {
 
     return (
         <Button
-            icon={isDarkMode ? <SunOutlined/> : <MoonOutlined/>}
+            icon={
+                isDarkMode ? (
+                    <SunOutlined style={{ color: isDarkMode ? "yellow" : "black" }} />
+                ) : (
+                    <MoonOutlined style={{ color: isDarkMode ? "white" : "black" }} />
+                )
+            }
             onClick={toggleDarkMode}
             style={{
                 backgroundColor: "transparent",
@@ -62,24 +80,16 @@ const DarkModeToggle = () => {
     );
 };
 
-// const validSearchColumns = [
-//     {label: "Tên phòng", value: "ten_phong"},
-//     {label: "Số máy", value: "so_may"},
-//     {label: "Mô tả", value: "mo_ta"},
-//     {label: "Trạng thái", value: "trang_thai"},
-// ];
-
-export default function LabManagement() {
+export default function TangManagement() {
     const [search, setSearch] = useState("");
-    const [labRooms, setLabRooms] = useState([]);
+    const [tangs, setTangs] = useState([]);
     const [selectedColumn, setSelectedColumn] = useState(null);
-    const [initialLabRooms, setInitialLabRooms] = useState([]);
+    const [initialTangs, setInitialTangs] = useState([]);
     const navigate = useNavigate(); // Initialize navigate hook
     const [selectedRowKeys, setSelectedRowKeys] = useState([]);
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [loading, setLoading] = useState(false);
     const [importLoading, setImportLoading] = useState(false); // State for import loading
-
 
     const [pagination, setPagination] = useState({
         current: 1,
@@ -99,7 +109,7 @@ export default function LabManagement() {
     const handleImport = async (file) => {
         // Logic for handling import can be placed here if needed
         console.log("File imported:", file);
-        fetchLabRooms(); // Reload the list after import
+        fetchTangs(); // Reload the list after import
     };
 
     useEffect(() => {
@@ -119,7 +129,7 @@ export default function LabManagement() {
         };
     }, []);
 
-    const fetchLabRooms = async () => {
+    const fetchTangs = async () => {
         setLoading(true);
         const token = localStorage.getItem("authToken");
 
@@ -150,11 +160,11 @@ export default function LabManagement() {
             const data = await response.json();
             console.log("Data:", data);
 
-            setInitialLabRooms(data); // Lưu toàn bộ dữ liệu vào initialLabRooms
-            setLabRooms(data.slice(0, pagination.pageSize)); // Hiển thị trang đầu tiên
+            setInitialTangs(data); // Lưu toàn bộ dữ liệu vào initialTangs
+            setTangs(data.slice(0, pagination.pageSize)); // Hiển thị trang đầu tiên
         } catch (error) {
-            console.error("Error fetching lab rooms:", error);
-            console.log("Error Message:", error.message);  // In ra error.message
+            console.error("Error fetching tangs:", error);
+            console.log("Error Message:", error.message); // In ra error.message
             Swal.fire("Error", "Có lỗi xảy ra khi tải dữ liệu: " + error.message, "error");
         } finally {
             setLoading(false);
@@ -171,13 +181,13 @@ export default function LabManagement() {
             cancelButtonText: "Hủy",
         }).then((result) => {
             if (result.isConfirmed) {
-                deleteLabRoom(record.maTang); // Delete the lab room
+                deleteTang(record.maTang); // Delete the tang
             }
         });
     };
 
     // Perform delete action
-    const deleteLabRoom = async (maTang) => {
+    const deleteTang = async (maTang) => {
         const token = localStorage.getItem("authToken");
 
         if (!token) {
@@ -200,11 +210,11 @@ export default function LabManagement() {
 
             Swal.fire("Thành công!", "Đã xóa tầng thành công!", "success");
 
-            // Re-fetch the lab rooms after deletion
-            fetchLabRooms();
+            // Re-fetch the tangs after deletion
+            fetchTangs();
         } catch (error) {
-            console.error("Error deleting lab room:", error);
-            Swal.fire("Error", "Có lỗi xảy ra khi xóa phòng máy: " + error.message, "error");
+            console.error("Error deleting tang:", error);
+            Swal.fire("Error", "Có lỗi xảy ra khi xóa tầng: " + error.message, "error");
         }
     };
     const sortData = (data, sortKey, sortOrder) => {
@@ -214,10 +224,12 @@ export default function LabManagement() {
             const valueA = a[sortKey];
             const valueB = b[sortKey];
 
-            if (typeof valueA === 'string' && typeof valueB === 'string') {
-                return sortOrder === 'ascend' ? valueA.localeCompare(valueB) : valueB.localeCompare(valueA);
-            } else if (typeof valueA === 'number' && typeof valueB === 'number') {
-                return sortOrder === 'ascend' ? valueA - valueB : valueB - valueA;
+            if (typeof valueA === "string" && typeof valueB === "string") {
+                return sortOrder === "ascend"
+                    ? valueA.localeCompare(valueB)
+                    : valueB.localeCompare(valueA);
+            } else if (typeof valueA === "number" && typeof valueB === "number") {
+                return sortOrder === "ascend" ? valueA - valueB : valueB - valueA;
             } else {
                 return 0;
             }
@@ -245,7 +257,7 @@ export default function LabManagement() {
             }
             setLoading(true);
             try {
-                const url = `https://localhost:8080/searchPhongMay?keyword=${searchColumn}:${searchValue}&token=${token}`;
+                const url = `https://localhost:8080/searchTang?keyword=${searchColumn}:${searchValue}&token=${token}`;
                 const response = await fetch(url, {
                     method: "GET",
                     headers: {
@@ -259,7 +271,7 @@ export default function LabManagement() {
                 }
 
                 if (response.status === 204) {
-                    setLabRooms([]);
+                    setTangs([]);
                     return;
                 }
 
@@ -267,32 +279,32 @@ export default function LabManagement() {
                     const text = await response.text();
                     console.log("Response Body:", text);
                     const data = JSON.parse(text);
-                    setLabRooms(data.results);
+                    setTangs(data.results);
                 } catch (parseError) {
                     console.error("Error parsing JSON:", parseError);
                     Swal.fire("Error", "Lỗi xử lý dữ liệu từ máy chủ: " + parseError.message, "error");
-                    setLabRooms([]);
+                    setTangs([]);
                 }
             } catch (error) {
-                console.error("Error searching lab rooms:", error);
+                console.error("Error searching tangs:", error);
                 Swal.fire("Error", "Có lỗi xảy ra khi tìm kiếm dữ liệu: " + error.message, "error");
             } finally {
                 setLoading(false);
             }
         } else {
-            setLabRooms(initialLabRooms);
+            setTangs(initialTangs);
         }
     };
     const updateTableData = (page, pageSize, sortField, sortOrder) => {
-        let sortedData = sortData(initialLabRooms, sortField, sortOrder); // Sắp xếp dữ liệu
+        let sortedData = sortData(initialTangs, sortField, sortOrder); // Sắp xếp dữ liệu
         const startIndex = (page - 1) * pageSize;
         const endIndex = startIndex + pageSize;
         const paginatedData = sortedData.slice(startIndex, endIndex);
-        setLabRooms(paginatedData); // Cập nhật dữ liệu hiển thị trên trang
+        setTangs(paginatedData); // Cập nhật dữ liệu hiển thị trên trang
     };
 
     const handleTableChange = (newPagination, filters, sorter) => {
-        const {current, pageSize} = newPagination;
+        const { current, pageSize } = newPagination;
 
         let sortField = null;
         let sortOrder = null;
@@ -300,7 +312,7 @@ export default function LabManagement() {
         if (sorter && sorter.field && sorter.order) {
             sortField = sorter.field;
             sortOrder = sorter.order;
-            setSortInfo({field: sortField, order: sortOrder});
+            setSortInfo({ field: sortField, order: sortOrder });
         } else {
             setSortInfo({});
         }
@@ -309,7 +321,7 @@ export default function LabManagement() {
         setPagination(newPagination);
     };
     const onSelectChange = (newSelectedRowKeys) => {
-        console.log('Selected Row Keys changed: ', newSelectedRowKeys);
+        console.log("Selected Row Keys changed: ", newSelectedRowKeys);
         setSelectedRowKeys(newSelectedRowKeys);
         setHasSelected(newSelectedRowKeys.length > 0);
     };
@@ -325,7 +337,7 @@ export default function LabManagement() {
     };
 
     useEffect(() => {
-        fetchLabRooms();
+        fetchTangs();
     }, []);
     const startIndex = (pagination.current - 1) * pagination.pageSize;
 
@@ -339,12 +351,11 @@ export default function LabManagement() {
         // Create the table
         doc.autoTable({
             head: [["STT", "Tên Tầng", "Tên tòa nhà"]],
-            body: labRooms.map((room, index) => [
-                index + 1,  // STT
-                room.tenTang, // Ensure Vietnamese characters are correctly rendered
-                room.tenToaNha,
-
-            ])
+            body: tangs.map((tang, index) => [
+                index + 1, // STT
+                tang.tenTang, // Ensure Vietnamese characters are correctly rendered
+                tang.toaNha.tenToaNha,
+            ]),
         });
 
         // Save the generated PDF
@@ -353,26 +364,26 @@ export default function LabManagement() {
 
     const exportToExcel = () => {
         const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.json_to_sheet(labRooms);
+        const ws = XLSX.utils.json_to_sheet(tangs);
         XLSX.utils.book_append_sheet(wb, ws, "DanhSachTang");
         XLSX.writeFile(wb, "DanhSachTang.xlsx");
     };
     const confirmDeleteMultiple = () => {
         Swal.fire({
-            title: 'Bạn có chắc chắn muốn xóa các tầng đã chọn?',
+            title: "Bạn có chắc chắn muốn xóa các tầng đã chọn?",
             text: `Bạn đang cố gắng xóa ${selectedRowKeys.length} tầng.`,
-            icon: 'warning',
+            icon: "warning",
             showCancelButton: true,
-            confirmButtonText: 'Xóa',
-            cancelButtonText: 'Hủy',
+            confirmButtonText: "Xóa",
+            cancelButtonText: "Hủy",
         }).then((result) => {
             if (result.isConfirmed) {
-                deleteMultipleLabRooms();
+                deleteMultipleTangs();
             }
         });
     };
 
-    const deleteMultipleLabRooms = async () => {
+    const deleteMultipleTangs = async () => {
         const token = localStorage.getItem("authToken");
 
         if (!token) {
@@ -382,7 +393,7 @@ export default function LabManagement() {
 
         try {
             // Convert the array of room IDs to a comma-separated string
-            const maTangListString = selectedRowKeys.join(',');
+            const maTangListString = selectedRowKeys.join(",");
             const url = `https://localhost:8080/XoaNhieuTang?maTangList=${maTangListString}&token=${token}`;
 
             const response = await fetch(url, {
@@ -398,9 +409,9 @@ export default function LabManagement() {
 
             Swal.fire("Thành công!", "Đã xóa các tầng thành công!", "success");
             setSelectedRowKeys([]);
-            fetchLabRooms(); // Reload the list
+            fetchTangs(); // Reload the list
         } catch (error) {
-            console.error("Error deleting lab rooms:", error);
+            console.error("Error deleting tangs:", error);
             Swal.fire("Error", "Có lỗi xảy ra khi xóa phòng máy: " + error.message, "error");
         }
     };
@@ -416,67 +427,105 @@ export default function LabManagement() {
         </Menu>
     );
 
+    const handleLogout = async () => {
+        const token = localStorage.getItem("authToken");
+
+        if (!token) {
+            Swal.fire("Error", "Bạn chưa đăng nhập", "error");
+            return;
+        }
+
+        try {
+            const url = `https://localhost:8080/logout?token=${token}`;
+            const response = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json(); // Try to parse error message from response
+                const errorMessage =
+                    errorData?.message || `HTTP error! status: ${response.status}`;
+                throw new Error(errorMessage);
+            }
+
+            localStorage.removeItem("authToken"); // Remove token from local storage
+
+            Swal.fire("Thành công!", "Đăng xuất thành công!", "success").then(() => {
+                navigate("/login"); // Redirect to login page
+            });
+        } catch (error) {
+            console.error("Logout error:", error);
+            Swal.fire("Error", "Đăng xuất thất bại: " + error.message, "error");
+        }
+    };
 
     const columns = [
         {
             title: (
                 <Checkbox
                     onChange={(e) => {
-                        const allKeys = labRooms.map(record => record.maTang);
+                        const allKeys = tangs.map((record) => record.maTang);
                         setSelectedRowKeys(e.target.checked ? allKeys : []);
                         setHasSelected(e.target.checked);
                     }}
-                    checked={labRooms.length > 0 && selectedRowKeys.length === labRooms.length}
-                    indeterminate={selectedRowKeys.length > 0 && selectedRowKeys.length < labRooms.length}
+                    checked={tangs.length > 0 && selectedRowKeys.length === tangs.length}
+                    indeterminate={
+                        selectedRowKeys.length > 0 && selectedRowKeys.length < tangs.length
+                    }
                 />
             ),
-            key: 'checkbox',
-            width: '5%',
-            fixed: 'left',
+            key: "checkbox",
+            width: "5%",
+            fixed: "left",
             render: (text, record) => null, // No individual checkbox needed here
         },
         {
-            title: 'STT',
-            key: 'stt',
-            width: '20%',
+            title: "STT",
+            key: "stt",
+            width: "5%",
             render: (text, record, index) => startIndex + index + 1,
         },
         {
-            title: 'Tên tầng',
-            dataIndex: 'tenTang',
-            width: '20%',
+            title: "Tên tầng",
+            dataIndex: "tenTang",
+            width: "20%",
             sorter: (a, b) => a.tenTang.localeCompare(b.tenTang),
         },
 
         {
-            title: 'Tên tòa nhà',
-            dataIndex: 'tenToaNha',
-            align: 'center',
-            sorter: (a, b) => a.soMay - b.soMay,
-            width: '30%',
+            title: "Tên tòa nhà",
+            dataIndex: ["toaNha", "tenToaNha"],
+            width: "30%",
+            render: (text, record) => record.toaNha.tenToaNha,
+            sorter: (a, b) => a.toaNha.tenToaNha.localeCompare(b.toaNha.tenToaNha),
         },
 
         {
-            title: 'Hành động',
+            title: "Hành động",
             render: (text, record) => (
                 <div className="flex justify-center gap-2">
                     <Button
-                        icon={<EditOutlined/>}
+                        icon={<EditOutlined />}
                         size="small"
                         type="link"
-                        onClick={() => navigate(`/edittang`)}
+                        onClick={() => navigate(`/edittang/${record.maTang}`)}
                     />
                     <Button
-                        icon={<DeleteOutlined/>}
+                        icon={<DeleteOutlined />}
                         size="small"
                         type="link"
                         onClick={() => handleDelete(record)} // Trigger delete confirmation
                     />
                     <Button
-                        icon={<MessageOutlined/>}
+                        icon={<MessageOutlined />}
                         size="small"
                         type="link"
-                        onClick={() => Swal.fire("Message", `Message to room ${record.tenPhong}`, "question")}
+                        onClick={() =>
+                            Swal.fire("Message", `Message to room ${record.tenPhong}`, "question")
+                        }
                     />
                 </div>
             ),
@@ -484,102 +533,120 @@ export default function LabManagement() {
     ];
 
     return (
-        <div className="p-6">
-            <DarkModeToggle/>
+        <Layout className="lab-management-layout">
+            <Header
+                className="lab-management-header"
+                style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    backgroundColor: "#fff", // Add background color
+                    padding: "0 24px", // Add padding
+                }}
+            >
+                <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#000" }}>
+                    Danh sách tầng
+                </div>
+                <div className="actions" style={{ display: "flex", alignItems: "center" }}>
+                    <DarkModeToggle />
+                    <Button icon={<LogoutOutlined />} type="text" onClick={handleLogout}>
+                        Đăng xuất
+                    </Button>
+                </div>
+            </Header>
+            <Content className="lab-management-content" style={{ padding: "24px" }}>
+                <nav className="flex items-center space-x-1 text-sm text-muted-foreground mb-6">
+                    <a href="/" className="flex items-center hover:text-primary">
+                        <HomeOutlined className="h-4 w-4" />
+                        <span className="ml-1">Trang chủ</span>
+                    </a>
+                </nav>
 
-            <nav className="flex items-center space-x-1 text-sm text-muted-foreground mb-6">
-                <a href="/" className="flex items-center hover:text-primary">
-                    <HomeOutlined className="h-4 w-4"/>
-                    <span className="ml-1">Trang chủ</span>
-                </a>
-            </nav>
+                <div className="flex items-center justify-between mb-6">
+                    <h1 className="text-2xl font-semibold">Danh sách tầng</h1>
+                </div>
 
-            <div className="flex items-center justify-between mb-6">
-                <h1 className="text-2xl font-semibold">Danh sách tầng</h1>
-            </div>
+                <div className="flex items-center gap-4 mb-6">
+                    <Select defaultValue="all" style={{ width: 180 }}>
+                        <Option value="all">Tất cả</Option>
+                    </Select>
 
-            <div className="flex items-center gap-4 mb-6">
-                <Select defaultValue="all" style={{width: 180}}>
-                    <Option value="all">Tất cả</Option>
-                </Select>
+                    <Select defaultValue="all" style={{ width: 180 }}>
+                        <Option value="all">Tất cả</Option>
+                    </Select>
 
-                <Select defaultValue="all" style={{width: 180}}>
-                    <Option value="all">Tất cả</Option>
-                </Select>
+                    <div className="flex items-center flex-1 gap-2">
+                        <Input
+                            placeholder="Tìm kiếm..."
+                            value={search}
+                            onChange={(e) => handleSearch(e.target.value)}
+                            style={{ maxWidth: 200 }}
+                        />
+                    </div>
+                </div>
 
-                <div className="flex items-center flex-1 gap-2">
-                    <Input
-                        placeholder="Tìm kiếm..."
-                        value={search}
-                        onChange={(e) => handleSearch(e.target.value)}
-                        style={{maxWidth: 200}}
+                <Button onClick={exportToPDF} className="bg-blue-600 hover:bg-blue-700" type="primary">
+                    Xuất PDF
+                </Button>
+                <Button onClick={exportToExcel} className="bg-green-600 hover:bg-green-700" type="primary">
+                    Xuất Excel
+                </Button>
+                <div className="flex items-center justify-between mb-6">
+                    <h1 className="text-2xl font-semibold">Danh sách tầng</h1>
+                    <Dropdown overlay={menu} placement="bottomRight" arrow>
+                        <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            className="bg-blue-600 hover:bg-blue-700"
+                        >
+                            Tạo mới
+                        </Button>
+                    </Dropdown>
+                </div>
+                <div className="border rounded-lg">
+                    <Table
+                        rowSelection={{
+                            type: "checkbox",
+                            selectedRowKeys: selectedRowKeys, // Use the state here
+                            onChange: onSelectChange, // Make sure this gets called to update the state.
+                        }}
+                        columns={columns}
+                        dataSource={tangs}
+                        rowKey="maTang"
+                        loading={loading}
+                        pagination={{
+                            current: pagination.current,
+                            pageSize: pagination.pageSize,
+                            total: initialTangs.length,
+                            onChange: handleTableChange,
+                            showSizeChanger: true, // Allows users to change page size
+                            onShowSizeChange: (current, size) => {
+                                setPagination({
+                                    current: current,
+                                    pageSize: size,
+                                });
+                            },
+                        }}
+                        onChange={handleTableChange}
                     />
                 </div>
-            </div>
-
-            <Button onClick={exportToPDF} className="bg-blue-600 hover:bg-blue-700" type="primary">
-                Xuất PDF
-            </Button>
-            <Button onClick={exportToExcel} className="bg-green-600 hover:bg-green-700" type="primary">
-                Xuất Excel
-            </Button>
-            <div className="flex items-center justify-between mb-6">
-                <h1 className="text-2xl font-semibold">Danh sách tầng</h1>
-                <Dropdown overlay={menu} placement="bottomRight" arrow>
+                {hasSelected && (
                     <Button
                         type="primary"
-                        icon={<PlusOutlined/>}
-                        className="bg-blue-600 hover:bg-blue-700"
+                        danger
+                        onClick={confirmDeleteMultiple}
+                        className="mt-4"
                     >
-                        Tạo mới
+                        Xóa nhiều tầng
                     </Button>
-                </Dropdown>
-            </div>
-            <div className="border rounded-lg">
-
-                <Table
-                    rowSelection={{
-                        type: 'checkbox',
-                        selectedRowKeys: selectedRowKeys, // Use the state here
-                        onChange: onSelectChange, // Make sure this gets called to update the state.
-                    }}
-                    columns={columns}
-                    dataSource={labRooms}
-                    rowKey="maTang"
-                    loading={loading}
-                    pagination={{
-                        current: pagination.current,
-                        pageSize: pagination.pageSize,
-                        total: initialLabRooms.length,
-                        onChange: handleTableChange,
-                        showSizeChanger: true, // Allows users to change page size
-                        onShowSizeChange: (current, size) => {
-                            setPagination({
-                                current: current,
-                                pageSize: size,
-                            });
-                        },
-                    }}
-                    onChange={handleTableChange}
+                )}
+                <ImportFileModal
+                    visible={isModalVisible}
+                    onCancel={hideImportModal}
+                    onImport={handleImport}
+                    loading={importLoading}
                 />
-            </div>
-            {hasSelected && (
-                <Button
-                    type="primary"
-                    danger
-                    onClick={confirmDeleteMultiple}
-                    className="mt-4"
-                >
-                    Xóa nhiều tầng
-                </Button>
-            )}
-            <ImportFileModal
-                visible={isModalVisible}
-                onCancel={hideImportModal}
-                onImport={handleImport}
-                loading={importLoading}
-            />
-        </div>
+            </Content>
+        </Layout>
     );
-
 }

@@ -23,10 +23,10 @@ function App() {
 
           {/* Protected Routes */}
           <Route path="/phongmay" element={<ProtectedRoute component={PhongMay} />} />
-          <Route path="/editphongmay" element={<ProtectedRoute component={EditPhongMay} />} />
+          <Route path="/editphongmay/:maPhong" element={<ProtectedRoute component={EditPhongMay} />} />
           <Route path="/addphongmay" element={<ProtectedRoute component={AddPhongMay} />} />
           <Route path="/tang" element={<ProtectedRoute component={Tang} />} />
-          <Route path="/edittang" element={<ProtectedRoute component={EditTang} />} />
+          <Route path="/edittang/:maTang" element={<ProtectedRoute component={EditTang} />} />
           <Route path="/addtang" element={<ProtectedRoute component={AddTang} />} />
 
           {/* Unprotected Routes */}
