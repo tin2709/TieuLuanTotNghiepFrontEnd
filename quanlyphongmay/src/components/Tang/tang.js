@@ -6,7 +6,7 @@ import {
     MessageOutlined,
     PlusOutlined,
     FileAddOutlined,
-    LogoutOutlined, // Import LogoutOutlined icon
+    LogoutOutlined,
 } from "@ant-design/icons";
 import {
     Button,
@@ -17,7 +17,7 @@ import {
     Dropdown,
     Menu,
     Layout,
-} from "antd"; // Import Layout
+} from "antd";
 import Swal from "sweetalert2";
 import * as DarkReader from "darkreader";
 import { SunOutlined, MoonOutlined } from "@ant-design/icons";
@@ -25,12 +25,11 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 import * as XLSX from "xlsx";
 import font from "../../font/font";
-import { useNavigate } from "react-router-dom"; // Import the useNavigate hook
-
-import ImportFileModal from "./ImportFileModal"; // Import the ImportFileModal
+import { useNavigate } from "react-router-dom";
+import ImportFileModal from "./ImportFileModal";
 
 const { Option } = Select;
-const { Header, Content } = Layout; // Destructure Header and Content from Layout
+const { Header, Content } = Layout;
 
 const DarkModeToggle = () => {
     const [isDarkMode, setIsDarkMode] = useState(false);
@@ -85,18 +84,61 @@ export default function TangManagement() {
     const [tangs, setTangs] = useState([]);
     const [selectedColumn, setSelectedColumn] = useState(null);
     const [initialTangs, setInitialTangs] = useState([]);
-    const navigate = useNavigate(); // Initialize navigate hook
+    const navigate = useNavigate();
     const [selectedRowKeys, setSelectedRowKeys] = useState([]);
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [importLoading, setImportLoading] = useState(false); // State for import loading
-
+    const [importLoading, setImportLoading] = useState(false);
     const [pagination, setPagination] = useState({
         current: 1,
         pageSize: 10,
     });
     const [sortInfo, setSortInfo] = useState({});
     const [hasSelected, setHasSelected] = useState(false);
+    const [notification, setNotification] = useState(null); // State for notification
+
+    // SSE connection setup and data reloading
+    useEffect(() => {
+        const eventSource = new EventSource("https://localhost:8080/subscribe");
+
+        eventSource.onopen = () => {
+            console.log("SSE connection opened");
+        };
+
+        eventSource.onmessage = (event) => {
+            const message = event.data;
+            console.log("Received SSE message:", message);
+
+            if (message !== "subscribed") {
+                setNotification(message); // Set notification
+
+                // Check if the message indicates a deletion and reload data if needed
+                if (message.toLowerCase().includes("xóa") && message.toLowerCase().includes("tầng")) { //Added to check Delete
+                    fetchTangs(); // Reload the data
+                }
+
+                Swal.fire({
+                    title: "Thông báo",
+                    text: message,
+                    icon: "info",
+                    timer: 3000,
+                    timerProgressBar: true,
+                    showConfirmButton: false
+                });
+            }
+        };
+
+        eventSource.onerror = (error) => {
+            console.error("SSE error:", error);
+            eventSource.close();
+        };
+
+        return () => {
+            eventSource.close();
+        };
+    }, []); // Keep this dependency array empty for the SSE setup
+
+
 
     const showImportModal = () => {
         setIsModalVisible(true);
@@ -107,11 +149,9 @@ export default function TangManagement() {
     };
 
     const handleImport = async (file) => {
-        // Logic for handling import can be placed here if needed
         console.log("File imported:", file);
-        fetchTangs(); // Reload the list after import
+        fetchTangs();
     };
-
     useEffect(() => {
         const script1 = document.createElement("script");
         script1.src = "https://cdn.botpress.cloud/webchat/v2.2/inject.js";
@@ -128,6 +168,7 @@ export default function TangManagement() {
             document.body.removeChild(script2);
         };
     }, []);
+
 
     const fetchTangs = async () => {
         setLoading(true);
@@ -160,17 +201,17 @@ export default function TangManagement() {
             const data = await response.json();
             console.log("Data:", data);
 
-            setInitialTangs(data); // Lưu toàn bộ dữ liệu vào initialTangs
-            setTangs(data.slice(0, pagination.pageSize)); // Hiển thị trang đầu tiên
+            setInitialTangs(data);
+            setTangs(data.slice(0, pagination.pageSize));
         } catch (error) {
             console.error("Error fetching tangs:", error);
-            console.log("Error Message:", error.message); // In ra error.message
+            console.log("Error Message:", error.message);
             Swal.fire("Error", "Có lỗi xảy ra khi tải dữ liệu: " + error.message, "error");
         } finally {
             setLoading(false);
         }
     };
-    // Handle delete action
+
     const handleDelete = (record) => {
         Swal.fire({
             title: "Bạn có chắc chắn muốn xóa tầng này?",
@@ -181,12 +222,11 @@ export default function TangManagement() {
             cancelButtonText: "Hủy",
         }).then((result) => {
             if (result.isConfirmed) {
-                deleteTang(record.maTang); // Delete the tang
+                deleteTang(record.maTang);
             }
         });
     };
 
-    // Perform delete action
     const deleteTang = async (maTang) => {
         const token = localStorage.getItem("authToken");
 
@@ -208,15 +248,16 @@ export default function TangManagement() {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            Swal.fire("Thành công!", "Đã xóa tầng thành công!", "success");
+            // No need for Swal here, SSE will handle the notification
+            // Swal.fire("Thành công!", "Đã xóa tầng thành công!", "success");
 
-            // Re-fetch the tangs after deletion
-            fetchTangs();
+            // fetchTangs(); // Refresh data after deletion , no need because sse handle it
         } catch (error) {
             console.error("Error deleting tang:", error);
             Swal.fire("Error", "Có lỗi xảy ra khi xóa tầng: " + error.message, "error");
         }
     };
+
     const sortData = (data, sortKey, sortOrder) => {
         if (!sortKey) return data;
 
@@ -296,11 +337,11 @@ export default function TangManagement() {
         }
     };
     const updateTableData = (page, pageSize, sortField, sortOrder) => {
-        let sortedData = sortData(initialTangs, sortField, sortOrder); // Sắp xếp dữ liệu
+        let sortedData = sortData(initialTangs, sortField, sortOrder);
         const startIndex = (page - 1) * pageSize;
         const endIndex = startIndex + pageSize;
         const paginatedData = sortedData.slice(startIndex, endIndex);
-        setTangs(paginatedData); // Cập nhật dữ liệu hiển thị trên trang
+        setTangs(paginatedData);
     };
 
     const handleTableChange = (newPagination, filters, sorter) => {
@@ -330,9 +371,8 @@ export default function TangManagement() {
         selectedRowKeys,
         onChange: onSelectChange,
         getCheckboxProps: (record) => ({
-            // This function is essential for associating the checkbox with the right key.
-            disabled: false, // You can set to true based on a certain logic
-            name: record.maTang, // Must be unique to make the checkbox controllable
+            disabled: false,
+            name: record.maTang,
         }),
     };
 
@@ -344,21 +384,18 @@ export default function TangManagement() {
     const exportToPDF = () => {
         const doc = new jsPDF();
 
-        // Add Arial font (a font that supports Vietnamese characters)
-        doc.addFileToVFS("Arial.ttf", font); // You need the base64 version of the font
+        doc.addFileToVFS("Arial.ttf", font);
         doc.setFont("Arial");
 
-        // Create the table
         doc.autoTable({
             head: [["STT", "Tên Tầng", "Tên tòa nhà"]],
             body: tangs.map((tang, index) => [
-                index + 1, // STT
-                tang.tenTang, // Ensure Vietnamese characters are correctly rendered
+                index + 1,
+                tang.tenTang,
                 tang.toaNha.tenToaNha,
             ]),
         });
 
-        // Save the generated PDF
         doc.save("DanhSachTang.pdf");
     };
 
@@ -392,7 +429,6 @@ export default function TangManagement() {
         }
 
         try {
-            // Convert the array of room IDs to a comma-separated string
             const maTangListString = selectedRowKeys.join(",");
             const url = `https://localhost:8080/XoaNhieuTang?maTangList=${maTangListString}&token=${token}`;
 
@@ -407,9 +443,10 @@ export default function TangManagement() {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            Swal.fire("Thành công!", "Đã xóa các tầng thành công!", "success");
+            // No need for Swal here, SSE will handle the notification.
+            // Swal.fire("Thành công!", "Đã xóa các tầng thành công!", "success");
             setSelectedRowKeys([]);
-            fetchTangs(); // Reload the list
+            // fetchTangs(); // No need because sse handle it
         } catch (error) {
             console.error("Error deleting tangs:", error);
             Swal.fire("Error", "Có lỗi xảy ra khi xóa phòng máy: " + error.message, "error");
@@ -445,16 +482,16 @@ export default function TangManagement() {
             });
 
             if (!response.ok) {
-                const errorData = await response.json(); // Try to parse error message from response
+                const errorData = await response.json();
                 const errorMessage =
                     errorData?.message || `HTTP error! status: ${response.status}`;
                 throw new Error(errorMessage);
             }
 
-            localStorage.removeItem("authToken"); // Remove token from local storage
+            localStorage.removeItem("authToken");
 
             Swal.fire("Thành công!", "Đăng xuất thành công!", "success").then(() => {
-                navigate("/login"); // Redirect to login page
+                navigate("/login");
             });
         } catch (error) {
             console.error("Logout error:", error);
@@ -480,7 +517,7 @@ export default function TangManagement() {
             key: "checkbox",
             width: "5%",
             fixed: "left",
-            render: (text, record) => null, // No individual checkbox needed here
+            render: (text, record) => null,
         },
         {
             title: "STT",
@@ -517,7 +554,7 @@ export default function TangManagement() {
                         icon={<DeleteOutlined />}
                         size="small"
                         type="link"
-                        onClick={() => handleDelete(record)} // Trigger delete confirmation
+                        onClick={() => handleDelete(record)}
                     />
                     <Button
                         icon={<MessageOutlined />}
@@ -540,8 +577,8 @@ export default function TangManagement() {
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    backgroundColor: "#fff", // Add background color
-                    padding: "0 24px", // Add padding
+                    backgroundColor: "#fff",
+                    padding: "0 24px",
                 }}
             >
                 <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#000" }}>
@@ -607,8 +644,8 @@ export default function TangManagement() {
                     <Table
                         rowSelection={{
                             type: "checkbox",
-                            selectedRowKeys: selectedRowKeys, // Use the state here
-                            onChange: onSelectChange, // Make sure this gets called to update the state.
+                            selectedRowKeys: selectedRowKeys,
+                            onChange: onSelectChange,
                         }}
                         columns={columns}
                         dataSource={tangs}
@@ -619,7 +656,7 @@ export default function TangManagement() {
                             pageSize: pagination.pageSize,
                             total: initialTangs.length,
                             onChange: handleTableChange,
-                            showSizeChanger: true, // Allows users to change page size
+                            showSizeChanger: true,
                             onShowSizeChange: (current, size) => {
                                 setPagination({
                                     current: current,
@@ -646,7 +683,9 @@ export default function TangManagement() {
                     onImport={handleImport}
                     loading={importLoading}
                 />
+
             </Content>
+
         </Layout>
     );
 }
