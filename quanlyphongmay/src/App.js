@@ -7,6 +7,9 @@ import AddPhongMay from './components/PhongMay/addphongmay';
 import Tang from './components/Tang/tang';
 import EditTang from './components/Tang/edittang';
 import AddTang from './components/Tang/addtang';
+import Maytinh from './components/maytinh/maytinh';
+import EditMayTinh from './components/maytinh/editmaytinh';
+import AddMayTinh from './components/maytinh/addmaytinh';
 import Register from './components/Register';
 import ForgotPass from './components/Login/forgotpassword';
 import VerifyOtp from './components/Login/verifyotp';
@@ -28,7 +31,9 @@ function App() {
           <Route path="/tang" element={<ProtectedRoute component={Tang} />} />
           <Route path="/edittang/:maTang" element={<ProtectedRoute component={EditTang} />} />
           <Route path="/addtang" element={<ProtectedRoute component={AddTang} />} />
-
+          <Route path="/maytinh" element={<ProtectedRoute component={Maytinh} />} />
+          <Route path="/editmaytinh/:maMayTinh" element={<ProtectedRoute component={EditMayTinh} />} />
+          <Route path="/addmaytinh" element={<ProtectedRoute component={AddMayTinh} />} />
           {/* Unprotected Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
