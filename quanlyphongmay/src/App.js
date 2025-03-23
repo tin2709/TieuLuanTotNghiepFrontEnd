@@ -8,6 +8,7 @@ import Tang from './components/Tang/tang';
 import EditTang from './components/Tang/edittang';
 import AddTang from './components/Tang/addtang';
 import Admin from './components/Admin/admin';
+import QuanLiTaiKhoan from './components/Admin/quanlitaikhoan';
 import Maytinh from './components/maytinh/maytinh';
 import EditMayTinh from './components/maytinh/editmaytinh';
 import AddMayTinh from './components/maytinh/addmaytinh';
@@ -36,6 +37,7 @@ function App() {
           <Route path="/editmaytinh/:maMay" element={<ProtectedRoute component={EditMayTinh} />} />
           <Route path="/addmaytinh" element={<ProtectedRoute component={AddMayTinh} />} />
           <Route path="/admin" element={<ProtectedRoute component={Admin} />} />
+          <Route path="/quanlitaikhoan" element={<ProtectedRoute component={QuanLiTaiKhoan} />} />
           {/* Unprotnpected Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />

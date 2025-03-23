@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link,useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import "./style.css";
 
@@ -9,15 +9,15 @@ const Login = () => {
     password: "",
   });
 
-  const [isCheckingLogin, setIsCheckingLogin] = useState(true); // Kiểm tra trạng thái đăng nhập
-  const [isLoggedIn, setIsLoggedIn] = useState(false); // Trạng thái đăng nhập
-  const navigate = useNavigate(); // Hook for navigation
+  const [isCheckingLogin, setIsCheckingLogin] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const navigate = useNavigate();
 
-  // Kiểm tra nếu người dùng đã đăng nhập
   useEffect(() => {
     const authToken = localStorage.getItem("authToken");
 
     if (authToken) {
+      // Keep the existing token check (assuming /checkingLogin validates the token)
       fetch(`https://localhost:8080/checkingLogin?username=&password=&token=${authToken}`)
           .then((res) => res.json())
           .then((data) => {
@@ -47,11 +47,9 @@ const Login = () => {
     });
   };
 
-  // Xử lý đăng nhập
   const handleSubmitLogin = async (e) => {
     e.preventDefault();
     const { username, password } = formData;
-    const authToken = localStorage.getItem("authToken"); // Lấy token từ localStorage
 
     if (!username || !password) {
       Swal.fire({
@@ -62,59 +60,85 @@ const Login = () => {
       return;
     }
 
-    // Nếu đã có authToken, kiểm tra trạng thái đăng nhập
-    if (authToken) {
-      try {
-        const response = await fetch(
-            `https://localhost:8080/checkingLogin?username=${username}&password=${password}&token=${authToken}`
-        );
-
-        const data = await response.json();
-
-        if (data.status === "success") {
-          Swal.fire({
-            icon: "info",
-            title: "Bạn đã đăng nhập!",
-            text: "Bạn vẫn đang đăng nhập vào hệ thống!",
-            showConfirmButton: false,
-            timer: 2000,
-          });
-          return; // Dừng lại, không tiếp tục đăng nhập
-        }
-      } catch (error) {
-        console.error("Lỗi kiểm tra đăng nhập:", error);
-      }
-    }
-
-    // Nếu chưa đăng nhập hoặc token không hợp lệ, tiến hành đăng nhập
+    // 1. Call /checkUser to verify credentials and get role/ban status
     try {
-      const formData = new FormData();
-      formData.append("username", username);
-      formData.append("password", password);
+      const checkUserResponse = await fetch(
+          `https://localhost:8080/checkUser?username=${username}&password=${password}`,
+          {
+            method: "GET",
+          }
+      );
 
-      const response = await fetch("https://localhost:8080/login", {
-        method: "POST",
-        body: formData,
-      });
+      if (checkUserResponse.ok) {
+        const checkUserData = await checkUserResponse.json();
 
-      if (response.ok) {
-        const data = await response.json();
-        const token = data.token;
+        if (checkUserData.status === "success") {
+          const { quyen, isBanned } = checkUserData.data;
 
-        localStorage.setItem("authToken", token); // Lưu token vào localStorage
+          // 2. Handle role and ban status
+          if (quyen === 6 && isBanned) {
+            Swal.fire({
+              icon: "error",
+              title: "Tài khoản bị khóa",
+              text: "Bạn đã bị admin cấm truy cập!",
+            });
+            return; // Stop here if banned
+          }
 
-        Swal.fire({
-          icon: "success",
-          title: "Đăng nhập thành công!",
-          text: "Bạn đã đăng nhập thành công!",
-        }).then(() => {
-          navigate("/phongmay"); // Chuyển hướng sau khi đăng nhập thành công
-        });
+          // 3. If not banned, proceed with /login (assuming it sets the token)
+          const loginResponse = await fetch("https://localhost:8080/login", {
+            method: "POST",
+            body: new FormData(e.target), // Use e.target directly for FormData
+          });
+
+          if (loginResponse.ok) {
+            const loginData = await loginResponse.json();
+            const token = loginData.token;
+            localStorage.setItem("authToken", token);
+
+            // 4. Redirect based on role AFTER successful /login
+            if (quyen === 5) {
+              Swal.fire({
+                icon: "success",
+                title: "Đăng nhập thành công!",
+                text: "Bạn đã đăng nhập với quyền admin!",
+              }).then(() => {
+                navigate("/admin");
+              });
+            } else {
+              Swal.fire({
+                icon: "success",
+                title: "Đăng nhập thành công!",
+                text: "Bạn đã đăng nhập thành công!",
+              }).then(() => {
+                navigate("/phongmay");
+              });
+            }
+          } else {
+            // Handle /login failure
+            const errorData = await loginResponse.json(); // Try to get error details
+            Swal.fire({
+              icon: "error",
+              title: "Đăng nhập thất bại",
+              text: errorData.message || "Lỗi khi đăng nhập!",  // Show specific error if available
+            });
+          }
+
+
+        } else {
+          // Handle /checkUser failure (invalid credentials)
+          Swal.fire({
+            icon: "error",
+            title: "Đăng nhập thất bại",
+            text: checkUserData.message || "Sai tên đăng nhập hoặc mật khẩu!",
+          });
+        }
       } else {
+        // Handle HTTP error for /checkUser
         Swal.fire({
           icon: "error",
-          title: "Đăng nhập thất bại",
-          text: "Sai tên đăng nhập hoặc mật khẩu!",
+          title: "Lỗi",
+          text: "Có lỗi xảy ra khi kết nối đến máy chủ (checkUser)!",
         });
       }
     } catch (error) {
@@ -128,6 +152,7 @@ const Login = () => {
   };
 
 
+
   return (
       <div className="container">
         <main className="hero-section">
@@ -139,13 +164,16 @@ const Login = () => {
           <div className="content">
             <div className="card custom-card">
               <div className="card-body p-4 p-md-5">
-                <h3 className="text-center fw-bold mb-5 text-black">Đăng nhập</h3>
+                <h3 className="text-center fw-bold mb-5 text-black">
+                  Đăng nhập
+                </h3>
 
-                {/* Nếu đang kiểm tra trạng thái đăng nhập thì hiển thị loading */}
                 {isCheckingLogin ? (
                     <p className="text-center">Đang kiểm tra trạng thái đăng nhập...</p>
                 ) : isLoggedIn ? (
-                    <p className="text-center text-success">Bạn đã đăng nhập vào hệ thống!</p>
+                    <p className="text-center text-success">
+                      Bạn đã đăng nhập vào hệ thống!
+                    </p>
                 ) : (
                     <form onSubmit={handleSubmitLogin}>
                       <div className="form-group mb-4">
