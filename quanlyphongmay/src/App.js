@@ -1,5 +1,6 @@
 import './App.css';
 import Login from './components/Login';
+import HomePage from './components/Home/homepage';
 import Home from './components/Home/index';
 import PhongMay from './components/PhongMay/phongmay';
 import EditPhongMay from './components/PhongMay/editphongmay';
@@ -44,6 +45,7 @@ function App() {
           <Route path="/forgotpass" element={<ForgotPass />} />
           <Route path="/verifyotp" element={<VerifyOtp />} />
           <Route path="/updatepass" element={<UpdatePass />} />
+          <Route path="/homepage" element={<HomePage />} />
 
           {/* Default route */}
           <Route path="/" element={<Navigate to="/home" replace />} />
