@@ -1,7 +1,8 @@
+// Login.js
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
-import "./style.css";
+import "./style.css"; // Keep your existing styles
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -17,27 +18,47 @@ const Login = () => {
     const authToken = localStorage.getItem("authToken");
 
     if (authToken) {
-      // Keep the existing token check (assuming /checkingLogin validates the token)
+      // Keep the existing token check
+      // Important: Ensure your /checkingLogin endpoint correctly validates the token
+      // Sending username/password here seems redundant if checking by token
       fetch(`https://localhost:8080/checkingLogin?username=&password=&token=${authToken}`)
           .then((res) => res.json())
           .then((data) => {
             if (data.status === "success") {
               setIsLoggedIn(true);
+              // Optional: Redirect based on role if needed after token validation
+              // You might want to fetch the role here too if /checkingLogin provides it
+              // Example: navigate based on data.quyen if available
               Swal.fire({
                 icon: "info",
                 title: "Bạn đã đăng nhập!",
-                text: "Bạn đang đăng nhập vào hệ thống!",
+                text: "Hệ thống ghi nhận bạn đã đăng nhập.",
                 showConfirmButton: false,
                 timer: 2000,
               });
+              // Consider redirecting here if already logged in, e.g., navigate('/home') or navigate('/admin')
+              // based on role fetched from /checkingLogin
+            } else {
+              // Token might be invalid/expired, clear it
+              localStorage.removeItem("authToken");
+              localStorage.removeItem("username");
+              localStorage.removeItem("password"); // Clear potentially stored credentials
+              setIsLoggedIn(false);
             }
           })
-          .catch((error) => console.error("Error checking login:", error))
+          .catch((error) => {
+            console.error("Error checking login:", error);
+            // Assume token is invalid on error
+            localStorage.removeItem("authToken");
+            localStorage.removeItem("username");
+            localStorage.removeItem("password");
+            setIsLoggedIn(false);
+          })
           .finally(() => setIsCheckingLogin(false));
     } else {
       setIsCheckingLogin(false);
     }
-  }, []);
+  }, [navigate]); // Added navigate to dependency array
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -54,8 +75,8 @@ const Login = () => {
     if (!username || !password) {
       Swal.fire({
         icon: "error",
-        title: "Oops...",
-        text: "Vui lòng điền đầy đủ thông tin!",
+        title: "Thiếu thông tin",
+        text: "Vui lòng điền đầy đủ tên đăng nhập và mật khẩu!",
       });
       return;
     }
@@ -63,7 +84,8 @@ const Login = () => {
     // 1. Call /checkUser to verify credentials and get role/ban status
     try {
       const checkUserResponse = await fetch(
-          `https://localhost:8080/checkUser?username=${username}&password=${password}`,
+          // Ensure URL encoding if username/password can contain special characters
+          `https://localhost:8080/checkUser?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
           {
             method: "GET",
           }
@@ -75,58 +97,98 @@ const Login = () => {
         if (checkUserData.status === "success") {
           const { quyen, isBanned } = checkUserData.data;
 
-          // 2. Handle role and ban status
+          // 2. Handle ban status FIRST (applies specifically to role 6 as per original logic)
+          // NOTE: Clarify if ONLY role 6 can be banned, or if isBanned applies regardless of role.
+          // Assuming original logic: only role 6 users are checked for ban here.
           if (quyen === 6 && isBanned) {
             Swal.fire({
               icon: "error",
               title: "Tài khoản bị khóa",
-              text: "Bạn đã bị admin cấm truy cập!",
+              text: "Tài khoản của bạn đã bị quản trị viên khóa!",
             });
             return; // Stop here if banned
           }
 
-          // 3. If not banned, proceed with /login (assuming it sets the token)
+          // 3. If not banned (or not role 6), proceed with /login to get token
+          // IMPORTANT: Sending form data again. Ensure /login expects this.
+          // Consider if /login should just take username/password or if /checkUser could return the token directly.
+          // Assuming /login is still necessary to *generate* the session/token.
           const loginResponse = await fetch("https://localhost:8080/login", {
             method: "POST",
-            body: new FormData(e.target), // Use e.target directly for FormData
+            // Sending FormData is fine if the backend expects 'multipart/form-data' or 'application/x-www-form-urlencoded'
+            // If backend expects JSON, use:
+            // headers: { 'Content-Type': 'application/json' },
+            // body: JSON.stringify({ username, password })
+            body: new FormData(e.target),
           });
 
           if (loginResponse.ok) {
             const loginData = await loginResponse.json();
-            const token = loginData.token;
-            localStorage.setItem("authToken", token);
 
-            // 4. Redirect based on role AFTER successful /login
-            if (quyen === 5) {
-              Swal.fire({
-                icon: "success",
-                title: "Đăng nhập thành công!",
-                text: "Bạn đã đăng nhập với quyền admin!",
-              }).then(() => {
-                navigate("/admin");
-              });
+            // Assuming /login returns a token on success
+            if (loginData.token) {
+              localStorage.setItem("authToken", loginData.token);
+              // Storing username/password in localStorage is insecure. Avoid if possible.
+              // If needed for display purposes, store username ONLY.
+              localStorage.setItem("username", username);
+              // localStorage.setItem("password", password); // AVOID storing password
+
+              // 4. Redirect based on role AFTER successful /login and token storage
+              if (quyen === 5) { // Admin role
+                Swal.fire({
+                  icon: "success",
+                  title: "Đăng nhập thành công (Admin)!",
+                  text: "Đang chuyển hướng đến trang quản trị...",
+                  showConfirmButton: false,
+                  timer: 1500
+                }).then(() => {
+                  navigate("/admin");
+                });
+              } else if (quyen === 6) { // Regular user role -> Home page
+                Swal.fire({
+                  icon: "success",
+                  title: "Đăng nhập thành công!",
+                  text: "Đang chuyển hướng đến trang chủ...",
+                  showConfirmButton: false,
+                  timer: 1500
+                }).then(() => {
+                  navigate("/homepage"); // <<< CHANGED HERE
+                });
+              } else { // Other roles (if any) -> Phong May page (Default fallback)
+                Swal.fire({
+                  icon: "success",
+                  title: "Đăng nhập thành công!",
+                  text: "Đang chuyển hướng...",
+                  showConfirmButton: false,
+                  timer: 1500
+                }).then(() => {
+                  navigate("/phongmay"); // Fallback redirection
+                });
+              }
             } else {
+              // Handle case where /login succeeds (status 2xx) but doesn't return a token
               Swal.fire({
-                icon: "success",
-                title: "Đăng nhập thành công!",
-                text: "Bạn đã đăng nhập thành công!",
-              }).then(() => {
-                navigate("/phongmay");
+                icon: "error",
+                title: "Lỗi Đăng nhập",
+                text: loginData.message || "Không nhận được token xác thực từ máy chủ.",
               });
             }
           } else {
-            // Handle /login failure
-            const errorData = await loginResponse.json(); // Try to get error details
+            // Handle /login failure (e.g., server error during token generation)
+            let errorMsg = "Lỗi trong quá trình đăng nhập.";
+            try {
+              const errorData = await loginResponse.json(); // Try to get error details
+              errorMsg = errorData.message || errorMsg;
+            } catch (e) { /* Ignore if response is not JSON */ }
             Swal.fire({
               icon: "error",
               title: "Đăng nhập thất bại",
-              text: errorData.message || "Lỗi khi đăng nhập!",  // Show specific error if available
+              text: errorMsg,
             });
           }
 
-
         } else {
-          // Handle /checkUser failure (invalid credentials)
+          // Handle /checkUser failure (invalid credentials or other user check issues)
           Swal.fire({
             icon: "error",
             title: "Đăng nhập thất bại",
@@ -134,25 +196,25 @@ const Login = () => {
           });
         }
       } else {
-        // Handle HTTP error for /checkUser
+        // Handle HTTP error for /checkUser (e.g., 404, 500)
         Swal.fire({
           icon: "error",
-          title: "Lỗi",
-          text: "Có lỗi xảy ra khi kết nối đến máy chủ (checkUser)!",
+          title: "Lỗi Kết Nối",
+          text: `Không thể kiểm tra thông tin người dùng. (Mã lỗi: ${checkUserResponse.status})`,
         });
       }
     } catch (error) {
+      console.error("Login error:", error);
       Swal.fire({
         icon: "error",
-        title: "Có lỗi xảy ra",
-        text: "Vui lòng thử lại sau!",
+        title: "Đã có lỗi xảy ra",
+        text: "Không thể kết nối đến máy chủ hoặc có lỗi không xác định. Vui lòng thử lại!",
       });
-      console.error(error);
     }
   };
 
 
-
+  // Keep the JSX structure, but conditionally render the form or "already logged in" message
   return (
       <div className="container">
         <main className="hero-section">
@@ -171,9 +233,13 @@ const Login = () => {
                 {isCheckingLogin ? (
                     <p className="text-center">Đang kiểm tra trạng thái đăng nhập...</p>
                 ) : isLoggedIn ? (
-                    <p className="text-center text-success">
-                      Bạn đã đăng nhập vào hệ thống!
-                    </p>
+                    <div className="text-center">
+                      <p className="text-success">
+                        Bạn đã đăng nhập vào hệ thống!
+                      </p>
+                      {/* Optional: Add buttons to navigate away if needed */}
+                      <button onClick={() => navigate('/home')} className="btn btn-info mt-3">Đi tới trang chủ</button>
+                    </div>
                 ) : (
                     <form onSubmit={handleSubmitLogin}>
                       <div className="form-group mb-4">
@@ -188,6 +254,7 @@ const Login = () => {
                             placeholder="Nhập tài khoản"
                             value={formData.username}
                             onChange={handleInputChange}
+                            required // Added basic HTML validation
                         />
                       </div>
 
@@ -203,6 +270,7 @@ const Login = () => {
                             placeholder="Nhập mật khẩu"
                             value={formData.password}
                             onChange={handleInputChange}
+                            required // Added basic HTML validation
                         />
                       </div>
 
@@ -213,16 +281,21 @@ const Login = () => {
                       </div>
                     </form>
                 )}
-
-                <br />
-                <Link to="/register" className="text-primary">
-                  Đăng ký ở đây
-                </Link>
-                <br />
-                <br />
-                <Link to="/forgotpass" className="text-primary">
-                  Quên mật khẩu
-                </Link>
+                {/* Links should ideally be outside the conditional rendering of the form vs logged in message */}
+                {!isLoggedIn && !isCheckingLogin && ( // Only show these links if not logged in and not checking
+                    <>
+                      <div className="text-center mt-3">
+                        <Link to="/register" className="text-primary">
+                          Chưa có tài khoản? Đăng ký ở đây
+                        </Link>
+                      </div>
+                      <div className="text-center mt-2">
+                        <Link to="/forgotpass" className="text-primary">
+                          Quên mật khẩu?
+                        </Link>
+                      </div>
+                    </>
+                )}
               </div>
             </div>
           </div>

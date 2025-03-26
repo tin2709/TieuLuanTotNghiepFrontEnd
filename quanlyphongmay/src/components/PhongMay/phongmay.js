@@ -8,6 +8,7 @@ import {
     FileAddOutlined,
     LogoutOutlined,
     QrcodeOutlined,
+    UserOutlined,
 } from "@ant-design/icons";
 import {
     Button,
@@ -20,7 +21,12 @@ import {
     Layout,
     Modal,
     QRCode,
+    Avatar,
+    Form,
+    Upload,
+    message,
 } from "antd";
+import { InboxOutlined } from '@ant-design/icons';
 import Swal from "sweetalert2";
 import * as DarkReader from "darkreader";
 import { SunOutlined, MoonOutlined } from "@ant-design/icons";
@@ -95,7 +101,7 @@ export default function LabManagement() {
     const [loading, setLoading] = useState(false);
     const [selectedColumn, setSelectedColumn] = useState(null);
     const [initialLabRooms, setInitialLabRooms] = useState([]);
-    const [filteredLabRooms, setFilteredLabRooms] = useState(null); // NEW: Holds filtered results
+    const [filteredLabRooms, setFilteredLabRooms] = useState(null);
     const navigate = useNavigate();
     const [selectedRowKeys, setSelectedRowKeys] = useState([]);
     const [pagination, setPagination] = useState({
@@ -109,7 +115,17 @@ export default function LabManagement() {
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [qrCodeValue, setQrCodeValue] = useState("");
 
+    // User Profile Modal States and Functions
+    const [userProfileModalVisible, setUserProfileModalVisible] = useState(false);
+    const [userProfile, setUserProfile] = useState({});
+    const [form] = Form.useForm();
+
+    // Store th URL in a separate state
+    const [userImage, setUserImage] = useState(null);
+
+
     const fetchLabRoomsForQrCode = async () => {
+        // ... (rest of the fetchLabRoomsForQrCode function remains the same)
         const token = localStorage.getItem("authToken");
 
         if (!token) {
@@ -153,6 +169,7 @@ export default function LabManagement() {
     };
 
     const showModal = async () => {
+        // ... (rest of the showModal function remains the same)
         const qrData = await fetchLabRoomsForQrCode();
         if (qrData) {
             setQrCodeValue(qrData);
@@ -169,6 +186,7 @@ export default function LabManagement() {
     };
 
     useEffect(() => {
+        // ... (rest of the useEffect hook remains the same)
         const script1 = document.createElement("script");
         script1.src = "https://cdn.botpress.cloud/webchat/v2.2/inject.js";
         script1.async = true;
@@ -186,6 +204,7 @@ export default function LabManagement() {
     }, []);
 
     const fetchLabRooms = async () => {
+        // ... (rest of the fetchLabRooms function remains the same)
         setLoading(true);
         const token = localStorage.getItem("authToken");
 
@@ -220,6 +239,7 @@ export default function LabManagement() {
     };
 
     const handleDelete = (record) => {
+        // ... (rest of the handleDelete function remains the same)
         Swal.fire({
             title: "Bạn có chắc chắn?",
             text: `Xóa phòng: ${record.tenPhong}?`,
@@ -235,6 +255,7 @@ export default function LabManagement() {
     };
 
     const deleteLabRoom = async (maPhong) => {
+        // ... (rest of the deleteLabRoom function remains the same)
         const token = localStorage.getItem("authToken");
 
         if (!token) {
@@ -264,6 +285,7 @@ export default function LabManagement() {
     };
 
     const sortData = (data, sortKey, sortOrder) => {
+        // ... (rest of the sortData function remains the same)
         if (!sortKey || !data) return data; // Handle null/undefined data
 
         return [...data].sort((a, b) => {
@@ -280,8 +302,9 @@ export default function LabManagement() {
             return 0;
         });
     };
-    // --- Search Logic ---
+
     const handleSearch = (value) => {
+        // ... (rest of the handleSearch function remains the same)
         setSearch(value);
         setShowColumnSelect(!!value);
         if (!value) {
@@ -291,6 +314,7 @@ export default function LabManagement() {
         }
     };
     const handleColumnSelect = (column) => {
+        // ... (rest of the handleColumnSelect function remains the same)
         setSelectedColumn(column);
         if (search && column) {
             performSearch(search, column);
@@ -298,6 +322,7 @@ export default function LabManagement() {
     };
 
     const performSearch = async (searchValue, searchColumn) => {
+        // ... (rest of the performSearch function remains the same)
         const token = localStorage.getItem("authToken");
         if (!token) {
             Swal.fire("Error", "Bạn chưa đăng nhập", "error");
@@ -345,9 +370,9 @@ export default function LabManagement() {
             setLoading(false);
         }
     };
-    // --- End Search Logic ---
 
     const updateTableData = (page, pageSize, sortField, sortOrder) => {
+        // ... (rest of the updateTableData function remains the same)
         const dataToUse = filteredLabRooms !== null ? filteredLabRooms : initialLabRooms; // Use filtered data if available
         const sortedData = sortData(dataToUse, sortField, sortOrder);
         const startIndex = (page - 1) * pageSize;
@@ -357,6 +382,7 @@ export default function LabManagement() {
     };
 
     const handleTableChange = (newPagination, filters, sorter) => {
+        // ... (rest of the handleTableChange function remains the same)
         const { current, pageSize } = newPagination;
         const { field, order } = sorter;
 
@@ -366,11 +392,13 @@ export default function LabManagement() {
     };
 
     const onSelectChange = (newSelectedRowKeys) => {
+        // ... (rest of the onSelectChange function remains the same)
         setSelectedRowKeys(newSelectedRowKeys);
         setHasSelected(newSelectedRowKeys.length > 0);
     };
 
     const rowSelection = {
+        // ... (rest of the rowSelection object remains the same)
         selectedRowKeys,
         onChange: onSelectChange,
         getCheckboxProps: (record) => ({
@@ -380,12 +408,14 @@ export default function LabManagement() {
     };
 
     useEffect(() => {
+        // ... (rest of the useEffect hook remains the same)
         fetchLabRooms();
     }, []);
 
     const startIndex = (pagination.current - 1) * pagination.pageSize;
 
     const exportToPDF = () => {
+        // ... (rest of the exportToPDF function remains the same)
         const doc = new jsPDF();
         doc.setFont("Arial");
         doc.autoTable({
@@ -402,6 +432,7 @@ export default function LabManagement() {
     };
 
     const exportToExcel = () => {
+        // ... (rest of the exportToExcel function remains the same)
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.json_to_sheet(labRooms);
         XLSX.utils.book_append_sheet(wb, ws, "Rooms");
@@ -409,6 +440,7 @@ export default function LabManagement() {
     };
 
     const confirmDeleteMultiple = () => {
+        // ... (rest of the confirmDeleteMultiple function remains the same)
         Swal.fire({
             title: "Bạn có chắc chắn?",
             text: `Xóa ${selectedRowKeys.length} phòng?`,
@@ -424,6 +456,7 @@ export default function LabManagement() {
     };
 
     const deleteMultipleLabRooms = async () => {
+        // ... (rest of the deleteMultipleLabRooms function remains the same)
         const token = localStorage.getItem("authToken");
 
         if (!token) {
@@ -455,6 +488,7 @@ export default function LabManagement() {
     };
 
     const menu = (
+        // ... (rest of the menu constant remains the same)
         <Menu>
             <Menu.Item key="1" icon={<PlusOutlined />} onClick={() => navigate(`/addphongmay`)}>
                 Tạo mới (form)
@@ -465,7 +499,9 @@ export default function LabManagement() {
         </Menu>
     );
 
+
     const handleLogout = async () => {
+        // ... (rest of the handleLogout function remains the same)
         const token = localStorage.getItem("authToken");
 
         if (!token) {
@@ -497,7 +533,105 @@ export default function LabManagement() {
         }
     };
 
+    const checkUserAndShowModal = async () => {
+        // ... (rest of the checkUserAndShowModal function, but with image handling)
+        const username = localStorage.getItem("username");
+        const password = localStorage.getItem("password");
+        const token = localStorage.getItem("authToken");
+
+        if (!username || !password || !token) {
+            Swal.fire("Error", "Missing user credentials", "error");
+            return;
+        }
+
+        try {
+            const url = `https://localhost:8080/checkUser?username=${username}&password=${password}`;
+            const response = await fetch(url, {
+                method: "GET",
+                headers: { "Content-Type": "application/json" },
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log("checkUser API response:", data);
+            console.log("Image URL from API:", data.data.image);
+
+            if (data.status === "success") {
+                setUserProfile(data.data);
+                // Store the image URL separately
+                setUserImage(data.data.image);
+                form.setFieldsValue({
+                    tenDangNhap: data.data.tenDangNhap,
+                    email: data.data.email,
+                });
+                setUserProfileModalVisible(true);
+            } else {
+                Swal.fire("Error", data.message || "Failed to fetch user data", "error");
+            }
+        } catch (error) {
+            console.error("Error checking user:", error);
+            Swal.fire("Error", error.message, "error");
+        }
+    };
+
+    const handleUserProfileUpdate = async () => {
+        // ... (rest of the handleUserProfileUpdate function remains the same)
+        try {
+            const values = await form.validateFields();
+            const token = localStorage.getItem("authToken");
+            const matKhau = localStorage.getItem("password");
+            if (!token) {
+                Swal.fire("Error", "Authentication token not found", "error");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("maTK", userProfile.maTK);
+            formData.append("tenDangNhap", values.tenDangNhap);
+            formData.append("email", values.email);
+            formData.append("matKhau", matKhau)
+            if (values.image && values.image.length > 0) {
+                formData.append("imageFile", values.image[0]);
+            }
+            formData.append("maQuyen", userProfile.quyen);
+            formData.append("token", token);
+
+            console.log("formData before API call:", formData);
+            for (let pair of formData.entries()) {
+                console.log(pair[0] + ', ' + pair[1]);
+            }
+
+            const response = await fetch("https://localhost:8080/CapNhatTaiKhoan", {
+                method: "PUT",
+                body: formData,
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+
+            const updatedUser = await response.json();
+            console.log("Updated user data:", updatedUser);
+
+            // Update both userProfile and userImage
+            setUserProfile(updatedUser);
+            if (updatedUser.image) {
+                setUserImage(updatedUser.image);
+            }
+            Swal.fire("Success", "User profile updated successfully!", "success");
+            setUserProfileModalVisible(false);
+            checkUserAndShowModal(); // Refresh
+        } catch (error) {
+            console.error("Error updating profile:", error);
+            Swal.fire("Error", error.message, "error");
+        }
+    };
+
     const columns = [
+        // ... (rest of the columns array remains the same)
         {
             title: (
                 <Checkbox
@@ -594,12 +728,21 @@ export default function LabManagement() {
                 </div>
                 <div className="actions" style={{ display: "flex", alignItems: "center" }}>
                     <DarkModeToggle />
+                    {/* Use the userImage state for the Avatar */}
+                    <Avatar
+                        size="large"
+                        icon={<UserOutlined />}
+                        src={userImage}  // Use the separate userImage state
+                        onClick={checkUserAndShowModal}
+                        style={{ cursor: "pointer", marginLeft: "10px" }}
+                    />
                     <Button icon={<LogoutOutlined />} type="text" onClick={handleLogout}>
                         Đăng xuất
                     </Button>
                 </div>
             </Header>
             <Content className="lab-management-content" style={{ padding: "24px" }}>
+                {/* ... (rest of your content remains the same) */}
                 <nav className="flex items-center space-x-1 text-sm text-muted-foreground mb-6">
                     <a href="/" className="flex items-center hover:text-primary">
                         <HomeOutlined className="h-4 w-4" />
@@ -715,6 +858,55 @@ export default function LabManagement() {
                     <div style={{ display: "flex", justifyContent: "center" }}>
                         <QRCode value={qrCodeValue} size={256} />
                     </div>
+                </Modal>
+                <Modal
+                    title="User Profile"
+                    visible={userProfileModalVisible}
+                    onOk={handleUserProfileUpdate}
+                    onCancel={() => setUserProfileModalVisible(false)}
+                    okText="Cập Nhật"
+                    cancelText="Đóng"
+                >
+                    <Form form={form} layout="vertical">
+                        <Form.Item
+                            label="Tên Đăng Nhập"
+                            name="tenDangNhap"
+                            rules={[{ required: true, message: 'Please input your username!' }]}
+                        >
+                            <Input />
+                        </Form.Item>
+                        <Form.Item
+                            label="Email"
+                            name="email"
+                            rules={[{ required: true, message: 'Please input your email!' }, { type: 'email', message: 'Please enter a valid email!' }]}
+                        >
+                            <Input />
+                        </Form.Item>
+
+                        <Form.Item
+                            name="image"
+                            label="Upload Image"
+                            valuePropName="fileList"
+                            getValueFromEvent={(e) => {
+                                if (Array.isArray(e)) {
+                                    return e;
+                                }
+                                return e?.fileList;
+                            }}
+                        >
+                            <Upload.Dragger
+                                name="file"
+                                multiple={false}
+                                beforeUpload={() => false}
+                            >
+                                <p className="ant-upload-drag-icon">
+                                    <InboxOutlined />
+                                </p>
+                                <p className="ant-upload-text">Click or drag file to this area to upload</p>
+                                <p className="ant-upload-hint">Support for a single upload.</p>
+                            </Upload.Dragger>
+                        </Form.Item>
+                    </Form>
                 </Modal>
             </Content>
         </Layout>

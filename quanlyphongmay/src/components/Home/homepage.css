@@ -1,0 +1,261 @@
+/* src/components/Home/home.css */
+
+/* --- General & Layout --- */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+    'Noto Color Emoji';
+    /* Ensure smooth scrolling for anchor links */
+    scroll-behavior: smooth;
+}
+
+.home-layout {
+    min-height: 100vh;
+    background-color: #fff;
+}
+
+/* --- Sticky Header --- */
+.home-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 24px;
+    background: #001529; /* Dark blue background */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    height: 64px;
+}
+
+.home-header .logo {
+    color: white;
+    font-size: 1.5em;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.home-header .header-nav {
+    display: flex;
+    align-items: center;
+    gap: 20px; /* Spacing between nav items */
+}
+
+/* --- Anchor Nav specific styles --- */
+.header-nav .anchor-nav {
+    /* Override default Antd Anchor styles if necessary */
+}
+.header-nav .anchor-nav .ant-anchor {
+    background: transparent; /* Make anchor background transparent */
+    display: flex;
+    gap: 15px; /* Space between anchor links */
+}
+.header-nav .anchor-nav .ant-anchor-link {
+    padding: 5px 0; /* Adjust padding if needed */
+}
+.header-nav .anchor-nav .ant-anchor-link-title {
+    color: rgba(255, 255, 255, 0.85); /* Lighter text color */
+    font-size: 1em;
+    transition: color 0.3s;
+}
+.header-nav .anchor-nav .ant-anchor-link-title:hover,
+.header-nav .anchor-nav .ant-anchor-link-active > .ant-anchor-link-title {
+    color: white; /* Brighter color on hover/active */
+}
+/* Hide the vertical ink bar */
+.header-nav .anchor-nav .ant-anchor-ink {
+    display: none;
+}
+
+/* --- Dropdown and User --- */
+.header-nav .management-dropdown .ant-dropdown-link {
+    color: rgba(255, 255, 255, 0.85);
+    transition: color 0.3s;
+    cursor: pointer;
+}
+.header-nav .management-dropdown .ant-dropdown-link:hover {
+    color: white;
+}
+
+.header-nav .user-greeting {
+    color: rgba(255, 255, 255, 0.75); /* Slightly dimmer color */
+    margin-left: 8px;
+    white-space: nowrap;
+}
+
+.header-nav .logout-button {
+    color: rgba(255, 255, 255, 0.85);
+    transition: color 0.3s;
+}
+.header-nav .logout-button:hover {
+    color: #ff4d4f; /* Highlight logout on hover */
+}
+
+/* --- Content Area --- */
+.home-content {
+    padding-top: 0; /* Remove default padding if header is sticky */
+}
+
+/* Common styles for all scroll sections */
+.content-section {
+    padding: 80px 24px; /* Standard padding */
+    overflow: hidden; /* Important for animation libraries if used */
+    min-height: 450px; /* Ensure sections have enough height for visibility */
+    display: flex; /* Use flex for alignment */
+    align-items: center; /* Center content vertically */
+    justify-content: center; /* Center content horizontally */
+    transition: background-color 0.3s ease; /* Smooth bg transition */
+    /* Default visibility and opacity */
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Hero section specific styling */
+.hero-section {
+    background: linear-gradient(to bottom, #e6f7ff 0%, #ffffff 100%); /* Light blue gradient */
+    text-align: center;
+    min-height: calc(80vh - 64px); /* Adjust height as needed, minus header height */
+    /* padding-top: 100px; */ /* Flex alignment handles centering */
+    /* padding-bottom: 100px; */
+}
+.hero-section .ant-typography-h1 {
+    font-size: 2.8em; /* Larger title */
+    font-weight: 700;
+}
+
+/* Alternating background for sections */
+.content-section.bg-light {
+    background-color: #f7f9fc; /* Very light grey/blue */
+}
+
+/* Container within sections to control width */
+.section-content {
+    width: 100%;
+    max-width: 1100px; /* Max width for content */
+    margin: 0 auto; /* Center the content container */
+}
+
+/* Specific Section Styling */
+/* #about is now a direct div, styling applies */
+#about .ant-col img {
+    /* Styling already applied inline, but can add more here */
+    /* Example: border: 1px solid #eee; */
+}
+
+/* #services styling */
+#services .ant-card {
+    text-align: center;
+    border: none; /* Remove default card border */
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08); /* Softer shadow */
+    height: 100%; /* Make cards in a row equal height */
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+#services .ant-card:hover {
+    transform: translateY(-5px); /* Lift card on hover */
+    box-shadow: 0 8px 20px rgba(0,0,0,0.12); /* Enhance shadow on hover */
+}
+#services .ant-card-head {
+    border-bottom: none; /* Remove card header border */
+    font-weight: 600; /* Bolder title */
+}
+#services .ant-card-body p {
+    color: #555; /* Slightly darker paragraph text */
+    min-height: 60px; /* Ensure some minimum height for text */
+}
+
+/* --- Contact Section Specific --- */
+/* #contact is now a direct div, styling applies */
+.contact-form-container .ant-form-item {
+    margin-bottom: 16px; /* Standard spacing */
+}
+.contact-form-container .ant-form-item-label > label {
+    font-weight: 500; /* Slightly bolder labels */
+}
+
+/* --- Footer --- */
+.home-footer {
+    background: #001529; /* Match header background */
+    color: rgba(255, 255, 255, 0.65); /* Lighter text on dark bg */
+    padding: 24px 50px;
+    text-align: center;
+}
+
+/* --- Responsiveness --- */
+@media (max-width: 992px) {
+    .home-header {
+        padding: 0 16px;
+    }
+    .content-section {
+        padding: 60px 16px;
+    }
+    /* Hide anchor nav on smaller screens */
+    .header-nav .anchor-nav {
+        display: none;
+    }
+    .hero-section .ant-typography-h1 {
+        font-size: 2.4em;
+    }
+}
+
+@media (max-width: 768px) {
+    .home-header .logo {
+        font-size: 1.3em;
+    }
+    .header-nav {
+        gap: 10px; /* Reduce gap */
+    }
+    /* Hide user greeting on smaller screens */
+    .header-nav .user-greeting {
+        display: none;
+    }
+    .hero-section {
+        min-height: auto; /* Adjust hero height */
+        padding: 80px 16px;
+    }
+    .hero-section .ant-typography-h1 {
+        font-size: 2em;
+    }
+    #about .ant-col img {
+        margin-bottom: 30px; /* Add space below image on mobile */
+        max-width: 350px; /* Slightly smaller max-width */
+    }
+    #about .ant-row, #contact .ant-row {
+        /* Ensure text aligns reasonably on mobile */
+        text-align: center;
+    }
+    #about .ant-col:last-child, #contact .ant-col:last-child {
+        text-align: left; /* Reset text align for text columns */
+    }
+    #contact .ant-form {
+        text-align: left; /* Ensure form labels align left */
+    }
+}
+
+@media (max-width: 576px) {
+    .home-header .logo {
+        font-size: 1.1em;
+    }
+    /* Optional: Hide management dropdown on very small screens */
+    /* .header-nav .management-dropdown { display: none; } */
+    .content-section {
+        padding: 40px 16px; /* Further reduce padding */
+    }
+    .hero-section .ant-typography-h1 {
+        font-size: 1.8em;
+    }
+    .hero-section .ant-typography-paragraph {
+        font-size: 1em;
+    }
+    #services .ant-col {
+        /* Ensure single column cards stack nicely */
+        max-width: 90%;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    .contact-form-container .ant-col {
+        /* Stack form fields vertically */
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+}
