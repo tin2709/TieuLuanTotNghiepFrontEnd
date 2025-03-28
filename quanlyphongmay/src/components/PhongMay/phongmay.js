@@ -9,6 +9,7 @@ import {
     LogoutOutlined,
     QrcodeOutlined,
     UserOutlined,
+    DesktopOutlined
 } from "@ant-design/icons";
 import {
     Button,
@@ -25,6 +26,7 @@ import {
     Form,
     Upload,
     message,
+    Spin
 } from "antd";
 import { InboxOutlined } from '@ant-design/icons';
 import Swal from "sweetalert2";
@@ -122,6 +124,13 @@ export default function LabManagement() {
 
     // Store th URL in a separate state
     const [userImage, setUserImage] = useState(null);
+    // Bên trong component LabManagement, gần các state khác
+    const [isComputerModalVisible, setIsComputerModalVisible] = useState(false);
+    const [computerModalLoading, setComputerModalLoading] = useState(false);
+    const [computersInRoom, setComputersInRoom] = useState([]);
+    const [currentRoomName, setCurrentRoomName] = useState('');
+// Giả sử trạng thái máy hỏng là 'Hỏng'. Thay đổi nếu cần.
+    const BROKEN_STATUS = 'Đã hỏng';
 
 
     const fetchLabRoomsForQrCode = async () => {
@@ -454,7 +463,122 @@ export default function LabManagement() {
             }
         });
     };
+// Thêm hàm này vào bên trong component LabManagement
+    const showComputerStatusModal = async (maPhong, tenPhong) => {
+        const token = localStorage.getItem("authToken");
+        if (!token) {
+            Swal.fire("Lỗi", "Bạn chưa đăng nhập hoặc phiên đã hết hạn.", "error").then(() => navigate('/login')); // Added navigation on error
+            return;
+        }
 
+        setCurrentRoomName(tenPhong);
+        setIsComputerModalVisible(true);
+        setComputerModalLoading(true);
+        setComputersInRoom([]); // Clear previous data
+
+        try {
+            const url = `https://localhost:8080/DSMayTinhTheoPhong?maPhong=${maPhong}&token=${token}`;
+            const response = await fetch(url, {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+            });
+
+            // --- MODIFICATION START ---
+
+            // 1. Explicitly handle 204 No Content FIRST
+            if (response.status === 204) {
+                console.log(`Room ${tenPhong} (maPhong: ${maPhong}) has no computers (204 No Content).`);
+                setComputersInRoom([]); // Correctly set to empty array for no content
+            }
+            // 2. Handle other successful responses (like 200 OK)
+            else if (response.ok) {
+                // Peek at the content type to be sure, though often APIs might forget this header on empty 200s
+                const contentType = response.headers.get("content-type");
+                // Try to parse JSON, but be ready for it to fail if the body is empty or not JSON
+                try {
+                    // Clone the response to read the text and then potentially json,
+                    // as the body can only be consumed once.
+                    const responseClone = response.clone();
+                    const responseText = await responseClone.text(); // Check if body is truly empty
+
+                    if (!responseText) {
+                        // Handle 200 OK with empty body
+                        console.log(`Room ${tenPhong} (maPhong: ${maPhong}) returned 200 OK but with an empty body.`);
+                        setComputersInRoom([]);
+                    } else if (contentType && contentType.includes("application/json")) {
+                        // If content type is JSON and body is not empty, parse it
+                        const data = await response.json(); // Use original response here
+                        setComputersInRoom(data || []); // Set to empty array if data is null/undefined
+                        console.log(`Successfully fetched computers for room ${tenPhong}.`);
+                    } else {
+                        // Handle 200 OK but with non-JSON content (unexpected)
+                        console.warn(`Room ${tenPhong} (maPhong: ${maPhong}) returned 200 OK but content type is not JSON: ${contentType}. Body: ${responseText}`);
+                        setComputersInRoom([]); // Treat as empty or show error
+                        // Optionally show a more specific error to the user here
+                        // Swal.fire("Lỗi", "Dữ liệu máy tính nhận được không đúng định dạng.", "error");
+                    }
+
+                } catch (jsonError) {
+                    // This catches errors during response.json() specifically
+                    console.error(`Error parsing JSON for room ${tenPhong} (maPhong: ${maPhong}):`, jsonError);
+                    console.error("Response status:", response.status); // Log status for context
+                    // Check if the error is the specific "Unexpected end of JSON input"
+                    if (jsonError instanceof SyntaxError && jsonError.message.includes("Unexpected end of JSON input")) {
+                        console.warn(`Treating room ${tenPhong} as empty due to empty JSON response.`);
+                        setComputersInRoom([]); // Treat as empty room
+                    } else {
+                        // Handle other potential JSON parsing errors
+                        setComputersInRoom([]); // Default to empty
+                        Swal.fire("Lỗi", "Không thể xử lý dữ liệu máy tính nhận được.", "error");
+                    }
+                }
+            }
+            // 3. Handle specific known error statuses
+            else if (response.status === 401) {
+                Swal.fire("Lỗi", "Phiên đăng nhập hết hạn hoặc không hợp lệ.", "error").then(() => {
+                    setIsComputerModalVisible(false); // Close modal on auth error
+                    navigate('/login');
+                });
+            } else if (response.status === 404) {
+                // Handle case where the *room itself* is not found
+                console.error(`Room ${tenPhong} (maPhong: ${maPhong}) not found (404).`);
+                Swal.fire("Lỗi", `Phòng ${tenPhong} không tồn tại.`, "error");
+                setIsComputerModalVisible(false); // Close modal
+            }
+            // 4. Handle all other non-ok responses
+            else {
+                // Try to get more details from the error response body
+                let errorDetails = `HTTP error! status: ${response.status}`;
+                try {
+                    const errorText = await response.text();
+                    errorDetails += ` - ${errorText}`;
+                } catch (textError) {
+                    // Ignore error while reading error response body
+                }
+                console.error(`Failed to fetch computers for room ${tenPhong}: ${errorDetails}`);
+                throw new Error(errorDetails); // Throw error to be caught by the outer catch block
+            }
+
+            // --- MODIFICATION END ---
+
+        } catch (error) { // Outer catch for fetch errors (network) or errors thrown above
+            console.error("General error in showComputerStatusModal:", error);
+            // Avoid showing Swal if it was handled already (e.g., 401)
+            if (error.message && !error.message.includes("401")) {
+                Swal.fire("Lỗi", "Không thể tải trạng thái máy tính: " + error.message, "error");
+            }
+            setIsComputerModalVisible(false); // Close modal on general errors
+        } finally {
+            setComputerModalLoading(false); // Ensure loading stops
+        }
+    };
+// Thêm hàm đóng modal
+    const handleComputerModalClose = () => {
+        setIsComputerModalVisible(false);
+        // Không cần reset state ở đây vì nó sẽ được reset khi mở lại
+    };
     const deleteMultipleLabRooms = async () => {
         // ... (rest of the deleteMultipleLabRooms function remains the same)
         const token = localStorage.getItem("authToken");
@@ -702,9 +826,7 @@ export default function LabManagement() {
                         icon={<MessageOutlined />}
                         size="small"
                         type="link"
-                        onClick={() =>
-                            Swal.fire("Message", `Message to room ${record.tenPhong}`, "question")
-                        }
+                        onClick={() => showComputerStatusModal(record.maPhong, record.tenPhong)}
                     />
                 </div>
             ),
@@ -858,6 +980,69 @@ export default function LabManagement() {
                     <div style={{ display: "flex", justifyContent: "center" }}>
                         <QRCode value={qrCodeValue} size={256} />
                     </div>
+                </Modal>
+                <Modal
+                    title={`Trạng thái máy tính - Phòng ${currentRoomName}`}
+                    visible={isComputerModalVisible}
+                    onCancel={handleComputerModalClose} // Sử dụng hàm đóng modal
+                    footer={[
+                        <Button key="close" onClick={handleComputerModalClose}>
+                            Đóng
+                        </Button>,
+                    ]}
+                    width={800} // Có thể điều chỉnh độ rộng nếu cần
+                >
+                    {computerModalLoading ? (
+                        // Hiển thị loading spinner khi đang tải dữ liệu
+                        <div style={{ textAlign: 'center', padding: '50px' }}>
+                            <Spin size="large" />
+                        </div>
+                    ) : (
+                        // Hiển thị danh sách máy tính hoặc thông báo
+                        <>
+                            {computersInRoom && computersInRoom.length > 0 ? (
+                                // Nếu có dữ liệu máy tính
+                                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-start', gap: '20px' }}>
+                                    {computersInRoom.map((mayTinh) => (
+                                        <div key={mayTinh.maMay} style={{ textAlign: 'center', width: '100px' }}>
+                                            <DesktopOutlined
+                                                style={{
+                                                    fontSize: '3rem', // Kích thước icon lớn hơn
+                                                    // Màu sắc dựa trên trạng thái (giả sử trạng thái hỏng là 'Hỏng')
+                                                    color: mayTinh.trangThai === BROKEN_STATUS ? 'red' : 'grey'
+                                                }}
+                                            />
+                                            {/* Hiển thị tên máy bên dưới icon */}
+                                            <div style={{ marginTop: '5px', fontSize: '0.8rem', wordWrap: 'break-word' }}>
+                                                {mayTinh.tenMay || `Máy ${mayTinh.maMay}`}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                // Nếu không có máy tính nào trong phòng
+                                <p style={{ textAlign: 'center', padding: '30px 0' }}>
+                                    Không có máy tính nào trong phòng này hoặc không thể tải dữ liệu.
+                                </p>
+                            )}
+
+                            {/* Ghi chú màu sắc */}
+                            <div style={{
+                                marginTop: '30px',
+                                paddingTop: '15px',
+                                borderTop: '1px solid #f0f0f0', // Đường kẻ phân cách
+                                textAlign: 'center',
+                                fontSize: '0.9rem'
+                            }}>
+                <span style={{ marginRight: '20px' }}>
+                    <DesktopOutlined style={{ color: 'grey', marginRight: '5px' }} />: Bình thường
+                </span>
+                                <span>
+                    <DesktopOutlined style={{ color: 'red', marginRight: '5px' }} />: Hỏng
+                </span>
+                            </div>
+                        </>
+                    )}
                 </Modal>
                 <Modal
                     title="User Profile"
