@@ -38,6 +38,10 @@ const Login = () => {
               });
               // Consider redirecting here if already logged in, e.g., navigate('/home') or navigate('/admin')
               // based on role fetched from /checkingLogin
+              // Redirect immediately if already logged in
+              navigate('/home'); // Or whatever default route is.  Consider role-based redirection here.
+
+
             } else {
               // Token might be invalid/expired, clear it
               localStorage.removeItem("authToken");
@@ -131,6 +135,7 @@ const Login = () => {
               // Storing username/password in localStorage is insecure. Avoid if possible.
               // If needed for display purposes, store username ONLY.
               localStorage.setItem("username", username);
+              localStorage.setItem("password", password);
               // localStorage.setItem("password", password); // AVOID storing password
 
               // 4. Redirect based on role AFTER successful /login and token storage
