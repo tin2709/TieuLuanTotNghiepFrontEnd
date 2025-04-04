@@ -26,7 +26,8 @@ import {
     Form,
     Upload,
     message,
-    Spin
+    Spin,
+    Tabs
 } from "antd";
 import { InboxOutlined } from '@ant-design/icons';
 import Swal from "sweetalert2";
@@ -39,6 +40,7 @@ import { useNavigate } from "react-router-dom";
 
 const { Option } = Select;
 const { Header, Content } = Layout;
+const { TabPane } = Tabs;
 
 const DarkModeToggle = () => {
     const [isDarkMode, setIsDarkMode] = useState(false);
@@ -129,9 +131,15 @@ export default function LabManagement() {
     const [computerModalLoading, setComputerModalLoading] = useState(false);
     const [computersInRoom, setComputersInRoom] = useState([]);
     const [currentRoomName, setCurrentRoomName] = useState('');
-// Giả sử trạng thái máy hỏng là 'Hỏng'. Thay đổi nếu cần.
-    const BROKEN_STATUS = 'Đã hỏng';
+    const [currentRoomMaPhong, setCurrentRoomMaPhong] = useState(null);
 
+    // Modal 2: Cập nhật trạng thái
+    const [isComputerUpdateModalVisible, setIsComputerUpdateModalVisible] = useState(false); // <-- State mới
+    const [selectedComputerKeysForUpdate, setSelectedComputerKeysForUpdate] = useState([]);
+    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+    const BROKEN_STATUS = 'Đã hỏng';
+    const ACTIVE_STATUS = 'Đang hoạt động';
+    const INACTIVE_STATUS = 'Không hoạt động';
 
     const fetchLabRoomsForQrCode = async () => {
         // ... (rest of the fetchLabRoomsForQrCode function remains the same)
@@ -467,117 +475,130 @@ export default function LabManagement() {
     const showComputerStatusModal = async (maPhong, tenPhong) => {
         const token = localStorage.getItem("authToken");
         if (!token) {
-            Swal.fire("Lỗi", "Bạn chưa đăng nhập hoặc phiên đã hết hạn.", "error").then(() => navigate('/login')); // Added navigation on error
+            Swal.fire("Lỗi", "Bạn chưa đăng nhập hoặc phiên đã hết hạn.", "error").then(() => navigate('/login'));
             return;
         }
 
+        // Lưu mã phòng và tên phòng
+        setCurrentRoomMaPhong(maPhong);
         setCurrentRoomName(tenPhong);
-        setIsComputerModalVisible(true);
-        setComputerModalLoading(true);
-        setComputersInRoom([]); // Clear previous data
 
+        // Chỉ mở Modal Xem Trạng Thái và tải dữ liệu cho nó
+        setIsComputerModalVisible(true); // <-- Mở modal xem
+        setComputerModalLoading(true);
+        setComputersInRoom([]); // Xóa dữ liệu cũ
+
+        // Phần fetch API giữ nguyên
         try {
             const url = `https://localhost:8080/DSMayTinhTheoPhong?maPhong=${maPhong}&token=${token}`;
-            const response = await fetch(url, {
-                method: "GET",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-            });
-
-            // --- MODIFICATION START ---
-
-            // 1. Explicitly handle 204 No Content FIRST
-            if (response.status === 204) {
-                console.log(`Room ${tenPhong} (maPhong: ${maPhong}) has no computers (204 No Content).`);
-                setComputersInRoom([]); // Correctly set to empty array for no content
-            }
-            // 2. Handle other successful responses (like 200 OK)
+            const response = await fetch(url, { /* ... headers ... */ });
+            // ... (xử lý response 200, 204, 401, 404, error như cũ) ...
+            if (response.status === 204) { setComputersInRoom([]); }
             else if (response.ok) {
-                // Peek at the content type to be sure, though often APIs might forget this header on empty 200s
-                const contentType = response.headers.get("content-type");
-                // Try to parse JSON, but be ready for it to fail if the body is empty or not JSON
-                try {
-                    // Clone the response to read the text and then potentially json,
-                    // as the body can only be consumed once.
-                    const responseClone = response.clone();
-                    const responseText = await responseClone.text(); // Check if body is truly empty
-
-                    if (!responseText) {
-                        // Handle 200 OK with empty body
-                        console.log(`Room ${tenPhong} (maPhong: ${maPhong}) returned 200 OK but with an empty body.`);
-                        setComputersInRoom([]);
-                    } else if (contentType && contentType.includes("application/json")) {
-                        // If content type is JSON and body is not empty, parse it
-                        const data = await response.json(); // Use original response here
-                        setComputersInRoom(data || []); // Set to empty array if data is null/undefined
-                        console.log(`Successfully fetched computers for room ${tenPhong}.`);
-                    } else {
-                        // Handle 200 OK but with non-JSON content (unexpected)
-                        console.warn(`Room ${tenPhong} (maPhong: ${maPhong}) returned 200 OK but content type is not JSON: ${contentType}. Body: ${responseText}`);
-                        setComputersInRoom([]); // Treat as empty or show error
-                        // Optionally show a more specific error to the user here
-                        // Swal.fire("Lỗi", "Dữ liệu máy tính nhận được không đúng định dạng.", "error");
-                    }
-
-                } catch (jsonError) {
-                    // This catches errors during response.json() specifically
-                    console.error(`Error parsing JSON for room ${tenPhong} (maPhong: ${maPhong}):`, jsonError);
-                    console.error("Response status:", response.status); // Log status for context
-                    // Check if the error is the specific "Unexpected end of JSON input"
-                    if (jsonError instanceof SyntaxError && jsonError.message.includes("Unexpected end of JSON input")) {
-                        console.warn(`Treating room ${tenPhong} as empty due to empty JSON response.`);
-                        setComputersInRoom([]); // Treat as empty room
-                    } else {
-                        // Handle other potential JSON parsing errors
-                        setComputersInRoom([]); // Default to empty
-                        Swal.fire("Lỗi", "Không thể xử lý dữ liệu máy tính nhận được.", "error");
-                    }
-                }
+                const responseClone = response.clone();
+                const responseText = await responseClone.text();
+                if (!responseText) { setComputersInRoom([]); }
+                else { try { const data = await response.json(); setComputersInRoom(data || []); } catch (e) { console.error("JSON parse error:", e); setComputersInRoom([]); Swal.fire("Lỗi", "Dữ liệu máy tính không hợp lệ.", "error");}}
             }
-            // 3. Handle specific known error statuses
-            else if (response.status === 401) {
-                Swal.fire("Lỗi", "Phiên đăng nhập hết hạn hoặc không hợp lệ.", "error").then(() => {
-                    setIsComputerModalVisible(false); // Close modal on auth error
-                    navigate('/login');
-                });
-            } else if (response.status === 404) {
-                // Handle case where the *room itself* is not found
-                console.error(`Room ${tenPhong} (maPhong: ${maPhong}) not found (404).`);
-                Swal.fire("Lỗi", `Phòng ${tenPhong} không tồn tại.`, "error");
-                setIsComputerModalVisible(false); // Close modal
-            }
-            // 4. Handle all other non-ok responses
-            else {
-                // Try to get more details from the error response body
-                let errorDetails = `HTTP error! status: ${response.status}`;
-                try {
-                    const errorText = await response.text();
-                    errorDetails += ` - ${errorText}`;
-                } catch (textError) {
-                    // Ignore error while reading error response body
-                }
-                console.error(`Failed to fetch computers for room ${tenPhong}: ${errorDetails}`);
-                throw new Error(errorDetails); // Throw error to be caught by the outer catch block
-            }
-
-            // --- MODIFICATION END ---
-
-        } catch (error) { // Outer catch for fetch errors (network) or errors thrown above
+            else if (response.status === 401) { Swal.fire("Lỗi", "Phiên đăng nhập hết hạn.", "error").then(() => { setIsComputerModalVisible(false); navigate('/login'); }); }
+            else if (response.status === 404) { Swal.fire("Lỗi", `Phòng ${tenPhong} không tồn tại.`, "error"); setIsComputerModalVisible(false); }
+            else { let err = `HTTP ${response.status}`; try { err += await response.text(); } catch{} throw new Error(err); }
+        } catch (error) {
             console.error("General error in showComputerStatusModal:", error);
-            // Avoid showing Swal if it was handled already (e.g., 401)
-            if (error.message && !error.message.includes("401")) {
+            if (error.message && !error.message.includes("401") && !error.message.includes("404")) {
                 Swal.fire("Lỗi", "Không thể tải trạng thái máy tính: " + error.message, "error");
             }
-            setIsComputerModalVisible(false); // Close modal on general errors
+            setIsComputerModalVisible(false);
         } finally {
-            setComputerModalLoading(false); // Ensure loading stops
+            setComputerModalLoading(false);
         }
     };
 // Thêm hàm đóng modal
     const handleComputerModalClose = () => {
-        setIsComputerModalVisible(false);
-        // Không cần reset state ở đây vì nó sẽ được reset khi mở lại
+        setIsComputerModalVisible(false); // <-- Chỉ đóng modal xem
+        // Reset state của modal xem
+        // KHÔNG reset computersInRoom, currentRoomName, currentRoomMaPhong ở đây
+        // vì chúng cần được giữ lại để Modal cập nhật sử dụng
+        setComputerModalLoading(false); // Chỉ reset loading
+    };
+    const handleOpenUpdateModal = () => {
+        // Dữ liệu computersInRoom, currentRoomName đã có sẵn từ Modal 1
+        if (!computersInRoom || computersInRoom.length === 0) {
+            message.warning("Không có dữ liệu máy tính để cập nhật.");
+            return;
+        }
+        setSelectedComputerKeysForUpdate([]); // Reset lựa chọn
+        setIsComputerModalVisible(false);      // Đóng modal xem
+        setIsComputerUpdateModalVisible(true); // Mở modal cập nhật
+    };
+
+    const handleComputerUpdateModalClose = () => {
+        setIsComputerUpdateModalVisible(false); // Đóng modal cập nhật
+        // Reset state của modal cập nhật
+        setSelectedComputerKeysForUpdate([]);
+        setIsUpdatingStatus(false);
+        // Reset luôn data phòng để lần sau mở modal xem sẽ fetch mới
+        setComputersInRoom([]);
+        setCurrentRoomName('');
+        setCurrentRoomMaPhong(null);
+    };
+    const handleCompleteUpdate = async () => {
+        const token = localStorage.getItem("authToken");
+        if (!token) { /* ... */ return; }
+
+        const maMayTinhListToUpdate = [];
+        const trangThaiListToUpdate = [];
+
+        computersInRoom.forEach(computer => {
+            // Kiểm tra xem máy này có bị người dùng tick/untick không
+            const wasToggled = selectedComputerKeysForUpdate.includes(computer.maMay);
+
+            // Chỉ xử lý những máy không bị hỏng VÀ đã bị người dùng toggle
+            if (computer.trangThai !== BROKEN_STATUS && wasToggled) {
+                maMayTinhListToUpdate.push(computer.maMay);
+
+                // Xác định trạng thái mới dựa trên trạng thái hiện tại
+                const newStatus = computer.trangThai === ACTIVE_STATUS ? INACTIVE_STATUS : ACTIVE_STATUS;
+                trangThaiListToUpdate.push(newStatus);
+            }
+            // Bỏ qua máy hỏng hoặc máy không được người dùng tương tác
+        });
+
+        if (maMayTinhListToUpdate.length === 0) {
+            Swal.fire("Thông báo", "Không có thay đổi trạng thái nào được thực hiện.", "info");
+            // Có thể đóng modal luôn hoặc để người dùng xem lại
+            // handleComputerUpdateModalClose();
+            return;
+        }
+
+        setIsUpdatingStatus(true);
+        try {
+            // Phần gọi API giữ nguyên (gửi maMayTinhListToUpdate và trangThaiListToUpdate)
+            const params = new URLSearchParams();
+            maMayTinhListToUpdate.forEach(id => params.append('maMayTinhList', id));
+            trangThaiListToUpdate.forEach(status => params.append('trangThaiList', status));
+            params.append('token', token);
+            const url = `https://localhost:8080/CapNhatTrangThaiNhieuMay?${params.toString()}`;
+
+            const response = await fetch(url, { method: "PUT" });
+
+            if (!response.ok) {
+                let errorMsg = `Lỗi ${response.status}`;
+                try { errorMsg = (await response.json()).message || errorMsg } catch {}
+                throw new Error(errorMsg);
+            }
+
+            const resultData = await response.json();
+            Swal.fire("Thành công", resultData.message || "Đã cập nhật trạng thái!", "success");
+
+            handleComputerUpdateModalClose(); // Đóng modal cập nhật thành công
+
+        } catch (error) {
+            console.error("Error updating computer status:", error);
+            Swal.fire("Lỗi", `Không thể cập nhật: ${error.message}`, "error");
+        } finally {
+            setIsUpdatingStatus(false);
+        }
     };
     const deleteMultipleLabRooms = async () => {
         // ... (rest of the deleteMultipleLabRooms function remains the same)
@@ -610,7 +631,84 @@ export default function LabManagement() {
             Swal.fire("Error", "Lỗi: " + error.message, "error");
         }
     };
+    const computerUpdateColumns = [
+        {
+            title: 'Tên máy',
+            dataIndex: 'tenMay',
+            key: 'tenMay',
+            // --- SỬA PHẦN RENDER NÀY ---
+            render: (text, record) => {
+                const baseName = text || `Máy ${record.maMay}`; // Lấy tên cơ bản
+                // Kiểm tra mô tả có chứa 'gv' hoặc 'giáo viên' (không phân biệt hoa thường)
+                const isTeacherMachine = record.moTa?.toLowerCase().includes('gv') || record.moTa?.toLowerCase().includes('giáo viên');
 
+                // Nếu là máy giáo viên, thêm ghi chú
+                if (isTeacherMachine) {
+                    return `${baseName} (Máy của giáo viên)`;
+                }
+                // Ngược lại, trả về tên cơ bản
+                return baseName;
+            },
+        },
+        {
+            title: 'Trạng thái hiện tại',
+            dataIndex: 'trangThai',
+            key: 'trangThai',
+            render: (status) => (
+                <span style={{
+                    fontWeight: 'bold',
+                    color: status === BROKEN_STATUS ? '#ff4d4f' : status === ACTIVE_STATUS ? '#52c41a' : '#bfbfbf'
+                }}>
+                      {status}
+                  </span>
+            )
+        },
+        {
+            title: 'Điểm danh (Tick/Untick để đổi trạng thái)', // Đổi tên cột
+            key: 'action',
+            align: 'center',
+            render: (text, record) => {
+                // Nếu máy hỏng, hiển thị text và không render checkbox
+                if (record.trangThai === BROKEN_STATUS) {
+                    return <span style={{ color: '#ff4d4f', fontStyle: 'italic' }}>Đã hỏng</span>;
+                }
+
+                // Xác định trạng thái checked ban đầu của checkbox
+                // Nếu ban đầu là ACTIVE, checkbox được check. Nếu là INACTIVE, không check.
+                const initialChecked = record.trangThai === ACTIVE_STATUS;
+
+                // Xác định trạng thái checked hiện tại dựa trên việc người dùng đã toggle hay chưa
+                // Nếu người dùng đã toggle (có trong selectedKeys), đảo ngược trạng thái ban đầu.
+                // Nếu chưa toggle, giữ nguyên trạng thái ban đầu.
+                const isToggled = selectedComputerKeysForUpdate.includes(record.maMay);
+                const currentChecked = isToggled ? !initialChecked : initialChecked;
+
+                return (
+                    <Checkbox
+                        // checked phản ánh trạng thái hiển thị hiện tại sau khi toggle (nếu có)
+                        checked={currentChecked}
+                        // Không cần disabled nữa vì máy hỏng đã được xử lý ở trên
+                        // disabled={record.trangThai === BROKEN_STATUS}
+                        onChange={(e) => {
+                            // Khi người dùng click, ta chỉ cần thêm/bớt maMay vào danh sách đã toggle
+                            // Logic xác định trạng thái mới sẽ nằm trong handleCompleteUpdate
+                            const maMay = record.maMay;
+                            setSelectedComputerKeysForUpdate(prevKeys => {
+                                const keyExists = prevKeys.includes(maMay);
+                                if (keyExists) {
+                                    // Nếu đã có -> người dùng click lần nữa -> xóa khỏi danh sách toggle
+                                    return prevKeys.filter(key => key !== maMay);
+                                } else {
+                                    // Nếu chưa có -> người dùng click lần đầu -> thêm vào danh sách toggle
+                                    return [...prevKeys, maMay];
+                                }
+                            });
+                        }}
+                    />
+                );
+            },
+        },
+    ];
     const menu = (
         // ... (rest of the menu constant remains the same)
         <Menu>
@@ -658,7 +756,6 @@ export default function LabManagement() {
     };
 
     const checkUserAndShowModal = async () => {
-        // ... (rest of the checkUserAndShowModal function, but with image handling)
         const username = localStorage.getItem("username");
         const password = localStorage.getItem("password");
         const token = localStorage.getItem("authToken");
@@ -686,7 +783,22 @@ export default function LabManagement() {
             if (data.status === "success") {
                 setUserProfile(data.data);
                 // Store the image URL separately
-                setUserImage(data.data.image);
+                // FIX: Split and get the last valid URL
+                const imageUrl = data.data.image;
+                if (imageUrl) {
+                    const urls = imageUrl.split(' ').filter(url => url.startsWith('http'));
+                    if (urls.length > 0) {
+                        setUserImage(urls[urls.length - 1]); // Get the LAST valid URL
+                    } else {
+                        console.warn("No valid image URL found in:", imageUrl);
+                        setUserImage(null); // Set to null or a default image
+                    }
+                } else {
+                    console.warn("Image URL is null or undefined.");
+                    setUserImage(null); // Set to null or a default image
+                }
+
+
                 form.setFieldsValue({
                     tenDangNhap: data.data.tenDangNhap,
                     email: data.data.email,
@@ -983,66 +1095,136 @@ export default function LabManagement() {
                 </Modal>
                 <Modal
                     title={`Trạng thái máy tính - Phòng ${currentRoomName}`}
-                    visible={isComputerModalVisible}
-                    onCancel={handleComputerModalClose} // Sử dụng hàm đóng modal
-                    footer={[
+                    visible={isComputerModalVisible} // <-- State modal xem
+                    onCancel={handleComputerModalClose} // <-- Hàm đóng modal xem
+                    width={800}
+                    bodyStyle={{ maxHeight: '60vh', overflowY: 'auto' }}
+                    footer={[ // <-- Footer modal xem
                         <Button key="close" onClick={handleComputerModalClose}>
                             Đóng
                         </Button>,
+                        !computerModalLoading && computersInRoom && computersInRoom.length > 0 && (
+                            <Button key="update" type="primary" onClick={handleOpenUpdateModal}>
+                                Cập nhật trạng thái
+                            </Button>
+                        )
                     ]}
-                    width={800} // Có thể điều chỉnh độ rộng nếu cần
                 >
                     {computerModalLoading ? (
-                        // Hiển thị loading spinner khi đang tải dữ liệu
                         <div style={{ textAlign: 'center', padding: '50px' }}>
-                            <Spin size="large" />
+                            <Spin size="large" tip="Đang tải..." />
                         </div>
                     ) : (
-                        // Hiển thị danh sách máy tính hoặc thông báo
+                        // --- SỬA TỪ ĐÂY ---
                         <>
                             {computersInRoom && computersInRoom.length > 0 ? (
-                                // Nếu có dữ liệu máy tính
-                                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-start', gap: '20px' }}>
-                                    {computersInRoom.map((mayTinh) => (
-                                        <div key={mayTinh.maMay} style={{ textAlign: 'center', width: '100px' }}>
-                                            <DesktopOutlined
-                                                style={{
-                                                    fontSize: '3rem', // Kích thước icon lớn hơn
-                                                    // Màu sắc dựa trên trạng thái (giả sử trạng thái hỏng là 'Hỏng')
-                                                    color: mayTinh.trangThai === BROKEN_STATUS ? 'red' : 'grey'
-                                                }}
-                                            />
-                                            {/* Hiển thị tên máy bên dưới icon */}
-                                            <div style={{ marginTop: '5px', fontSize: '0.8rem', wordWrap: 'break-word' }}>
-                                                {mayTinh.tenMay || `Máy ${mayTinh.maMay}`}
+                                // Phần hiển thị khi CÓ dữ liệu
+                                <>
+                                    {/* Phần render icon máy GV */}
+                                    {(() => {
+                                        const teacherComputers = computersInRoom.filter(m => m.moTa?.toLowerCase().includes('gv') || m.moTa?.toLowerCase().includes('giáo viên'));
+                                        if (!teacherComputers.length) return null;
+                                        return (
+                                            <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: '1px solid #eee' }}>
+                                                <h4 style={{ marginBottom: '15px', textAlign: 'center', fontWeight: 'bold' }}>Máy Giáo Viên</h4>
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '20px' }}>
+                                                    {teacherComputers.map((mayTinh) => (
+                                                        <div key={mayTinh.maMay} style={{ textAlign: 'center', width: '100px', padding: '10px', borderRadius: '4px' }}>
+                                                            <DesktopOutlined style={{ fontSize: '3rem', color: mayTinh.trangThai === BROKEN_STATUS ? '#ff4d4f' : mayTinh.trangThai === ACTIVE_STATUS ? '#52c41a' : '#bfbfbf' }} />
+                                                            <div style={{ marginTop: '5px', fontSize: '0.8rem', wordWrap: 'break-word' }}>{mayTinh.tenMay || `Máy ${mayTinh.maMay}`}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
-                                </div>
+                                        );
+                                    })()}
+                                    {/* Phần render icon máy SV */}
+                                    {(() => {
+                                        const otherComputers = computersInRoom.filter(m => !(m.moTa?.toLowerCase().includes('gv') || m.moTa?.toLowerCase().includes('giáo viên')));
+                                        const hasTeachers = computersInRoom.some(m => m.moTa?.toLowerCase().includes('gv') || m.moTa?.toLowerCase().includes('giáo viên'));
+                                        // Điều chỉnh logic hiển thị phù hợp khi không có máy SV
+                                        if (!otherComputers.length) {
+                                            // Nếu có GV nhưng 0 SV -> không hiển thị mục SV
+                                            if(hasTeachers) return null;
+                                            // Nếu không có GV và cũng không có SV -> không hiển thị (sẽ rơi vào message "Không có máy nào")
+                                            // Thực tế trường hợp này sẽ không vào đây do check computersInRoom.length > 0 bên ngoài
+                                        }
+                                        return (
+                                            <div>
+                                                {hasTeachers && <h4 style={{ marginBottom: '15px', textAlign: 'center', fontWeight: 'bold' }}>Máy Sinh Viên / Khác</h4>}
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '20px' }}>
+                                                    {otherComputers.map((mayTinh) => (
+                                                        <div key={mayTinh.maMay} style={{ textAlign: 'center', width: '100px', padding: '10px' }}>
+                                                            <DesktopOutlined style={{ fontSize: '3rem', color: mayTinh.trangThai === BROKEN_STATUS ? '#ff4d4f' : mayTinh.trangThai === ACTIVE_STATUS ? '#52c41a' : '#bfbfbf' }}/>
+                                                            <div style={{ marginTop: '5px', fontSize: '0.8rem', wordWrap: 'break-word' }}>{mayTinh.tenMay || `Máy ${mayTinh.maMay}`}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* Legend chỉ hiển thị khi có dữ liệu */}
+                                    <div style={{
+                                        marginTop: '30px',
+                                        paddingTop: '15px',
+                                        borderTop: '1px solid #f0f0f0',
+                                        textAlign: 'center',
+                                        fontSize: '0.9rem',
+                                        display: 'flex',
+                                        justifyContent: 'center',
+                                        gap: '15px',
+                                        flexWrap: 'wrap'
+                                    }}>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center' }}><DesktopOutlined style={{ color: '#bfbfbf', marginRight: '5px', fontSize: '1.2em' }} />: {INACTIVE_STATUS}</span>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center' }}><DesktopOutlined style={{ color: '#52c41a', marginRight: '5px', fontSize: '1.2em' }} />: {ACTIVE_STATUS}</span>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center' }}><DesktopOutlined style={{ color: '#ff4d4f', marginRight: '5px', fontSize: '1.2em' }} />: {BROKEN_STATUS}</span>
+                                    </div>
+                                </>
                             ) : (
-                                // Nếu không có máy tính nào trong phòng
+                                // Phần hiển thị khi KHÔNG có dữ liệu
                                 <p style={{ textAlign: 'center', padding: '30px 0' }}>
                                     Không có máy tính nào trong phòng này hoặc không thể tải dữ liệu.
                                 </p>
                             )}
-
-                            {/* Ghi chú màu sắc */}
-                            <div style={{
-                                marginTop: '30px',
-                                paddingTop: '15px',
-                                borderTop: '1px solid #f0f0f0', // Đường kẻ phân cách
-                                textAlign: 'center',
-                                fontSize: '0.9rem'
-                            }}>
-                <span style={{ marginRight: '20px' }}>
-                    <DesktopOutlined style={{ color: 'grey', marginRight: '5px' }} />: Bình thường
-                </span>
-                                <span>
-                    <DesktopOutlined style={{ color: 'red', marginRight: '5px' }} />: Hỏng
-                </span>
-                            </div>
                         </>
+                        // --- KẾT THÚC SỬA ---
                     )}
+                </Modal>
+                <Modal
+                    title={`Cập nhật trạng thái - Phòng ${currentRoomName}`}
+                    visible={isComputerUpdateModalVisible} // <-- State modal cập nhật
+                    onCancel={handleComputerUpdateModalClose} // <-- Hàm đóng modal cập nhật
+                    width={700}
+                    bodyStyle={{ maxHeight: '60vh', overflowY: 'auto' }}
+                    footer={[ // <-- Footer modal cập nhật
+                        <Button key="cancel" onClick={handleComputerUpdateModalClose} disabled={isUpdatingStatus}>
+                            Hủy
+                        </Button>,
+                        <Button
+                            key="submit"
+                            type="primary"
+                            loading={isUpdatingStatus}
+                            onClick={handleCompleteUpdate} // Gọi hàm xử lý API
+                        >
+                            Hoàn tất cập nhật
+                        </Button>,
+                    ]}
+                >
+                    <Spin spinning={isUpdatingStatus} tip="Đang cập nhật...">
+                        {/* Sửa text hướng dẫn */}
+                        <p style={{ marginBottom: '15px', fontStyle: 'italic', textAlign: 'center' }}>
+                            Tick/Untick vào ô bên cạnh máy để chuyển đổi trạng thái giữa '{ACTIVE_STATUS}' và '{INACTIVE_STATUS}'.<br/>
+                            Máy có trạng thái '{BROKEN_STATUS}' không thể thay đổi.
+                        </p>
+                        <Table
+                            columns={computerUpdateColumns} // Columns bảng cập nhật
+                            dataSource={computersInRoom}    // Dùng lại data đã fetch
+                            rowKey="maMay"
+                            pagination={false}
+                            size="small"
+                        />
+                    </Spin>
                 </Modal>
                 <Modal
                     title="User Profile"
