@@ -9,7 +9,8 @@ import {
     LogoutOutlined,
     QrcodeOutlined,
     UserOutlined,
-    DesktopOutlined
+    DesktopOutlined,
+    ToolOutlined
 } from "@ant-design/icons";
 import {
     Button,
@@ -126,6 +127,8 @@ export default function LabManagement() {
 
     // Store th URL in a separate state
     const [userImage, setUserImage] = useState(null);
+    const [isStatusModalVisible, setIsStatusModalVisible] = useState(false);
+    const [statusModalLoadingComputers, setStatusModalLoadingComputers] = useState(false); // Specific loading
     // Bên trong component LabManagement, gần các state khác
     const [isComputerModalVisible, setIsComputerModalVisible] = useState(false);
     const [computerModalLoading, setComputerModalLoading] = useState(false);
@@ -137,6 +140,15 @@ export default function LabManagement() {
     const [isComputerUpdateModalVisible, setIsComputerUpdateModalVisible] = useState(false); // <-- State mới
     const [selectedComputerKeysForUpdate, setSelectedComputerKeysForUpdate] = useState([]);
     const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+    const [activeTabKey, setActiveTabKey] = useState('computers'); // Default tab
+    const [deviceTypes, setDeviceTypes] = useState([]); // To store LoaiThietBi
+    const [loadingDeviceTypes, setLoadingDeviceTypes] = useState(false);
+    const [currentDevices, setCurrentDevices] = useState([]); // Devices for the selected type tab
+    const [loadingDevices, setLoadingDevices] = useState(false);
+    const [isDeviceUpdateModalVisible, setIsDeviceUpdateModalVisible] = useState(false);
+    const [selectedDeviceKeysForUpdate, setSelectedDeviceKeysForUpdate] = useState([]);
+    const [isUpdatingDeviceStatus, setIsUpdatingDeviceStatus] = useState(false);
+    const [currentDeviceTypeForUpdate, setCurrentDeviceTypeForUpdate] = useState({ maLoai: null, tenLoai: '' });
     const BROKEN_STATUS = 'Đã hỏng';
     const ACTIVE_STATUS = 'Đang hoạt động';
     const INACTIVE_STATUS = 'Không hoạt động';
@@ -479,39 +491,181 @@ export default function LabManagement() {
             return;
         }
 
-        // Lưu mã phòng và tên phòng
+        // Set current room info
         setCurrentRoomMaPhong(maPhong);
         setCurrentRoomName(tenPhong);
 
-        // Chỉ mở Modal Xem Trạng Thái và tải dữ liệu cho nó
-        setIsComputerModalVisible(true); // <-- Mở modal xem
-        setComputerModalLoading(true);
-        setComputersInRoom([]); // Xóa dữ liệu cũ
+        // Reset states for the modal
+        setActiveTabKey('computers'); // Default to computer tab
+        setComputersInRoom([]);
+        setCurrentDevices([]);
+        setDeviceTypes([]); // Reset device types
 
-        // Phần fetch API giữ nguyên
+        // Set loading states
+        setStatusModalLoadingComputers(true);
+        setLoadingDeviceTypes(true);
+        setLoadingDevices(false); // Not loading devices initially
+
+        setIsStatusModalVisible(true); // Open the modal
+
+        // --- Fetch Computer Data (Existing Logic) ---
         try {
-            const url = `https://localhost:8080/DSMayTinhTheoPhong?maPhong=${maPhong}&token=${token}`;
-            const response = await fetch(url, { /* ... headers ... */ });
-            // ... (xử lý response 200, 204, 401, 404, error như cũ) ...
-            if (response.status === 204) { setComputersInRoom([]); }
-            else if (response.ok) {
-                const responseClone = response.clone();
+            const urlComputers = `https://localhost:8080/DSMayTinhTheoPhong?maPhong=${maPhong}&token=${token}`;
+            const responseComputers = await fetch(urlComputers); // Assuming headers if needed
+
+            if (responseComputers.status === 204) { setComputersInRoom([]); }
+            else if (responseComputers.ok) {
+                // Handle potential empty response body for OK status
+                const responseClone = responseComputers.clone();
                 const responseText = await responseClone.text();
-                if (!responseText) { setComputersInRoom([]); }
-                else { try { const data = await response.json(); setComputersInRoom(data || []); } catch (e) { console.error("JSON parse error:", e); setComputersInRoom([]); Swal.fire("Lỗi", "Dữ liệu máy tính không hợp lệ.", "error");}}
+                if (!responseText) {
+                    setComputersInRoom([]);
+                } else {
+                    try {
+                        const data = await responseComputers.json();
+                        setComputersInRoom(data || []);
+                    } catch (e) {
+                        console.error("JSON parse error (Computers):", e);
+                        setComputersInRoom([]);
+                        // Optionally show an error message to the user
+                        // message.error("Dữ liệu máy tính nhận được không hợp lệ.");
+                    }
+                }
             }
-            else if (response.status === 401) { Swal.fire("Lỗi", "Phiên đăng nhập hết hạn.", "error").then(() => { setIsComputerModalVisible(false); navigate('/login'); }); }
-            else if (response.status === 404) { Swal.fire("Lỗi", `Phòng ${tenPhong} không tồn tại.`, "error"); setIsComputerModalVisible(false); }
-            else { let err = `HTTP ${response.status}`; try { err += await response.text(); } catch{} throw new Error(err); }
+            else if (responseComputers.status === 401) {
+                Swal.fire("Lỗi", "Phiên đăng nhập hết hạn.", "error").then(() => { setIsStatusModalVisible(false); navigate('/login'); });
+                // Close modal early on auth error
+                setStatusModalLoadingComputers(false);
+                setLoadingDeviceTypes(false); // Also stop device type loading
+                return; // Exit function
+            } else if (responseComputers.status === 404) {
+                Swal.fire("Lỗi", `Phòng ${tenPhong} không tồn tại.`, "error");
+                setIsStatusModalVisible(false); // Close modal if room not found
+                setStatusModalLoadingComputers(false);
+                setLoadingDeviceTypes(false);
+                return; // Exit function
+            } else {
+                let err = `Lỗi HTTP ${responseComputers.status} khi tải máy tính.`;
+                try { err += await responseComputers.text(); } catch{}
+                throw new Error(err);
+            }
         } catch (error) {
-            console.error("General error in showComputerStatusModal:", error);
+            console.error("Error fetching computers:", error);
             if (error.message && !error.message.includes("401") && !error.message.includes("404")) {
                 Swal.fire("Lỗi", "Không thể tải trạng thái máy tính: " + error.message, "error");
             }
-            setIsComputerModalVisible(false);
+            // Don't close modal here, allow device types to potentially load
         } finally {
-            setComputerModalLoading(false);
+            setStatusModalLoadingComputers(false);
         }
+
+        // --- Fetch Device Types ---
+        try {
+            const urlDeviceTypes = `https://localhost:8080/DSLoaiThietBi?token=${token}`;
+            const responseDeviceTypes = await fetch(urlDeviceTypes);
+
+            if (responseDeviceTypes.ok) {
+                const data = await responseDeviceTypes.json();
+                setDeviceTypes(data || []); // Store the list of device types
+            } else if (responseDeviceTypes.status === 401) {
+                // Handle auth error specifically if needed, maybe already handled above
+                console.error("Auth error fetching device types");
+                // Optionally navigate to login if not already handled by computer fetch error
+            } else {
+                let err = `Lỗi HTTP ${responseDeviceTypes.status} khi tải loại thiết bị.`;
+                try { err += await responseDeviceTypes.text(); } catch{}
+                throw new Error(err);
+            }
+        } catch (error) {
+            console.error("Error fetching device types:", error);
+            // Don't necessarily show a Swal error here, maybe just log it
+            // The modal will still work for computers if types fail to load
+            setDeviceTypes([]); // Ensure it's an empty array on error
+        } finally {
+            setLoadingDeviceTypes(false);
+        }
+
+    };
+    const fetchDevicesByType = async (maLoai) => {
+        const token = localStorage.getItem("authToken");
+        if (!token || !currentRoomMaPhong) return; // Need token and room context
+
+        setCurrentDevices([]); // Clear previous devices
+        setLoadingDevices(true);
+
+        try {
+            // Construct URL with maPhong and maLoai
+            const url = `https://localhost:8080/DSThietBiTheoPhong?maPhong=${currentRoomMaPhong}&maLoai=${maLoai}&token=${token}`;
+            const response = await fetch(url);
+
+            if (response.ok) {
+                // Handle potential empty response body for OK status
+                const responseClone = response.clone();
+                const responseText = await responseClone.text();
+                if (!responseText) {
+                    setCurrentDevices([]);
+                } else {
+                    try {
+                        const data = await response.json();
+                        setCurrentDevices(data || []); // Store fetched devices
+                    } catch (e) {
+                        console.error(`JSON parse error (Devices maLoai=${maLoai}):`, e);
+                        setCurrentDevices([]);
+                        message.error("Dữ liệu thiết bị nhận được không hợp lệ.");
+                    }
+                }
+            } else if (response.status === 204) {
+                setCurrentDevices([]); // No content means empty list
+            } else if (response.status === 401) {
+                Swal.fire("Lỗi", "Phiên đăng nhập hết hạn.", "error").then(() => { setIsStatusModalVisible(false); navigate('/login'); });
+                // Close modal on auth error during device fetch
+                setLoadingDevices(false); // Ensure loading stops
+                return; // Exit
+            }
+            else {
+                let err = `Lỗi HTTP ${response.status} khi tải thiết bị (Loại: ${maLoai}).`;
+                try { err += await response.text(); } catch{}
+                throw new Error(err);
+            }
+        } catch (error) {
+            console.error("Error fetching devices by type:", error);
+            if (error.message && !error.message.includes("401")) {
+                Swal.fire("Lỗi", "Không thể tải danh sách thiết bị: " + error.message, "error");
+            }
+            setCurrentDevices([]); // Clear devices on error
+        } finally {
+            setLoadingDevices(false);
+        }
+    };
+    const handleTabChange = (key) => {
+        setActiveTabKey(key);
+        if (key !== 'computers') {
+            // Key should be the maLoai, convert it to number if needed (depends on API)
+            const maLoai = parseInt(key, 10); // Or just key if it's passed as string map key
+            if (!isNaN(maLoai)) {
+                fetchDevicesByType(maLoai);
+            } else {
+                console.error("Invalid tab key for device type:", key);
+                setCurrentDevices([]); // Clear devices if key is invalid
+            }
+        } else {
+            // Switched back to computers tab, data should already be there or loading
+            setCurrentDevices([]); // Clear device data when switching away
+            setLoadingDevices(false); // Ensure device loading stops
+        }
+    };
+    const handleStatusModalClose = () => {
+        setIsStatusModalVisible(false);
+        // Reset states related to the status modal content
+        setComputersInRoom([]);
+        setCurrentDevices([]);
+        setDeviceTypes([]);
+        setCurrentRoomName('');
+        setCurrentRoomMaPhong(null);
+        setStatusModalLoadingComputers(false);
+        setLoadingDeviceTypes(false);
+        setLoadingDevices(false);
+        setActiveTabKey('computers'); // Reset active tab
     };
 // Thêm hàm đóng modal
     const handleComputerModalClose = () => {
@@ -598,6 +752,93 @@ export default function LabManagement() {
             Swal.fire("Lỗi", `Không thể cập nhật: ${error.message}`, "error");
         } finally {
             setIsUpdatingStatus(false);
+        }
+    };
+    const handleOpenDeviceUpdateModal = (maLoai, tenLoai) => {
+        // We already have currentDevices loaded for this type from the main status modal
+        if (!currentDevices || currentDevices.length === 0) {
+            message.warning(`Không có dữ liệu thiết bị loại "${tenLoai}" để cập nhật.`);
+            return;
+        }
+        setCurrentDeviceTypeForUpdate({ maLoai, tenLoai }); // Store current type info
+        setSelectedDeviceKeysForUpdate([]); // Reset selections
+        setIsUpdatingDeviceStatus(false); // Reset loading state
+        setIsDeviceUpdateModalVisible(true); // Open the device update modal
+        // Note: We keep the main status modal open underneath
+    };
+
+    const handleDeviceUpdateModalClose = () => {
+        setIsDeviceUpdateModalVisible(false);
+        setSelectedDeviceKeysForUpdate([]);
+        setIsUpdatingDeviceStatus(false);
+        setCurrentDeviceTypeForUpdate({ maLoai: null, tenLoai: '' }); // Clear current type info
+    };
+
+    const handleCompleteDeviceUpdate = async () => {
+        const token = localStorage.getItem("authToken");
+        if (!token) {
+            Swal.fire("Lỗi", "Bạn chưa đăng nhập hoặc phiên đã hết hạn.", "error").then(() => navigate('/login'));
+            return;
+        }
+
+        const maThietBiListToUpdate = [];
+        const trangThaiListToUpdate = [];
+
+        // Iterate through devices currently displayed in the update modal (which are `currentDevices`)
+        currentDevices.forEach(device => {
+            const wasToggled = selectedDeviceKeysForUpdate.includes(device.maThietBi);
+
+            // Only process devices that are NOT broken AND were toggled by the user
+            if (device.trangThai !== BROKEN_STATUS && wasToggled) {
+                maThietBiListToUpdate.push(device.maThietBi);
+                // Determine the new status based on the current status
+                const newStatus = device.trangThai === ACTIVE_STATUS ? INACTIVE_STATUS : ACTIVE_STATUS;
+                trangThaiListToUpdate.push(newStatus);
+            }
+        });
+
+        if (maThietBiListToUpdate.length === 0) {
+            Swal.fire("Thông báo", "Không có thay đổi trạng thái thiết bị nào được thực hiện.", "info");
+            // Optionally close the modal here or let the user close it manually
+            // handleDeviceUpdateModalClose();
+            return;
+        }
+
+        setIsUpdatingDeviceStatus(true); // Start loading indicator
+
+        try {
+            const params = new URLSearchParams();
+            maThietBiListToUpdate.forEach(id => params.append('maThietBiList', id));
+            trangThaiListToUpdate.forEach(status => params.append('trangThaiList', status));
+            params.append('token', token);
+
+            // Call the new API endpoint
+            const url = `https://localhost:8080/CapNhatTrangThaiNhieuThietBi?${params.toString()}`;
+            const response = await fetch(url, { method: "PUT" });
+
+            if (!response.ok) {
+                let errorMsg = `Lỗi ${response.status}`;
+                try { errorMsg = (await response.json()).message || errorMsg } catch {}
+                throw new Error(errorMsg);
+            }
+
+            const resultData = await response.json();
+            Swal.fire("Thành công", resultData.message || "Đã cập nhật trạng thái thiết bị!", "success");
+
+            handleDeviceUpdateModalClose(); // Close the update modal on success
+
+            // --- Crucial: Refresh the device list in the main status modal ---
+            // Use the stored maLoai to refetch devices for the current tab
+            if (currentDeviceTypeForUpdate.maLoai) {
+                fetchDevicesByType(currentDeviceTypeForUpdate.maLoai);
+            }
+            // --- End Refresh ---
+
+        } catch (error) {
+            console.error("Error updating device status:", error);
+            Swal.fire("Lỗi", `Không thể cập nhật trạng thái thiết bị: ${error.message}`, "error");
+        } finally {
+            setIsUpdatingDeviceStatus(false); // Stop loading indicator
         }
     };
     const deleteMultipleLabRooms = async () => {
@@ -701,6 +942,69 @@ export default function LabManagement() {
                                 } else {
                                     // Nếu chưa có -> người dùng click lần đầu -> thêm vào danh sách toggle
                                     return [...prevKeys, maMay];
+                                }
+                            });
+                        }}
+                    />
+                );
+            },
+        },
+    ];
+    const deviceUpdateColumns = [
+        {
+            title: 'Tên Thiết Bị',
+            dataIndex: 'tenThietBi',
+            key: 'tenThietBi',
+            render: (text, record) => text || `Thiết bị ${record.maThietBi}`, // Fallback name
+        },
+        {
+            title: 'Trạng thái hiện tại',
+            dataIndex: 'trangThai',
+            key: 'trangThai',
+            render: (status) => (
+                <span style={{
+                    fontWeight: 'bold',
+                    // Use the existing helper function for color
+                    color: getDeviceStatusColor(status)
+                }}>
+                    {status}
+                </span>
+            )
+        },
+        {
+            title: 'Thay đổi (Tick/Untick)', // Column name
+            key: 'action',
+            align: 'center',
+            width: '25%', // Adjust width as needed
+            render: (text, record) => {
+                // Disable checkbox for broken devices
+                if (record.trangThai === BROKEN_STATUS) {
+                    return <span style={{ color: getDeviceStatusColor(BROKEN_STATUS), fontStyle: 'italic' }}>Đã hỏng</span>;
+                }
+
+                // Determine initial checked state (Active = checked)
+                const initialChecked = record.trangThai === ACTIVE_STATUS;
+
+                // Determine if this specific device was toggled
+                const isToggled = selectedDeviceKeysForUpdate.includes(record.maThietBi);
+
+                // Calculate the current visual state of the checkbox
+                const currentChecked = isToggled ? !initialChecked : initialChecked;
+
+                return (
+                    <Checkbox
+                        checked={currentChecked}
+                        onChange={(e) => {
+                            const maThietBi = record.maThietBi;
+                            // Update the list of toggled keys
+                            setSelectedDeviceKeysForUpdate(prevKeys => {
+                                const keyExists = prevKeys.includes(maThietBi);
+                                if (keyExists) {
+                                    // Remove key if it exists (toggled back)
+                                    return prevKeys.filter(key => key !== maThietBi);
+                                } else {
+                                    // Add key if it doesn't exist (toggled for the first time)
+                                    return [...prevKeys, maThietBi];
                                 }
                             });
                         }}
@@ -944,6 +1248,98 @@ export default function LabManagement() {
             ),
         },
     ];
+    const getDeviceStatusColor = (status) => {
+        if (status === BROKEN_STATUS) return '#ff4d4f'; // Red for broken
+        if (status === ACTIVE_STATUS) return '#52c41a'; // Green for active
+        return '#bfbfbf'; // Grey for inactive or other statuses
+    };
+
+    // --- Helper function to get device icon (Placeholder Logic) ---
+    const getDeviceIcon = (deviceName) => {
+        const lowerName = deviceName?.toLowerCase() || '';
+        // Simple keyword check - adjust keywords as needed
+        if (lowerName.includes('máy lạnh') || lowerName.includes('điều hòa')) {
+            // Consider using a generic icon or finding a specific one
+            return <ToolOutlined style={{ fontSize: '3rem' }} />; // Placeholder
+        }
+        if (lowerName.includes('máy chiếu')) {
+            return <DesktopOutlined style={{ fontSize: '3rem' }} />; // Reuse desktop or find Projector icon
+        }
+        if (lowerName.includes('quạt')) {
+            return <ToolOutlined style={{ fontSize: '3rem' }} />; // Placeholder
+        }
+        // Default icon for other devices
+        return <ToolOutlined style={{ fontSize: '3rem' }} />;
+    };
+    const renderGroupedDevices = (devices) => {
+        const grouped = {
+            airConditioners: [],
+            projectors: [],
+            fans: [],
+            others: []
+        };
+
+        devices.forEach(device => {
+            const lowerName = device.tenThietBi?.toLowerCase() || '';
+            if (lowerName.includes('máy lạnh') || lowerName.includes('điều hòa')) {
+                grouped.airConditioners.push(device);
+            } else if (lowerName.includes('máy chiếu')) {
+                grouped.projectors.push(device);
+            } else if (lowerName.includes('quạt')) {
+                grouped.fans.push(device);
+            } else {
+                grouped.others.push(device);
+            }
+        });
+
+        const renderSection = (title, items) => {
+            if (items.length === 0) return null;
+            return (
+                <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: '1px solid #eee' }}>
+                    <h4 style={{ marginBottom: '15px', textAlign: 'center', fontWeight: 'bold' }}>{title}</h4>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '20px' }}>
+                        {items.map((item) => (
+                            <div key={item.maThietBi} style={{ textAlign: 'center', width: '100px', padding: '10px', borderRadius: '4px' }}>
+                                {/* Get icon based on name */}
+                                {React.cloneElement(getDeviceIcon(item.tenThietBi), { style: { fontSize: '3rem', color: getDeviceStatusColor(item.trangThai) } })}
+                                <div style={{ marginTop: '5px', fontSize: '0.8rem', wordWrap: 'break-word' }}>{item.tenThietBi || `TB ${item.maThietBi}`}</div>
+                                {/* Optionally display status text explicitly */}
+                                {/* <div style={{ fontSize: '0.75rem', color: getDeviceStatusColor(item.trangThai) }}>({item.trangThai})</div> */}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        return (
+            <>
+                {renderSection('Máy Lạnh / Điều Hòa', grouped.airConditioners)}
+                {renderSection('Máy Chiếu', grouped.projectors)}
+                {renderSection('Quạt', grouped.fans)}
+                {renderSection('Thiết Bị Khác', grouped.others)}
+
+                {/* Legend for Devices */}
+                { devices.length > 0 && (
+                    <div style={{
+                        marginTop: '30px',
+                        paddingTop: '15px',
+                        borderTop: '1px solid #f0f0f0',
+                        textAlign: 'center',
+                        fontSize: '0.9rem',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        gap: '15px',
+                        flexWrap: 'wrap'
+                    }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center' }}><ToolOutlined style={{ color: getDeviceStatusColor(INACTIVE_STATUS), marginRight: '5px', fontSize: '1.2em' }} />: {INACTIVE_STATUS}</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center' }}><ToolOutlined style={{ color: getDeviceStatusColor(ACTIVE_STATUS), marginRight: '5px', fontSize: '1.2em' }} />: {ACTIVE_STATUS}</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center' }}><ToolOutlined style={{ color: getDeviceStatusColor(BROKEN_STATUS), marginRight: '5px', fontSize: '1.2em' }} />: {BROKEN_STATUS}</span>
+                    </div>
+                )}
+            </>
+        );
+    };
 
     return (
         <Layout className="lab-management-layout">
@@ -1094,102 +1490,144 @@ export default function LabManagement() {
                     </div>
                 </Modal>
                 <Modal
-                    title={`Trạng thái máy tính - Phòng ${currentRoomName}`}
-                    visible={isComputerModalVisible} // <-- State modal xem
-                    onCancel={handleComputerModalClose} // <-- Hàm đóng modal xem
-                    width={800}
-                    bodyStyle={{ maxHeight: '60vh', overflowY: 'auto' }}
-                    footer={[ // <-- Footer modal xem
-                        <Button key="close" onClick={handleComputerModalClose}>
+                    // Title is now more generic
+                    title={`Trạng thái Phòng ${currentRoomName}`}
+                    // Use the renamed state variable
+                    visible={isStatusModalVisible}
+                    // Use the renamed close handler
+                    onCancel={handleStatusModalClose}
+                    width={800} // Keep width or adjust as needed
+                    bodyStyle={{ maxHeight: '70vh', overflowY: 'auto' }} // Adjust height if needed
+                    footer={[
+                        <Button key="close" onClick={handleStatusModalClose}>
                             Đóng
                         </Button>,
-                        !computerModalLoading && computersInRoom && computersInRoom.length > 0 && (
+                        // Show "Update Status" button ONLY if the 'computers' tab is active
+                        // and there are computers loaded without error
+                        activeTabKey === 'computers' && !statusModalLoadingComputers && computersInRoom && computersInRoom.length > 0 && (
                             <Button key="update" type="primary" onClick={handleOpenUpdateModal}>
-                                Cập nhật trạng thái
+                                Cập nhật trạng thái máy tính
                             </Button>
                         )
                     ]}
                 >
-                    {computerModalLoading ? (
-                        <div style={{ textAlign: 'center', padding: '50px' }}>
-                            <Spin size="large" tip="Đang tải..." />
-                        </div>
-                    ) : (
-                        // --- SỬA TỪ ĐÂY ---
-                        <>
-                            {computersInRoom && computersInRoom.length > 0 ? (
-                                // Phần hiển thị khi CÓ dữ liệu
-                                <>
-                                    {/* Phần render icon máy GV */}
-                                    {(() => {
-                                        const teacherComputers = computersInRoom.filter(m => m.moTa?.toLowerCase().includes('gv') || m.moTa?.toLowerCase().includes('giáo viên'));
-                                        if (!teacherComputers.length) return null;
-                                        return (
-                                            <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: '1px solid #eee' }}>
-                                                <h4 style={{ marginBottom: '15px', textAlign: 'center', fontWeight: 'bold' }}>Máy Giáo Viên</h4>
-                                                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '20px' }}>
-                                                    {teacherComputers.map((mayTinh) => (
-                                                        <div key={mayTinh.maMay} style={{ textAlign: 'center', width: '100px', padding: '10px', borderRadius: '4px' }}>
-                                                            <DesktopOutlined style={{ fontSize: '3rem', color: mayTinh.trangThai === BROKEN_STATUS ? '#ff4d4f' : mayTinh.trangThai === ACTIVE_STATUS ? '#52c41a' : '#bfbfbf' }} />
-                                                            <div style={{ marginTop: '5px', fontSize: '0.8rem', wordWrap: 'break-word' }}>{mayTinh.tenMay || `Máy ${mayTinh.maMay}`}</div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        );
-                                    })()}
-                                    {/* Phần render icon máy SV */}
-                                    {(() => {
-                                        const otherComputers = computersInRoom.filter(m => !(m.moTa?.toLowerCase().includes('gv') || m.moTa?.toLowerCase().includes('giáo viên')));
-                                        const hasTeachers = computersInRoom.some(m => m.moTa?.toLowerCase().includes('gv') || m.moTa?.toLowerCase().includes('giáo viên'));
-                                        // Điều chỉnh logic hiển thị phù hợp khi không có máy SV
-                                        if (!otherComputers.length) {
-                                            // Nếu có GV nhưng 0 SV -> không hiển thị mục SV
-                                            if(hasTeachers) return null;
-                                            // Nếu không có GV và cũng không có SV -> không hiển thị (sẽ rơi vào message "Không có máy nào")
-                                            // Thực tế trường hợp này sẽ không vào đây do check computersInRoom.length > 0 bên ngoài
-                                        }
-                                        return (
-                                            <div>
-                                                {hasTeachers && <h4 style={{ marginBottom: '15px', textAlign: 'center', fontWeight: 'bold' }}>Máy Sinh Viên / Khác</h4>}
-                                                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '20px' }}>
-                                                    {otherComputers.map((mayTinh) => (
-                                                        <div key={mayTinh.maMay} style={{ textAlign: 'center', width: '100px', padding: '10px' }}>
-                                                            <DesktopOutlined style={{ fontSize: '3rem', color: mayTinh.trangThai === BROKEN_STATUS ? '#ff4d4f' : mayTinh.trangThai === ACTIVE_STATUS ? '#52c41a' : '#bfbfbf' }}/>
-                                                            <div style={{ marginTop: '5px', fontSize: '0.8rem', wordWrap: 'break-word' }}>{mayTinh.tenMay || `Máy ${mayTinh.maMay}`}</div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        );
-                                    })()}
-
-                                    {/* Legend chỉ hiển thị khi có dữ liệu */}
-                                    <div style={{
-                                        marginTop: '30px',
-                                        paddingTop: '15px',
-                                        borderTop: '1px solid #f0f0f0',
-                                        textAlign: 'center',
-                                        fontSize: '0.9rem',
-                                        display: 'flex',
-                                        justifyContent: 'center',
-                                        gap: '15px',
-                                        flexWrap: 'wrap'
-                                    }}>
-                                        <span style={{ display: 'inline-flex', alignItems: 'center' }}><DesktopOutlined style={{ color: '#bfbfbf', marginRight: '5px', fontSize: '1.2em' }} />: {INACTIVE_STATUS}</span>
-                                        <span style={{ display: 'inline-flex', alignItems: 'center' }}><DesktopOutlined style={{ color: '#52c41a', marginRight: '5px', fontSize: '1.2em' }} />: {ACTIVE_STATUS}</span>
-                                        <span style={{ display: 'inline-flex', alignItems: 'center' }}><DesktopOutlined style={{ color: '#ff4d4f', marginRight: '5px', fontSize: '1.2em' }} />: {BROKEN_STATUS}</span>
-                                    </div>
-                                </>
+                    {/* Use Tabs component */}
+                    <Tabs activeKey={activeTabKey} onChange={handleTabChange}>
+                        {/* Tab 1: Computers */}
+                        <TabPane tab="Máy tính" key="computers">
+                            {statusModalLoadingComputers ? (
+                                <div style={{ textAlign: 'center', padding: '50px' }}>
+                                    <Spin size="large" tip="Đang tải máy tính..." />
+                                </div>
                             ) : (
-                                // Phần hiển thị khi KHÔNG có dữ liệu
-                                <p style={{ textAlign: 'center', padding: '30px 0' }}>
-                                    Không có máy tính nào trong phòng này hoặc không thể tải dữ liệu.
-                                </p>
+                                // --- Existing Computer Display Logic ---
+                                <>
+                                    {computersInRoom && computersInRoom.length > 0 ? (
+                                        <>
+                                            {/* Máy GV */}
+                                            {(() => {
+                                                const teacherComputers = computersInRoom.filter(m => m.moTa?.toLowerCase().includes('gv') || m.moTa?.toLowerCase().includes('giáo viên'));
+                                                if (!teacherComputers.length) return null;
+                                                return (
+                                                    <div style={{ marginBottom: '20px', paddingBottom: '15px', borderBottom: '1px solid #eee' }}>
+                                                        <h4 style={{ marginBottom: '15px', textAlign: 'center', fontWeight: 'bold' }}>Máy Giáo Viên</h4>
+                                                        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '20px' }}>
+                                                            {teacherComputers.map((mayTinh) => (
+                                                                <div key={mayTinh.maMay} style={{ textAlign: 'center', width: '100px', padding: '10px', borderRadius: '4px' }}>
+                                                                    <DesktopOutlined style={{ fontSize: '3rem', color: getDeviceStatusColor(mayTinh.trangThai) }} />
+                                                                    <div style={{ marginTop: '5px', fontSize: '0.8rem', wordWrap: 'break-word' }}>{mayTinh.tenMay || `Máy ${mayTinh.maMay}`}</div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
+                                            {/* Máy SV / Khác */}
+                                            {(() => {
+                                                const otherComputers = computersInRoom.filter(m => !(m.moTa?.toLowerCase().includes('gv') || m.moTa?.toLowerCase().includes('giáo viên')));
+                                                const hasTeachers = computersInRoom.some(m => m.moTa?.toLowerCase().includes('gv') || m.moTa?.toLowerCase().includes('giáo viên'));
+                                                if (!otherComputers.length && hasTeachers) return null; // Hide section if only teachers exist
+                                                // If no computers at all, the outer check handles it.
+
+                                                if (otherComputers.length === 0) return null; // Don't render section if no other computers
+
+                                                return (
+                                                    <div>
+                                                        {hasTeachers && <h4 style={{ marginBottom: '15px', textAlign: 'center', fontWeight: 'bold' }}>Máy Sinh Viên / Khác</h4>}
+                                                        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '20px' }}>
+                                                            {otherComputers.map((mayTinh) => (
+                                                                <div key={mayTinh.maMay} style={{ textAlign: 'center', width: '100px', padding: '10px' }}>
+                                                                    <DesktopOutlined style={{ fontSize: '3rem', color: getDeviceStatusColor(mayTinh.trangThai) }} />
+                                                                    <div style={{ marginTop: '5px', fontSize: '0.8rem', wordWrap: 'break-word' }}>{mayTinh.tenMay || `Máy ${mayTinh.maMay}`}</div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
+                                            {/* Legend */}
+                                            <div style={{
+                                                marginTop: '30px', paddingTop: '15px', borderTop: '1px solid #f0f0f0', textAlign: 'center', fontSize: '0.9rem',
+                                                display: 'flex', justifyContent: 'center', gap: '15px', flexWrap: 'wrap'
+                                            }}>
+                                                <span style={{ display: 'inline-flex', alignItems: 'center' }}><DesktopOutlined style={{ color: getDeviceStatusColor(INACTIVE_STATUS), marginRight: '5px', fontSize: '1.2em' }} />: {INACTIVE_STATUS}</span>
+                                                <span style={{ display: 'inline-flex', alignItems: 'center' }}><DesktopOutlined style={{ color: getDeviceStatusColor(ACTIVE_STATUS), marginRight: '5px', fontSize: '1.2em' }} />: {ACTIVE_STATUS}</span>
+                                                <span style={{ display: 'inline-flex', alignItems: 'center' }}><DesktopOutlined style={{ color: getDeviceStatusColor(BROKEN_STATUS), marginRight: '5px', fontSize: '1.2em' }} />: {BROKEN_STATUS}</span>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <p style={{ textAlign: 'center', padding: '30px 0' }}>
+                                            Không có máy tính nào trong phòng này hoặc không thể tải dữ liệu.
+                                        </p>
+                                    )}
+                                </>
+                                // --- End Existing Computer Display Logic ---
                             )}
-                        </>
-                        // --- KẾT THÚC SỬA ---
-                    )}
+                        </TabPane>
+
+                        {/* Tab 2 onwards: Devices (Dynamically generated) */}
+                        {/* Show device tabs only if types are loaded and not empty */}
+                        {!loadingDeviceTypes && deviceTypes.map(loai => (
+                            <TabPane tab={loai.tenLoai || `Loại ${loai.maLoai}`} key={String(loai.maLoai)}>
+                                {loadingDevices ? (
+                                    <div style={{ textAlign: 'center', padding: '50px' }}>
+                                        <Spin size="large" tip={`Đang tải ${loai.tenLoai}...`} />
+                                    </div>
+                                ) : (
+                                    <>
+                                        {currentDevices && currentDevices.length > 0 ? (
+                                            <>
+                                                {/* Render the grouped devices */}
+                                                {renderGroupedDevices(currentDevices)}
+
+                                                {/* --- ADD DEVICE UPDATE BUTTON HERE --- */}
+                                                <div style={{ textAlign: 'right', marginTop: '20px', paddingTop: '15px', borderTop: '1px solid #f0f0f0' }}>
+                                                    <Button
+                                                        key={`updateDevices-${loai.maLoai}`}
+                                                        type="primary"
+                                                        // Pass maLoai and tenLoai to the handler
+                                                        onClick={() => handleOpenDeviceUpdateModal(loai.maLoai, loai.tenLoai)}
+                                                    >
+                                                        Cập nhật trạng thái {loai.tenLoai}
+                                                    </Button>
+                                                </div>
+                                                {/* --- END DEVICE UPDATE BUTTON --- */}
+                                            </>
+                                        ) : (
+                                            <p style={{ textAlign: 'center', padding: '30px 0' }}>
+                                                Không có thiết bị loại "{loai.tenLoai}" nào trong phòng này hoặc không thể tải dữ liệu.
+                                            </p>
+                                        )}
+                                    </>
+                                )}
+                            </TabPane>
+                        ))}
+                        {/* Optional: Show loading indicator while device types are loading */}
+                        {loadingDeviceTypes && (
+                            <TabPane tab={<Spin size="small"/>} key="loading_types" disabled />
+                        )}
+
+                    </Tabs>
                 </Modal>
                 <Modal
                     title={`Cập nhật trạng thái - Phòng ${currentRoomName}`}
@@ -1222,6 +1660,45 @@ export default function LabManagement() {
                             dataSource={computersInRoom}    // Dùng lại data đã fetch
                             rowKey="maMay"
                             pagination={false}
+                            size="small"
+                        />
+                    </Spin>
+                </Modal>
+                <Modal
+                    // Dynamic title based on the current device type being updated
+                    title={`Cập nhật trạng thái - ${currentDeviceTypeForUpdate.tenLoai || 'Thiết bị'} - Phòng ${currentRoomName}`}
+                    visible={isDeviceUpdateModalVisible}
+                    onCancel={handleDeviceUpdateModalClose}
+                    width={700} // Adjust width as needed
+                    bodyStyle={{ maxHeight: '60vh', overflowY: 'auto' }}
+                    footer={[
+                        <Button key="cancelDeviceUpdate" onClick={handleDeviceUpdateModalClose} disabled={isUpdatingDeviceStatus}>
+                            Hủy
+                        </Button>,
+                        <Button
+                            key="submitDeviceUpdate"
+                            type="primary"
+                            loading={isUpdatingDeviceStatus}
+                            onClick={handleCompleteDeviceUpdate} // Call the device update handler
+                        >
+                            Hoàn tất cập nhật
+                        </Button>,
+                    ]}
+                    // Ensure it closes when clicking outside or pressing Esc
+                    maskClosable={!isUpdatingDeviceStatus}
+                    keyboard={!isUpdatingDeviceStatus}
+                >
+                    <Spin spinning={isUpdatingDeviceStatus} tip="Đang cập nhật trạng thái thiết bị...">
+                        <p style={{ marginBottom: '15px', fontStyle: 'italic', textAlign: 'center' }}>
+                            Tick/Untick vào ô bên cạnh thiết bị để chuyển đổi trạng thái giữa '{ACTIVE_STATUS}' và '{INACTIVE_STATUS}'.<br/>
+                            Thiết bị có trạng thái '{BROKEN_STATUS}' không thể thay đổi.
+                        </p>
+                        <Table
+                            columns={deviceUpdateColumns} // Use the new columns for devices
+                            // Use currentDevices which holds the devices for the selected tab
+                            dataSource={currentDevices}
+                            rowKey="maThietBi" // Key is maThietBi
+                            pagination={false} // No pagination needed for this modal usually
                             size="small"
                         />
                     </Spin>
