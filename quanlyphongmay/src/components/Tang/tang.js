@@ -25,7 +25,7 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 import * as XLSX from "xlsx";
 import font from "../../font/font";
-import { useNavigate } from "react-router-dom";
+import { useLoaderData, useNavigate, useNavigation } from "react-router-dom";
 import ImportFileModal from "./ImportFileModal";
 
 const { Option } = Select;
@@ -80,6 +80,7 @@ const DarkModeToggle = () => {
 };
 
 export default function TangManagement() {
+    const loaderResult = useLoaderData();
     const [search, setSearch] = useState("");
     const [tangs, setTangs] = useState([]);
     const [selectedColumn, setSelectedColumn] = useState(null);
@@ -87,7 +88,9 @@ export default function TangManagement() {
     const navigate = useNavigate();
     const [selectedRowKeys, setSelectedRowKeys] = useState([]);
     const [isModalVisible, setIsModalVisible] = useState(false);
-    const [loading, setLoading] = useState(false);
+    const [loadError, setLoadError] = useState(null); // Lưu lỗi từ loader
+    const [filteredTangs, setFilteredTangs] = useState(null); // Dữ liệu khi tìm kiếm (Thêm state này nếu cần)
+    const [internalLoading, setInternalLoading] = useState(false); // Loading cho search, delete, import...
     const [importLoading, setImportLoading] = useState(false);
     const [pagination, setPagination] = useState({
         current: 1,
@@ -96,47 +99,103 @@ export default function TangManagement() {
     const [sortInfo, setSortInfo] = useState({});
     const [hasSelected, setHasSelected] = useState(false);
     const [notification, setNotification] = useState(null); // State for notification
+    useEffect(() => {
+        console.log("[Component Tang] Loader Result Received:", loaderResult);
+        if (loaderResult?.error) {
+            console.error("Loader Error Handled in Component Tang:", loaderResult);
+            setLoadError(loaderResult); // Lưu lỗi
 
+            if (loaderResult.type === 'auth') {
+                Swal.fire({
+                    title: "Lỗi Xác thực",
+                    text: loaderResult.message || "Phiên đăng nhập hết hạn.",
+                    icon: "error",
+                    timer: 2500,
+                    showConfirmButton: false,
+                    willClose: () => {
+                        localStorage.removeItem('authToken');
+                        localStorage.removeItem('username');
+                        localStorage.removeItem('userRole');
+                        navigate('/login', { replace: true });
+                    }
+                });
+            }
+            // Không cần hiển thị Swal cho lỗi API/Network vì sẽ render <Result>
+        } else if (loaderResult?.data) {
+            const data = loaderResult.data || [];
+            console.log("[Component Tang] Setting initial data:", data);
+            setInitialTangs(data);
+            setTangs(data.slice(0, pagination.pageSize)); // Cập nhật bảng
+            setLoadError(null);
+            setPagination(prev => ({ ...prev, current: 1 })); // Reset về trang 1
+            setFilteredTangs(null); // Đảm bảo không có filter cũ
+        } else {
+            console.error("Unexpected loader result:", loaderResult);
+            setLoadError({ error: true, type: 'unknown', message: "Dữ liệu tải trang không hợp lệ." });
+        }
+    }, [loaderResult, navigate]); // Phụ thuộc vào loaderResult và navigate
     // SSE connection setup and data reloading
     useEffect(() => {
         const eventSource = new EventSource("https://localhost:8080/subscribe");
-
-        eventSource.onopen = () => {
-            console.log("SSE connection opened");
-        };
-
+        eventSource.onopen = () => console.log("SSE connection opened for Tang");
         eventSource.onmessage = (event) => {
-            const message = event.data;
-            console.log("Received SSE message:", message);
+            const messageText = event.data;
+            console.log("Received SSE message:", messageText);
 
-            if (message !== "subscribed") {
-                setNotification(message); // Set notification
+            if (messageText !== "subscribed") {
+                setNotification(messageText);
 
-                // Check if the message indicates a deletion and reload data if needed
-                if (message.toLowerCase().includes("xóa") && message.toLowerCase().includes("tầng")) { //Added to check Delete
-                    fetchTangs(); // Reload the data
+                // --- CHANGE: Thay vì fetchTangs, có thể reload trang hoặc invalidate loader ---
+                // Cách đơn giản nhất là reload trang để loader chạy lại
+                if (messageText.toLowerCase().includes("xóa") && messageText.toLowerCase().includes("tầng")) {
+                    console.log("SSE indicates Tang deletion, reloading...");
+                    // message.info("Dữ liệu tầng đã thay đổi, đang tải lại...", 2);
+                    Swal.fire({ // Thông báo trước khi reload
+                        title: "Thông báo",
+                        text: "Dữ liệu tầng đã được cập nhật từ nguồn khác. Trang sẽ được tải lại.",
+                        icon: "info",
+                        timer: 3000,
+                        timerProgressBar: true,
+                        showConfirmButton: false,
+                        willClose: () => {
+                            navigate(0); // Reload trang hiện tại để loader chạy lại
+                        }
+                    });
+                    // fetchTangs(); // Bỏ fetchTangs()
+                } else if (messageText.toLowerCase().includes("thêm") && messageText.toLowerCase().includes("tầng")) {
+                    // Tương tự cho thêm mới
+                    Swal.fire({
+                        title: "Thông báo",
+                        text: "Dữ liệu tầng đã được cập nhật từ nguồn khác. Trang sẽ được tải lại.",
+                        icon: "info",
+                        timer: 3000,
+                        timerProgressBar: true,
+                        showConfirmButton: false,
+                        willClose: () => {
+                            navigate(0);
+                        }
+                    });
+                } else {
+                    // Các thông báo SSE khác không liên quan đến Tang
+                    Swal.fire({
+                        title: "Thông báo",
+                        text: messageText,
+                        icon: "info",
+                        timer: 3000,
+                        timerProgressBar: true,
+                        showConfirmButton: false
+                    });
                 }
 
-                Swal.fire({
-                    title: "Thông báo",
-                    text: message,
-                    icon: "info",
-                    timer: 3000,
-                    timerProgressBar: true,
-                    showConfirmButton: false
-                });
             }
         };
-
         eventSource.onerror = (error) => {
             console.error("SSE error:", error);
             eventSource.close();
         };
-
-        return () => {
-            eventSource.close();
-        };
-    }, []); // Keep this dependency array empty for the SSE setup
+        return () => { eventSource.close(); };
+        // Thêm navigate vào dependency nếu bạn dùng nó trong handler (như hiện tại)
+    }, [navigate]);
 
 
 
@@ -150,7 +209,6 @@ export default function TangManagement() {
 
     const handleImport = async (file) => {
         console.log("File imported:", file);
-        fetchTangs();
     };
     useEffect(() => {
         const script1 = document.createElement("script");
@@ -168,49 +226,6 @@ export default function TangManagement() {
             document.body.removeChild(script2);
         };
     }, []);
-
-
-    const fetchTangs = async () => {
-        setLoading(true);
-        const token = localStorage.getItem("authToken");
-
-        if (!token) {
-            Swal.fire("Error", "Bạn chưa đăng nhập", "error");
-            setLoading(false);
-            return;
-        }
-
-        try {
-            const url = `https://localhost:8080/DSTang?token=${token}`;
-            console.log("Fetching URL:", url);
-
-            const response = await fetch(url, {
-                method: "GET",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-            });
-
-            console.log("Response Status:", response.status);
-
-            if (!response.ok) {
-                console.error("Response Error:", response.status, response.statusText);
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            console.log("Data:", data);
-
-            setInitialTangs(data);
-            setTangs(data.slice(0, pagination.pageSize));
-        } catch (error) {
-            console.error("Error fetching tangs:", error);
-            console.log("Error Message:", error.message);
-            Swal.fire("Error", "Có lỗi xảy ra khi tải dữ liệu: " + error.message, "error");
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handleDelete = (record) => {
         Swal.fire({
@@ -296,7 +311,7 @@ export default function TangManagement() {
                 Swal.fire("Error", "Bạn chưa đăng nhập", "error");
                 return;
             }
-            setLoading(true);
+            setInternalLoading(true);
             try {
                 const url = `https://localhost:8080/searchTang?keyword=${searchColumn}:${searchValue}&token=${token}`;
                 const response = await fetch(url, {
@@ -330,7 +345,7 @@ export default function TangManagement() {
                 console.error("Error searching tangs:", error);
                 Swal.fire("Error", "Có lỗi xảy ra khi tìm kiếm dữ liệu: " + error.message, "error");
             } finally {
-                setLoading(false);
+                setInternalLoading(false);
             }
         } else {
             setTangs(initialTangs);
@@ -376,9 +391,6 @@ export default function TangManagement() {
         }),
     };
 
-    useEffect(() => {
-        fetchTangs();
-    }, []);
     const startIndex = (pagination.current - 1) * pagination.pageSize;
 
     const exportToPDF = () => {
@@ -650,7 +662,7 @@ export default function TangManagement() {
                         columns={columns}
                         dataSource={tangs}
                         rowKey="maTang"
-                        loading={loading}
+                        loading={internalLoading}
                         pagination={{
                             current: pagination.current,
                             pageSize: pagination.pageSize,
@@ -673,6 +685,7 @@ export default function TangManagement() {
                         danger
                         onClick={confirmDeleteMultiple}
                         className="mt-4"
+                        disabled={internalLoading} // Disable khi đang xử lý
                     >
                         Xóa nhiều tầng
                     </Button>

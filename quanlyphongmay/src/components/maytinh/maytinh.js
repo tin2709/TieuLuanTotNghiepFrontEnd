@@ -25,8 +25,7 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 import * as XLSX from "xlsx";
 import font from "../../font/font";
-import { useNavigate } from "react-router-dom";
-
+import { useLoaderData, useNavigate, useNavigation } from "react-router-dom";
 const { Option } = Select;
 const { Header, Content } = Layout;
 
@@ -78,16 +77,19 @@ const DarkModeToggle = () => {
     );
 };
 
-export default function MayTinhManagement() {
-    const [search, setSearch] = useState("");
+    export default function MayTinhManagement() {
+        const loaderResult = useLoaderData();
+        const [search, setSearch] = useState("");
     const [mayTinhs, setMayTinhs] = useState([]);  // Changed variable name to lowercase
-    const [selectedColumn, setSelectedColumn] = useState(null);
+        const [filteredMayTinhs, setFilteredMayTinhs] = useState(null); // Data after filtering/searching
+        const [selectedColumn, setSelectedColumn] = useState(null);
     const [initialMayTinhs, setInitialMayTinhs] = useState([]); // Changed variable name to lowercase
     const navigate = useNavigate();
     const [selectedRowKeys, setSelectedRowKeys] = useState([]);
     const [isModalVisible, setIsModalVisible] = useState(false);
-    const [loading, setLoading] = useState(false);
     const [importLoading, setImportLoading] = useState(false);
+    const [loadError, setLoadError] = useState(null); // Lưu lỗi từ loader
+    const [internalLoading, setInternalLoading] = useState(false); // Loading cho search, delete, import...
     const [pagination, setPagination] = useState({
         current: 1,
         pageSize: 10,
@@ -95,51 +97,77 @@ export default function MayTinhManagement() {
     const [sortInfo, setSortInfo] = useState({});
     const [hasSelected, setHasSelected] = useState(false);
     const [notification, setNotification] = useState(null); // State for notification
+        useEffect(() => {
+            console.log("[Component MayTinh] Loader Result Received:", loaderResult);
+            if (loaderResult?.error) {
+                console.error("Loader Error Handled in Component MayTinh:", loaderResult);
+                setLoadError(loaderResult);
 
-    // SSE connection setup and data reloading
-    useEffect(() => {
-        const eventSource = new EventSource("https://localhost:8080/subscribe");
-
-        eventSource.onopen = () => {
-            console.log("SSE connection opened");
-        };
-
-        eventSource.onmessage = (event) => {
-            const message = event.data;
-            console.log("Received SSE message:", message);
-
-            if (message !== "subscribed") {
-                setNotification(message); // Set notification
-
-                // Check if the message indicates a deletion and reload data if needed
-                if (message.toLowerCase().includes("xóa") && message.toLowerCase().includes("máy tính")) { // Changed "tầng" to "máy tính"
-                    fetchMayTinhs(); // Reload the data
+                if (loaderResult.type === 'auth') {
+                    Swal.fire({
+                        title: "Lỗi Xác thực",
+                        text: loaderResult.message || "Phiên đăng nhập hết hạn.",
+                        icon: "error",
+                        timer: 2500,
+                        showConfirmButton: false,
+                        willClose: () => {
+                            localStorage.removeItem('authToken');
+                            localStorage.removeItem('username');
+                            localStorage.removeItem('userRole');
+                            navigate('/login', { replace: true });
+                        }
+                    });
                 }
-
-                Swal.fire({
-                    title: "Thông báo",
-                    text: message,
-                    icon: "info",
-                    timer: 3000,
-                    timerProgressBar: true,
-                    showConfirmButton: false
-                });
+            } else if (loaderResult?.data) {
+                const data = loaderResult.data || [];
+                console.log("[Component MayTinh] Setting initial data:", data);
+                setInitialMayTinhs(data);
+                setMayTinhs(data.slice(0, pagination.pageSize)); // Update display table
+                setLoadError(null);
+                setPagination(prev => ({ ...prev, current: 1 })); // Reset page
+                setFilteredMayTinhs(null); // Clear any previous filters
+            } else {
+                console.error("Unexpected loader result:", loaderResult);
+                setLoadError({ error: true, type: 'unknown', message: "Dữ liệu tải trang không hợp lệ." });
             }
-        };
+        }, [loaderResult, navigate]);
+    // SSE connection setup and data reloading
+        useEffect(() => {
+            const eventSource = new EventSource("https://localhost:8080/subscribe");
+            eventSource.onopen = () => console.log("SSE connection opened for MayTinh");
+            eventSource.onmessage = (event) => {
+                const messageText = event.data;
+                console.log("Received SSE message:", messageText);
 
-        eventSource.onerror = (error) => {
-            console.error("SSE error:", error);
-            eventSource.close();
-        };
+                if (messageText !== "subscribed") {
+                    setNotification(messageText);
 
-        return () => {
-            eventSource.close();
-        };
-    }, []); // Keep this dependency array empty for the SSE setup
+                    // Reload on relevant changes
+                    if ((messageText.toLowerCase().includes("xóa") || messageText.toLowerCase().includes("thêm"))
+                        && messageText.toLowerCase().includes("máy tính"))
+                    {
+                        console.log("SSE indicates MayTinh change, reloading...");
+                        Swal.fire({
+                            title: "Thông báo",
+                            text: "Dữ liệu máy tính đã được cập nhật. Trang sẽ được tải lại.",
+                            icon: "info",
+                            timer: 3000,
+                            timerProgressBar: true,
+                            showConfirmButton: false,
+                            willClose: () => navigate(0) // Reload page
+                        });
+                        // fetchMayTinhs(); // REMOVE OLD FETCH
+                    } else {
+                        // Show other SSE messages
+                        Swal.fire({ /* ... show other messages ... */ });
+                    }
+                }
+            };
+            eventSource.onerror = (error) => { console.error("SSE error:", error); eventSource.close(); };
+            return () => { eventSource.close(); };
+        }, [navigate]); // Add navigate dependency
 
-
-
-    const showImportModal = () => {
+        const showImportModal = () => {
         setIsModalVisible(true);
     };
 
@@ -149,7 +177,6 @@ export default function MayTinhManagement() {
 
     const handleImport = async (file) => {
         console.log("File imported:", file);
-        fetchMayTinhs();
     };
     useEffect(() => {
         const script1 = document.createElement("script");
@@ -169,47 +196,6 @@ export default function MayTinhManagement() {
     }, []);
 
 
-    const fetchMayTinhs = async () => {
-        setLoading(true);
-        const token = localStorage.getItem("authToken");
-
-        if (!token) {
-            Swal.fire("Error", "Bạn chưa đăng nhập", "error");
-            setLoading(false);
-            return;
-        }
-
-        try {
-            const url = `https://localhost:8080/DSMayTinh?token=${token}`; // Corrected URL
-            console.log("Fetching URL:", url);
-
-            const response = await fetch(url, {
-                method: "GET",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-            });
-
-            console.log("Response Status:", response.status);
-
-            if (!response.ok) {
-                console.error("Response Error:", response.status, response.statusText);
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            console.log("Data:", data);
-
-            setInitialMayTinhs(data);
-            setMayTinhs(data.slice(0, pagination.pageSize));
-        } catch (error) {
-            console.error("Error fetching MayTinhs:", error);
-            console.log("Error Message:", error.message);
-            Swal.fire("Error", "Có lỗi xảy ra khi tải dữ liệu: " + error.message, "error");
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handleDelete = (record) => {
         Swal.fire({
@@ -295,7 +281,8 @@ export default function MayTinhManagement() {
                 Swal.fire("Error", "Bạn chưa đăng nhập", "error");
                 return;
             }
-            setLoading(true);
+            setInternalLoading(true); // Bật loading nội bộ
+
             try {
                 // const url = `https://localhost:8080/searchMayTinh?keyword=${searchColumn}:${searchValue}&token=${token}`; //Correct if have search api
                 const url = `https://localhost:8080/DSMayTinh?token=${token}`; // Use the correct endpoint for listing all
@@ -337,7 +324,7 @@ export default function MayTinhManagement() {
                 console.error("Error searching MayTinhs:", error);
                 Swal.fire("Error", "Có lỗi xảy ra khi tìm kiếm dữ liệu: " + error.message, "error");
             } finally {
-                setLoading(false);
+                setInternalLoading(false);
             }
         } else {
             setMayTinhs(initialMayTinhs);
@@ -383,9 +370,7 @@ export default function MayTinhManagement() {
         }),
     };
 
-    useEffect(() => {
-        fetchMayTinhs();
-    }, []);
+
     const startIndex = (pagination.current - 1) * pagination.pageSize;
 
     const exportToPDF = () => {
@@ -703,7 +688,7 @@ export default function MayTinhManagement() {
                         columns={columns}
                         dataSource={mayTinhs} // Changed variable name
                         rowKey="maMay"       // Use maMay
-                        loading={loading}
+                        loading={internalLoading}
                         pagination={{
                             current: pagination.current,
                             pageSize: pagination.pageSize,
@@ -726,6 +711,7 @@ export default function MayTinhManagement() {
                         danger
                         onClick={confirmDeleteMultiple}
                         className="mt-4"
+                        disabled={internalLoading} // Disable khi đang xử lý
                     >
                         Xóa nhiều máy tính {/* Changed to "máy tính" */}
                     </Button>
