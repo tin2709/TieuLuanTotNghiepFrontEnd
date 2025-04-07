@@ -1,56 +1,151 @@
+import React, { lazy, Suspense } from 'react';
 import './App.css';
-import Login from './components/Login';
-import HomePage from './components/Home/homepage';
-import Home from './components/Home/index';
-import PhongMay from './components/PhongMay/phongmay';
-import EditPhongMay from './components/PhongMay/editphongmay';
-import AddPhongMay from './components/PhongMay/addphongmay';
-import Tang from './components/Tang/tang';
-import EditTang from './components/Tang/edittang';
-import AddTang from './components/Tang/addtang';
-import Admin from './components/Admin/admin';
-import QuanLiTaiKhoan from './components/Admin/quanlitaikhoan';
-import Maytinh from './components/maytinh/maytinh';
-import EditMayTinh from './components/maytinh/editmaytinh';
-import AddMayTinh from './components/maytinh/addmaytinh';
-import Register from './components/Register';
-import ForgotPass from './components/Login/forgotpassword';
-import VerifyOtp from './components/Login/verifyotp';
-import UpdatePass from './components/Login/updatepassword';
+import {
+  createBrowserRouter, // Thay thế BrowserRouter
+  RouterProvider,    // Component để cung cấp router
+  Outlet,            // Render route con
+  Navigate           // Component điều hướng
+} from 'react-router-dom';
+import { Spin } from 'antd'; // Sử dụng Spin của Antd làm fallback
+
+// Import ProtectedRoute (giữ nguyên)
 import ProtectedRoute from "./components/auth/index";
 
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+// --- Import Loader (từ file riêng, phiên bản không throw lỗi) ---
+import { labManagementLoader } from './components/Loader/phongmayLoader'; // Đảm bảo đường dẫn đúng
+import { tangLoader } from './components/Loader/tangLoader'; // Đảm bảo đường dẫn đúng
+import { maytinhLoader } from './components/Loader/maytinhLoader'; // Đảm bảo đường dẫn đúng
 
+// --- Component hiển thị khi chờ tải code ---
+const LoadingFallback = () => (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+      <Spin size="large" />
+    </div>
+);
+
+// --- Layout Chung bao gồm Suspense và Outlet ---
+// Tất cả các route con sẽ được render bên trong Outlet
+// và được bọc bởi Suspense để xử lý lazy loading
+const AppLayout = () => {
+  return (
+      <Suspense fallback={<LoadingFallback />}>
+        {/* Có thể thêm Header/Footer/Sidebar chung ở đây nếu muốn */}
+        <Outlet />
+      </Suspense>
+  );
+};
+
+
+// --- Định nghĩa Lazy Load cho TẤT CẢ các component của Route (Giữ nguyên) ---
+const Login = lazy(() => import('./components/Login'));
+const HomePage = lazy(() => import('./components/Home/homepage'));
+const Home = lazy(() => import('./components/Home/index'));
+const PhongMay = lazy(() => import('./components/PhongMay/phongmay'));
+const EditPhongMay = lazy(() => import('./components/PhongMay/editphongmay'));
+const AddPhongMay = lazy(() => import('./components/PhongMay/addphongmay'));
+const Tang = lazy(() => import('./components/Tang/tang'));
+const EditTang = lazy(() => import('./components/Tang/edittang'));
+const AddTang = lazy(() => import('./components/Tang/addtang'));
+const Admin = lazy(() => import('./components/Admin/admin'));
+const QuanLiTaiKhoan = lazy(() => import('./components/Admin/quanlitaikhoan'));
+const Maytinh = lazy(() => import('./components/maytinh/maytinh'));
+const EditMayTinh = lazy(() => import('./components/maytinh/editmaytinh'));
+const AddMayTinh = lazy(() => import('./components/maytinh/addmaytinh'));
+const Register = lazy(() => import('./components/Register'));
+const ForgotPass = lazy(() => import('./components/Login/forgotpassword'));
+const VerifyOtp = lazy(() => import('./components/Login/verifyotp'));
+const UpdatePass = lazy(() => import('./components/Login/updatepassword'));
+
+// --- Cấu hình Router với createBrowserRouter ---
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <AppLayout />, // Sử dụng Layout chung
+    // Không định nghĩa errorElement ở đây theo yêu cầu
+    children: [
+      // --- Default Route ---
+      {
+        index: true, // Route mặc định cho "/"
+        element: <Navigate to="/home" replace /> // Điều hướng về /home
+      },
+
+      // --- Public Routes ---
+      // Element là các component lazy load, Suspense trong AppLayout sẽ xử lý
+      { path: "home", element: <Home /> },
+      { path: "login", element: <Login /> },
+      { path: "register", element: <Register /> },
+      { path: "forgotpass", element: <ForgotPass /> },
+      { path: "verifyotp", element: <VerifyOtp /> },
+      { path: "updatepass", element: <UpdatePass /> },
+      { path: "homepage", element: <HomePage /> },
+
+      // --- Protected Routes ---
+      // Vẫn sử dụng ProtectedRoute như cũ
+      {
+        path: "phongmay",
+        element: <ProtectedRoute component={PhongMay} />,
+        loader: labManagementLoader, // Gán loader cho route này
+        // Không có errorElement ở đây
+      },
+      {
+        path: "editphongmay/:maPhong",
+        element: <ProtectedRoute component={EditPhongMay} />,
+        // loader: editPhongMayLoader, // Có thể thêm loader nếu cần fetch data phòng cụ thể
+      },
+      {
+        path: "addphongmay",
+        element: <ProtectedRoute component={AddPhongMay} />
+      },
+      {
+        path: "tang",
+        element: <ProtectedRoute component={Tang} />,
+         loader: tangLoader, // Loader cho trang quản lý tầng nếu cần
+      },
+      {
+        path: "edittang/:maTang",
+        element: <ProtectedRoute component={EditTang} />,
+        // loader: editTangLoader, // Loader cho trang sửa tầng nếu cần
+      },
+      {
+        path: "addtang",
+        element: <ProtectedRoute component={AddTang} />
+      },
+      {
+        path: "maytinh",
+        element: <ProtectedRoute component={Maytinh} />,
+         loader: maytinhLoader, // Loader cho trang quản lý máy tính nếu cần
+      },
+      {
+        path: "editmaytinh/:maMay",
+        element: <ProtectedRoute component={EditMayTinh} />,
+        // loader: editMayTinhLoader, // Loader cho trang sửa máy tính nếu cần
+      },
+      {
+        path: "addmaytinh",
+        element: <ProtectedRoute component={AddMayTinh} />
+      },
+      {
+        path: "admin",
+        element: <ProtectedRoute component={Admin} />
+      },
+      {
+        path: "quanlitaikhoan",
+        element: <ProtectedRoute component={QuanLiTaiKhoan} />,
+        // loader: quanLiTaiKhoanLoader, // Loader nếu cần
+      },
+
+      // --- Catch-all hoặc trang 404 (Tùy chọn) ---
+      // { path: "*", element: <NotFoundPage /> }
+    ]
+  }
+  // Bạn có thể thêm các route không thuộc AppLayout ở đây (ví dụ: trang lỗi độc lập)
+]);
+
+// Component App giờ chỉ cần cung cấp RouterProvider
 function App() {
   return (
-      <BrowserRouter>
-        <Routes>
-          <Route path="/home" element={<Home />} />
-
-          {/* Protected Routes */}
-          <Route path="/phongmay" element={<ProtectedRoute component={PhongMay} />} />
-          <Route path="/editphongmay/:maPhong" element={<ProtectedRoute component={EditPhongMay} />} />
-          <Route path="/addphongmay" element={<ProtectedRoute component={AddPhongMay} />} />
-          <Route path="/tang" element={<ProtectedRoute component={Tang} />} />
-          <Route path="/edittang/:maTang" element={<ProtectedRoute component={EditTang} />} />
-          <Route path="/addtang" element={<ProtectedRoute component={AddTang} />} />
-          <Route path="/maytinh" element={<ProtectedRoute component={Maytinh} />} />
-          <Route path="/editmaytinh/:maMay" element={<ProtectedRoute component={EditMayTinh} />} />
-          <Route path="/addmaytinh" element={<ProtectedRoute component={AddMayTinh} />} />
-          <Route path="/admin" element={<ProtectedRoute component={Admin} />} />
-          <Route path="/quanlitaikhoan" element={<ProtectedRoute component={QuanLiTaiKhoan} />} />
-          {/* Unprotnpected Routes */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/forgotpass" element={<ForgotPass />} />
-          <Route path="/verifyotp" element={<VerifyOtp />} />
-          <Route path="/updatepass" element={<UpdatePass />} />
-          <Route path="/homepage" element={<HomePage />} />
-
-          {/* Default route */}
-          <Route path="/" element={<Navigate to="/home" replace />} />
-        </Routes>
-      </BrowserRouter>
+      <RouterProvider router={router} />
+      // Không cần <BrowserRouter>, <Suspense>, <Routes> ở đây nữa
   );
 }
 

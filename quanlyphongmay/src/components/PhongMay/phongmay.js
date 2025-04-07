@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import {
     HomeOutlined,
@@ -28,7 +29,8 @@ import {
     Upload,
     message,
     Spin,
-    Tabs
+    Tabs,
+    Result
 } from "antd";
 import { InboxOutlined } from '@ant-design/icons';
 import Swal from "sweetalert2";
@@ -37,7 +39,7 @@ import { SunOutlined, MoonOutlined } from "@ant-design/icons";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import * as XLSX from "xlsx";
-import { useNavigate } from "react-router-dom";
+import { useLoaderData, useNavigate, useNavigation } from "react-router-dom";
 
 const { Option } = Select;
 const { Header, Content } = Layout;
@@ -101,9 +103,9 @@ const validSearchColumns = [
 ];
 
 export default function LabManagement() {
+    const loaderResult = useLoaderData();
     const [search, setSearch] = useState("");
     const [labRooms, setLabRooms] = useState([]);
-    const [loading, setLoading] = useState(false);
     const [selectedColumn, setSelectedColumn] = useState(null);
     const [initialLabRooms, setInitialLabRooms] = useState([]);
     const [filteredLabRooms, setFilteredLabRooms] = useState(null);
@@ -135,6 +137,10 @@ export default function LabManagement() {
     const [computersInRoom, setComputersInRoom] = useState([]);
     const [currentRoomName, setCurrentRoomName] = useState('');
     const [currentRoomMaPhong, setCurrentRoomMaPhong] = useState(null);
+     // const [loading, setLoading] = useState(false); // Bỏ state này
+    const [internalLoading, setInternalLoading] = useState(false); // Loading cho search, delete, modal...
+
+    const [loadError, setLoadError] = useState(null); // Lưu lỗi từ loader
 
     // Modal 2: Cập nhật trạng thái
     const [isComputerUpdateModalVisible, setIsComputerUpdateModalVisible] = useState(false); // <-- State mới
@@ -152,6 +158,50 @@ export default function LabManagement() {
     const BROKEN_STATUS = 'Đã hỏng';
     const ACTIVE_STATUS = 'Đang hoạt động';
     const INACTIVE_STATUS = 'Không hoạt động';
+    useEffect(() => {
+        console.log("[Component] Loader Result Received:", loaderResult);
+        if (loaderResult?.error) {
+            console.error("Loader Error Handled in Component:", loaderResult);
+            setLoadError(loaderResult); // Lưu lỗi vào state để render UI lỗi
+
+            // Xử lý chuyển hướng nếu là lỗi auth
+            if (loaderResult.type === 'auth') {
+                Swal.fire({
+                    title: "Lỗi Xác thực",
+                    text: loaderResult.message || "Phiên đăng nhập hết hạn.",
+                    icon: "error",
+                    timer: 2500, // Tăng thời gian chờ một chút
+                    showConfirmButton: false,
+                    willClose: () => { // Đảm bảo navigate sau khi Swal đóng
+                        localStorage.removeItem('authToken');
+                        localStorage.removeItem('username');
+                        localStorage.removeItem('userRole');
+                        navigate('/login', { replace: true }); // Dùng replace để không lưu trang lỗi vào history
+                    }
+                });
+            } else {
+                // Có thể hiển thị Swal cho các lỗi khác nếu muốn, nhưng Result là đủ
+                // Swal.fire("Lỗi Tải Trang", loaderResult.message || "Không thể tải dữ liệu.", "error");
+            }
+        } else if (loaderResult?.data) {
+            // Xử lý dữ liệu thành công
+            const data = loaderResult.data || [];
+            console.log("[Component] Setting initial data:", data);
+            setInitialLabRooms(data);
+            // Cập nhật luôn bảng hiển thị cho trang đầu tiên
+            setLabRooms(data.slice(0, pagination.pageSize));
+            setLoadError(null); // Đảm bảo không còn lỗi
+            // Reset lại phân trang về trang 1 nếu cần (ví dụ sau khi reload)
+            setPagination(prev => ({ ...prev, current: 1 }));
+        } else {
+            // Trường hợp loader trả về không mong muốn
+            console.error("Unexpected loader result:", loaderResult);
+            setLoadError({ error: true, type: 'unknown', message: "Dữ liệu tải trang không hợp lệ." });
+            // Swal.fire("Lỗi Hệ Thống", "Dữ liệu tải trang không hợp lệ.", "error");
+        }
+        // Chỉ chạy khi loaderResult thay đổi (thường là 1 lần khi vào trang)
+        // Thêm navigate vào dependency array vì nó được sử dụng bên trong
+    }, [loaderResult, navigate]);
 
     const fetchLabRoomsForQrCode = async () => {
         // ... (rest of the fetchLabRoomsForQrCode function remains the same)
@@ -232,40 +282,7 @@ export default function LabManagement() {
         };
     }, []);
 
-    const fetchLabRooms = async () => {
-        // ... (rest of the fetchLabRooms function remains the same)
-        setLoading(true);
-        const token = localStorage.getItem("authToken");
 
-        if (!token) {
-            Swal.fire("Error", "Bạn chưa đăng nhập", "error");
-            setLoading(false);
-            return;
-        }
-
-        try {
-            const url = `https://localhost:8080/DSPhongMay?token=${token}`;
-            const response = await fetch(url, {
-                method: "GET",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            setInitialLabRooms(data);
-            setLabRooms(data.slice(0, pagination.pageSize)); // Initial display
-        } catch (error) {
-            console.error("Error fetching lab rooms:", error);
-            Swal.fire("Error", "Có lỗi xảy ra khi tải dữ liệu: " + error.message, "error");
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handleDelete = (record) => {
         // ... (rest of the handleDelete function remains the same)
@@ -291,6 +308,8 @@ export default function LabManagement() {
             Swal.fire("Error", "Bạn chưa đăng nhập", "error");
             return;
         }
+        setInternalLoading(true); // Bắt đầu loading nội bộ
+
 
         try {
             const url = `https://localhost:8080/XoaPhongMay?maPhong=${maPhong}&token=${token}`;
@@ -306,10 +325,11 @@ export default function LabManagement() {
             }
 
             Swal.fire("Thành công!", "Đã xóa!", "success");
-            fetchLabRooms();
         } catch (error) {
             console.error("Error deleting:", error);
             Swal.fire("Error", "Lỗi: " + error.message, "error");
+        } finally {
+            setInternalLoading(false); // Kết thúc loading nội bộ
         }
     };
 
@@ -364,7 +384,8 @@ export default function LabManagement() {
             return;
         }
 
-        setLoading(true);
+        setInternalLoading(true); // Bật loading nội bộ
+
         try {
             const url = `https://localhost:8080/searchPhongMay?keyword=${searchColumn}:${searchValue}&token=${token}`;
             const response = await fetch(url, {
@@ -396,7 +417,7 @@ export default function LabManagement() {
             console.error("Error during search:", error);
             Swal.fire("Error", `Search failed: ${error.message}`, "error");
         } finally {
-            setLoading(false);
+            setInternalLoading(false);
         }
     };
 
@@ -436,10 +457,7 @@ export default function LabManagement() {
         }),
     };
 
-    useEffect(() => {
-        // ... (rest of the useEffect hook remains the same)
-        fetchLabRooms();
-    }, []);
+
 
     const startIndex = (pagination.current - 1) * pagination.pageSize;
 
@@ -849,6 +867,7 @@ export default function LabManagement() {
             Swal.fire("Error", "Bạn chưa đăng nhập", "error");
             return;
         }
+        setInternalLoading(true);
 
         try {
             const maPhongListString = selectedRowKeys.join(",");
@@ -866,10 +885,11 @@ export default function LabManagement() {
 
             Swal.fire("Thành công!", "Đã xóa!", "success");
             setSelectedRowKeys([]);
-            fetchLabRooms();
         } catch (error) {
             console.error("Error deleting:", error);
             Swal.fire("Error", "Lỗi: " + error.message, "error");
+        }finally {
+            setInternalLoading(false);
         }
     };
     const computerUpdateColumns = [
@@ -1451,7 +1471,7 @@ export default function LabManagement() {
                         columns={columns}
                         dataSource={labRooms}  // Use labRooms to display
                         rowKey="maPhong"
-                        loading={loading}
+                        loading={internalLoading}
                         pagination={{
                             current: pagination.current,
                             pageSize: pagination.pageSize,
@@ -1469,6 +1489,7 @@ export default function LabManagement() {
                         danger
                         onClick={confirmDeleteMultiple}
                         className="mt-4"
+                        disabled={internalLoading} // Disable khi đang xử lý
                     >
                         Xóa nhiều phòng
                     </Button>

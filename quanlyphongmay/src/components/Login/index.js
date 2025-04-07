@@ -16,51 +16,36 @@ const Login = () => {
 
   useEffect(() => {
     const authToken = localStorage.getItem("authToken");
+    // You might also check for refreshToken here if needed for auto-login logic later
+    // const refreshToken = localStorage.getItem("refreshToken");
 
+    // Simplified check: if authToken exists, assume logged in for initial render.
+    // A robust implementation would involve verifying the token (or using the refresh token)
+    // with the backend to confirm session validity.
     if (authToken) {
-      // Keep the existing token check
-      // Important: Ensure your /checkingLogin endpoint correctly validates the token
-      // Sending username/password here seems redundant if checking by token
-      fetch(`https://localhost:8080/checkingLogin?username=&password=&token=${authToken}`)
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.status === "success") {
-              setIsLoggedIn(true);
-              // Optional: Redirect based on role if needed after token validation
-              // You might want to fetch the role here too if /checkingLogin provides it
-              // Example: navigate based on data.quyen if available
-              Swal.fire({
-                icon: "info",
-                title: "Bạn đã đăng nhập!",
-                text: "Hệ thống ghi nhận bạn đã đăng nhập.",
-                showConfirmButton: false,
-                timer: 2000,
-              });
-              // Consider redirecting here if already logged in, e.g., navigate('/home') or navigate('/admin')
-              // based on role fetched from /checkingLogin
-              // Redirect immediately if already logged in
-              navigate('/home'); // Or whatever default route is.  Consider role-based redirection here.
-
-
-            } else {
-              // Token might be invalid/expired, clear it
-              localStorage.removeItem("authToken");
-              localStorage.removeItem("username");
-              localStorage.removeItem("password"); // Clear potentially stored credentials
-              setIsLoggedIn(false);
-            }
-          })
-          .catch((error) => {
-            console.error("Error checking login:", error);
-            // Assume token is invalid on error
-            localStorage.removeItem("authToken");
-            localStorage.removeItem("username");
-            localStorage.removeItem("password");
-            setIsLoggedIn(false);
-          })
-          .finally(() => setIsCheckingLogin(false));
+      console.log("Auth Token found, attempting to redirect based on stored role.");
+      const storedRole = localStorage.getItem("userRole");
+      if (storedRole) {
+        setIsLoggedIn(true); // Set logged in state
+        // Redirect immediately based on stored role
+        if (storedRole === "1") { // Assuming '1' is Admin
+          navigate("/admin");
+        } else { // Other roles (Teacher, Staff, etc.)
+          navigate("/homepage");
+        }
+      } else {
+        // If role isn't stored but token is, maybe clear storage or try to fetch user info
+        console.warn("Auth token exists but role is missing. Clearing potentially inconsistent state.");
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("refreshToken"); // Clear refresh token too
+        localStorage.removeItem("username");
+        // localStorage.removeItem("password"); // Avoid storing password
+        localStorage.removeItem("userRole");
+        setIsLoggedIn(false);
+      }
+      setIsCheckingLogin(false); // Finish checking
     } else {
-      setIsCheckingLogin(false);
+      setIsCheckingLogin(false); // No token, not logged in
     }
   }, [navigate]); // Added navigate to dependency array
 
@@ -85,127 +70,141 @@ const Login = () => {
       return;
     }
 
+    // Clear previous login attempt data (important!)
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("refreshToken"); // Clear previous refresh token too
+    localStorage.removeItem("username");
+    localStorage.removeItem("password"); // AVOID storing password ideally
+    localStorage.removeItem("userRole");
+
+
     // 1. Call /checkUser to verify credentials and get role/ban status
+    //    NOTE: This step might be redundant if /login handles all checks,
+    //    but keeping it as per the original structure.
     try {
       const checkUserResponse = await fetch(
-          // Ensure URL encoding if username/password can contain special characters
           `https://localhost:8080/checkUser?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
           {
             method: "GET",
           }
       );
 
-      if (checkUserResponse.ok) {
-        const checkUserData = await checkUserResponse.json();
+      if (!checkUserResponse.ok) {
+        // Handle non-2xx responses from /checkUser (e.g., 400 Bad Request, 500 Server Error)
+        let errorMsg = `Không thể kiểm tra thông tin người dùng. (Mã lỗi: ${checkUserResponse.status})`;
+        try {
+          const errorData = await checkUserResponse.json();
+          errorMsg = errorData.message || errorMsg;
+        } catch (jsonError) { /* Ignore if response is not JSON */ }
 
-        if (checkUserData.status === "success") {
-          const { quyen, isBanned } = checkUserData.data;
+        Swal.fire({
+          icon: "error",
+          title: "Lỗi Kiểm Tra",
+          text: errorMsg,
+        });
+        return; // Stop the process
+      }
 
-          // 2. Handle ban status FIRST (applies specifically to role 6 as per original logic)
-          // NOTE: Clarify if ONLY role 6 can be banned, or if isBanned applies regardless of role.
-          // Assuming original logic: only role 6 users are checked for ban here.
-          if (quyen === 6 && isBanned) {
-            Swal.fire({
-              icon: "error",
-              title: "Tài khoản bị khóa",
-              text: "Tài khoản của bạn đã bị quản trị viên khóa!",
-            });
-            return; // Stop here if banned
-          }
+      // Assuming 2xx response means proceed
+      const checkUserData = await checkUserResponse.json();
 
-          // 3. If not banned (or not role 6), proceed with /login to get token
-          // IMPORTANT: Sending form data again. Ensure /login expects this.
-          // Consider if /login should just take username/password or if /checkUser could return the token directly.
-          // Assuming /login is still necessary to *generate* the session/token.
-          const loginResponse = await fetch("https://localhost:8080/login", {
-            method: "POST",
-            // Sending FormData is fine if the backend expects 'multipart/form-data' or 'application/x-www-form-urlencoded'
-            // If backend expects JSON, use:
-            // headers: { 'Content-Type': 'application/json' },
-            // body: JSON.stringify({ username, password })
-            body: new FormData(e.target),
+      if (checkUserData.status === "success") {
+        const { quyen, isBanned } = checkUserData.data; // Assuming 'quyen' is the role ID
+
+        // 2. Handle ban status (Check before attempting the actual login)
+        // Adjust the role check if needed (e.g., maybe admins can log in even if banned?)
+        if (isBanned) { // Check ban status regardless of role for simplicity, adjust if needed
+          Swal.fire({
+            icon: "error",
+            title: "Tài khoản bị khóa",
+            text: "Tài khoản của bạn đã bị quản trị viên khóa!",
           });
+          return; // Stop here if banned
+        }
 
-          if (loginResponse.ok) {
-            const loginData = await loginResponse.json();
+        // 3. Proceed with /login to get tokens
+        const loginFormData = new FormData();
+        loginFormData.append('username', username);
+        loginFormData.append('password', password);
 
-            // Assuming /login returns a token on success
-            if (loginData.token) {
-              localStorage.setItem("authToken", loginData.token);
-              // Storing username/password in localStorage is insecure. Avoid if possible.
-              // If needed for display purposes, store username ONLY.
-              localStorage.setItem("username", username);
-              localStorage.setItem("password", password);
-              // localStorage.setItem("password", password); // AVOID storing password
+        const loginResponse = await fetch("https://localhost:8080/login", {
+          method: "POST",
+          body: loginFormData, // Send username/password again
+        });
 
-              // 4. Redirect based on role AFTER successful /login and token storage
-              if (quyen === 5) { // Admin role
-                Swal.fire({
-                  icon: "success",
-                  title: "Đăng nhập thành công (Admin)!",
-                  text: "Đang chuyển hướng đến trang quản trị...",
-                  showConfirmButton: false,
-                  timer: 1500
-                }).then(() => {
-                  navigate("/admin");
-                });
-              } else if (quyen === 6) { // Regular user role -> Home page
-                Swal.fire({
-                  icon: "success",
-                  title: "Đăng nhập thành công!",
-                  text: "Đang chuyển hướng đến trang chủ...",
-                  showConfirmButton: false,
-                  timer: 1500
-                }).then(() => {
-                  navigate("/homepage"); // <<< CHANGED HERE
-                });
-              } else { // Other roles (if any) -> Phong May page (Default fallback)
-                Swal.fire({
-                  icon: "success",
-                  title: "Đăng nhập thành công!",
-                  text: "Đang chuyển hướng...",
-                  showConfirmButton: false,
-                  timer: 1500
-                }).then(() => {
-                  navigate("/phongmay"); // Fallback redirection
-                });
-              }
-            } else {
-              // Handle case where /login succeeds (status 2xx) but doesn't return a token
+        if (loginResponse.ok) {
+          const loginData = await loginResponse.json(); // This should be LoginResponseDTO
+
+          // Check if both accessToken (token) and refreshToken are present
+          if (loginData.token && loginData.refreshToken) {
+            // 4. Store tokens, username, AND ROLE
+            localStorage.setItem("authToken", loginData.token); // Use the correct field name from DTO
+            localStorage.setItem("maTK", loginData.maTK); // Use the correct field name from DTO
+            localStorage.setItem("refreshToken", loginData.refreshToken); // *** STORE REFRESH TOKEN ***
+            localStorage.setItem("username", loginData.tenDangNhap || username); // Prefer username from response
+            // localStorage.setItem("password", password); // AVOID storing password
+            // Store the role (quyen) - Use role from loginData if available, fallback to checkUserData
+            const userRole = loginData.quyen || quyen;
+            localStorage.setItem("userRole", userRole.toString());
+            localStorage.setItem('loginSuccessTimestamp', Date.now().toString());
+
+            // 5. Redirect based on role AFTER successful /login and storage
+            if (userRole === 1) { // Admin role (Assuming 5 based on backend ban logic)
               Swal.fire({
-                icon: "error",
-                title: "Lỗi Đăng nhập",
-                text: loginData.message || "Không nhận được token xác thực từ máy chủ.",
+                icon: "success",
+                title: "Đăng nhập thành công (Admin)!",
+                text: "Đang chuyển hướng đến trang quản trị...",
+                showConfirmButton: false,
+                timer: 1500
+              }).then(() => {
+                navigate("/admin");
+              });
+            } else { // Other roles -> Home page
+              Swal.fire({
+                icon: "success",
+                title: "Đăng nhập thành công!",
+                text: "Đang chuyển hướng đến trang chủ...",
+                showConfirmButton: false,
+                timer: 1500
+              }).then(() => {
+                navigate("/homepage"); // Navigate to homepage for other roles
               });
             }
           } else {
-            // Handle /login failure (e.g., server error during token generation)
-            let errorMsg = "Lỗi trong quá trình đăng nhập.";
-            try {
-              const errorData = await loginResponse.json(); // Try to get error details
-              errorMsg = errorData.message || errorMsg;
-            } catch (e) { /* Ignore if response is not JSON */ }
             Swal.fire({
               icon: "error",
-              title: "Đăng nhập thất bại",
-              text: errorMsg,
+              title: "Lỗi Đăng nhập",
+              text: loginData.message || "Không nhận được đủ thông tin token từ máy chủ.",
             });
           }
-
         } else {
-          // Handle /checkUser failure (invalid credentials or other user check issues)
+          // Handle different login failure statuses specifically
+          let errorMsg = "Lỗi trong quá trình đăng nhập.";
+          if (loginResponse.status === 401) { // Unauthorized (Wrong password)
+            errorMsg = "Sai tên đăng nhập hoặc mật khẩu!";
+          } else if (loginResponse.status === 403) { // Forbidden (Account Banned - Although checked earlier, double-check)
+            errorMsg = "Tài khoản này đã bị khóa.";
+          } else if (loginResponse.status === 404) { // Not Found (User doesn't exist - less likely if checkUser passed)
+            errorMsg = "Tài khoản không tồn tại.";
+          } else {
+            try {
+              const errorData = await loginResponse.json();
+              errorMsg = errorData.message || `Lỗi máy chủ (${loginResponse.status})`;
+            } catch (e) { /* Ignore if response is not JSON */ }
+          }
           Swal.fire({
             icon: "error",
             title: "Đăng nhập thất bại",
-            text: checkUserData.message || "Sai tên đăng nhập hoặc mật khẩu!",
+            text: errorMsg,
           });
         }
+
       } else {
-        // Handle HTTP error for /checkUser (e.g., 404, 500)
+        // Handle /checkUser failure (e.g., invalid credentials reported by checkUser)
         Swal.fire({
           icon: "error",
-          title: "Lỗi Kết Nối",
-          text: `Không thể kiểm tra thông tin người dùng. (Mã lỗi: ${checkUserResponse.status})`,
+          title: "Đăng nhập thất bại",
+          text: checkUserData.message || "Sai tên đăng nhập hoặc mật khẩu!",
         });
       }
     } catch (error) {
@@ -219,7 +218,7 @@ const Login = () => {
   };
 
 
-  // Keep the JSX structure, but conditionally render the form or "already logged in" message
+  // --- JSX (No changes needed in the structure) ---
   return (
       <div className="container">
         <main className="hero-section">
@@ -242,11 +241,17 @@ const Login = () => {
                       <p className="text-success">
                         Bạn đã đăng nhập vào hệ thống!
                       </p>
-                      {/* Optional: Add buttons to navigate away if needed */}
-                      <button onClick={() => navigate('/home')} className="btn btn-info mt-3">Đi tới trang chủ</button>
+                      {/* Optional: Button to navigate based on role */}
+                      <button onClick={() => {
+                        const role = localStorage.getItem("userRole");
+                        // Assuming role '5' is Admin based on backend logic for ban/unban
+                        if (role === "5") navigate('/admin');
+                        else navigate('/homepage');
+                      }} className="btn btn-info mt-3">Đi tới trang chính</button>
                     </div>
                 ) : (
                     <form onSubmit={handleSubmitLogin}>
+                      {/* Form inputs remain the same */}
                       <div className="form-group mb-4">
                         <label htmlFor="username" className="form-label">
                           Tài khoản
@@ -259,7 +264,7 @@ const Login = () => {
                             placeholder="Nhập tài khoản"
                             value={formData.username}
                             onChange={handleInputChange}
-                            required // Added basic HTML validation
+                            required
                         />
                       </div>
 
@@ -275,7 +280,7 @@ const Login = () => {
                             placeholder="Nhập mật khẩu"
                             value={formData.password}
                             onChange={handleInputChange}
-                            required // Added basic HTML validation
+                            required
                         />
                       </div>
 
@@ -286,8 +291,8 @@ const Login = () => {
                       </div>
                     </form>
                 )}
-                {/* Links should ideally be outside the conditional rendering of the form vs logged in message */}
-                {!isLoggedIn && !isCheckingLogin && ( // Only show these links if not logged in and not checking
+                {/* Links should ideally be outside the conditional rendering */}
+                {!isLoggedIn && !isCheckingLogin && (
                     <>
                       <div className="text-center mt-3">
                         <Link to="/register" className="text-primary">
