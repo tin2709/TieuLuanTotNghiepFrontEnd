@@ -5,7 +5,14 @@ import App from './App';
 import reportWebVitals from './reportWebVitals';
 import { Provider } from 'react-redux';
 import { store } from './redux/ConfigRedux'; // Import store của bạn
+import ReactGA from "react-ga4";
 
+ReactGA.initialize("G-E9T4ZC6VKP");
+
+ReactGA.send({
+    hitType: "pageview",
+    page: window.location.pathname,
+});
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
     <React.StrictMode>
