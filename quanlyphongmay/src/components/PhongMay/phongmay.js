@@ -1,3 +1,4 @@
+// LabManagement.js (or phongmay.js - based on your component name in the original code)
 import React, { useState, useEffect, useReducer, useMemo } from "react";
 import { useLoaderData, useNavigate } from "react-router-dom";
 import {
@@ -15,28 +16,23 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 import * as XLSX from "xlsx";
 import * as DarkReader from "darkreader"; // Import DarkReader
-
 // Internal Imports
 // *** Điều chỉnh đường dẫn import dựa trên cấu trúc thư mục thực tế của bạn ***
 import { labManagementReducer, initialState } from '../Reducer/labManagementReducer'; // Hoặc ../features/labManagement/labManagementReducer
 import { ACTIONS, BROKEN_STATUS, ACTIVE_STATUS, INACTIVE_STATUS } from './action'; // Hoặc ../features/labManagement/actions
 import { createLabManagementHandlers } from './phongmayHandler'; // Hoặc ../features/labManagement/labManagementHandlers
-
 // Bỏ import DarkModeToggle vì đã tích hợp vào đây
 // import DarkModeToggle from '../../components/DarkModeToggle';
-
 const { Option } = Select;
 const { Header, Content } = Layout;
 const { TabPane } = Tabs;
 const { Dragger } = Upload;
-
 // --- Các hàm Helpers UI ---
 const getDeviceStatusColor = (status) => {
     if (status === BROKEN_STATUS) return '#ff4d4f';
     if (status === ACTIVE_STATUS) return '#52c41a';
     return '#bfbfbf';
 };
-
 const getDeviceIcon = (deviceName) => {
     const lowerName = deviceName?.toLowerCase() || '';
     if (lowerName.includes('máy lạnh') || lowerName.includes('điều hòa')) return <ToolOutlined />;
@@ -44,11 +40,9 @@ const getDeviceIcon = (deviceName) => {
     if (lowerName.includes('quạt')) return <ToolOutlined />;
     return <ToolOutlined />;
 };
-
 // --- Component con để Render Nhóm Thiết bị/Máy tính ---
 const RenderGroupedItemsComponent = ({ items, isComputerTab = false }) => { // Đổi tên items thay vì devices
     if (!items || items.length === 0) return null;
-
     const renderItem = (item) => (
         <div key={isComputerTab ? item.maMay : item.maThietBi} style={{ textAlign: 'center', width: '100px', padding: '10px', borderRadius: '4px' }}>
             {React.cloneElement(
@@ -97,39 +91,36 @@ const RenderGroupedItemsComponent = ({ items, isComputerTab = false }) => { // �
             }
             {/* Legend */}
             <div style={{ marginTop: '30px', paddingTop: '15px', borderTop: '1px solid #f0f0f0', textAlign: 'center', fontSize: '0.9rem', display: 'flex', justifyContent: 'center', gap: '15px', flexWrap: 'wrap' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                {React.cloneElement(isComputerTab ? <DesktopOutlined /> : <ToolOutlined />, { style: { color: getDeviceStatusColor(INACTIVE_STATUS), marginRight: '5px', fontSize: '1.2em' } })}: {INACTIVE_STATUS}
+            </span>
                 <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                    {React.cloneElement(isComputerTab ? <DesktopOutlined /> : <ToolOutlined />, { style: { color: getDeviceStatusColor(INACTIVE_STATUS), marginRight: '5px', fontSize: '1.2em' } })}: {INACTIVE_STATUS}
-                </span>
+                 {React.cloneElement(isComputerTab ? <DesktopOutlined /> : <ToolOutlined />, { style: { color: getDeviceStatusColor(ACTIVE_STATUS), marginRight: '5px', fontSize: '1.2em' } })}: {ACTIVE_STATUS}
+            </span>
                 <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                     {React.cloneElement(isComputerTab ? <DesktopOutlined /> : <ToolOutlined />, { style: { color: getDeviceStatusColor(ACTIVE_STATUS), marginRight: '5px', fontSize: '1.2em' } })}: {ACTIVE_STATUS}
-                </span>
-                <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-                     {React.cloneElement(isComputerTab ? <DesktopOutlined /> : <ToolOutlined />, { style: { color: getDeviceStatusColor(BROKEN_STATUS), marginRight: '5px', fontSize: '1.2em' } })}: {BROKEN_STATUS}
-                </span>
+                 {React.cloneElement(isComputerTab ? <DesktopOutlined /> : <ToolOutlined />, { style: { color: getDeviceStatusColor(BROKEN_STATUS), marginRight: '5px', fontSize: '1.2em' } })}: {BROKEN_STATUS}
+            </span>
             </div>
         </div>
     );
 };
-
-
 // --- Component Chính: LabManagement ---
 export default function LabManagement() {
-    // --- Hooks ---
+// --- Hooks ---
     const loaderResult = useLoaderData();
     const navigate = useNavigate();
     const [form] = Form.useForm();
     const [state, dispatch] = useReducer(labManagementReducer, initialState);
     const [avatarImage, setAvatarImage] = useState(null);
-    // --- State cho Dark Mode (Tích hợp từ DarkModeToggle) ---
+// --- State cho Dark Mode (Tích hợp từ DarkModeToggle) ---
     const [isDarkMode, setIsDarkMode] = useState(false);
-
-    // --- Tạo Handlers ---
+// --- Tạo Handlers ---
     const handlers = useMemo(() => createLabManagementHandlers({
         dispatch, state, navigate, form, setAvatarImage
     }), [dispatch, state, navigate, form, setAvatarImage]);
 
-    // --- Effects ---
-    // 1. Xử lý loader data
+// --- Effects ---
+// 1. Xử lý loader data
     useEffect(() => {
         console.log("[Component] Loader Result Received:", loaderResult);
         if (loaderResult?.error) {
@@ -141,12 +132,12 @@ export default function LabManagement() {
         }
     }, [loaderResult, dispatch]);
 
-    // 2. Cập nhật dữ liệu hiển thị
+// 2. Cập nhật dữ liệu hiển thị
     useEffect(() => {
         dispatch({ type: ACTIONS.UPDATE_DISPLAYED_DATA });
     }, [state.pagination, state.sortInfo, state.initialLabRooms, state.filteredLabRooms, dispatch]);
 
-    // 3. Effect cho Dark Mode (Tích hợp từ DarkModeToggle)
+// 3. Effect cho Dark Mode (Tích hợp từ DarkModeToggle)
     useEffect(() => {
         // Tự động kích hoạt DarkReader dựa trên cài đặt hệ thống hoặc tùy chọn đã lưu (nếu có)
         // DarkReader.auto() có thể không lý tưởng nếu muốn kiểm soát hoàn toàn bằng nút bấm
@@ -161,7 +152,7 @@ export default function LabManagement() {
     }, []); // Chạy một lần khi mount
 
 
-    // --- Handler cho Dark Mode (Tích hợp từ DarkModeToggle) ---
+// --- Handler cho Dark Mode (Tích hợp từ DarkModeToggle) ---
     const toggleDarkMode = () => {
         setIsDarkMode((prevIsDarkMode) => {
             const nextIsDarkMode = !prevIsDarkMode;
@@ -182,7 +173,7 @@ export default function LabManagement() {
     };
 
 
-    // --- Định nghĩa Cột ---
+// --- Định nghĩa Cột ---
     const columns = useMemo(() => [
         // Checkbox selection column - Improved logic
         {
@@ -244,7 +235,7 @@ export default function LabManagement() {
     ], [state.deviceUpdateModal.selectedKeys, handlers]);
 
 
-    // --- Menu Tạo Mới ---
+// --- Menu Tạo Mới ---
     const menu = useMemo(() => (
         <Menu>
             <Menu.Item key="1" icon={<PlusOutlined />} onClick={() => navigate(`/addphongmay`)}>Tạo mới (form)</Menu.Item>
@@ -252,7 +243,7 @@ export default function LabManagement() {
         </Menu>
     ), [navigate]);
 
-    // --- Các hàm Export ---
+// --- Các hàm Export ---
     const exportToPDF = () => {
         if (!state.labRooms || state.labRooms.length === 0) { message.warning("Không có dữ liệu."); return; }
         const doc = new jsPDF();
@@ -292,7 +283,7 @@ export default function LabManagement() {
     };
 
 
-    // --- JSX Return ---
+// --- JSX Return ---
     return (
         <Layout className="lab-management-layout">
             {/* Header */}

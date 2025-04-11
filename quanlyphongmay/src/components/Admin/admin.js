@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer,
+    LineChart, Line,
 } from 'recharts';
 import { Card, Statistic, Row, Col, Spin, Layout, Menu, Button as AntButton, Popover } from 'antd';
 import {
@@ -54,6 +55,11 @@ const AdminDashboard = () => {
     const [collapsed, setCollapsed] = useState(false);
     const navigate = useNavigate();
 
+    // State và dữ liệu cho Time-Series Chart (Recharts)
+    const [timeSeriesLoading, setTimeSeriesLoading] = useState(false);
+    const [timeSeriesError, setTimeSeriesError] = useState(null);
+    const [timeSeriesData, setTimeSeriesData] = useState([]);
+
     const fetchData = async () => {
         setLoading(true);
         const token = localStorage.getItem('authToken');
@@ -93,13 +99,54 @@ const AdminDashboard = () => {
         }
     };
 
+    // Hàm fetch dữ liệu Time-Series từ API backend
+    const fetchTimeSeriesData = async () => {
+        setTimeSeriesLoading(true);
+        setTimeSeriesError(null);
+        const token = localStorage.getItem('authToken');
+        try {
+            const timeSeriesUrl = `https://localhost:8080/thong-ke-may-tinh-theo-thoi-gian?token=${token}`; // API endpoint mới
+            const response = await fetch(timeSeriesUrl, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                const errorMessage = errorData.message || `HTTP error! status: ${response.status}`;
+                throw new Error(errorMessage);
+            }
+
+            const data = await response.json();
+            // Format lại dữ liệu để Recharts có thể sử dụng
+            const formattedData = data.map(item => ({
+                time: new Date(item.time), // Chuyển đổi time thành Date object
+                'Đang hoạt động': item['Dang hoạt động'] || 0, // Sử dụng key từ API response, default to 0 if missing
+                'Đã hỏng': item['Đã hỏng'] || 0, // Sử dụng key từ API response, default to 0 if missing
+                'Không hoạt động': item['Không hoạt động'] || 0, // Sử dụng key từ API response, default to 0 if missing
+            }));
+            setTimeSeriesData(formattedData);
+
+        } catch (err) {
+            setTimeSeriesError(err.message);
+            setTimeSeriesData([]);
+            console.error("Failed to fetch time-series data:", err);
+        } finally {
+            setTimeSeriesLoading(false);
+        }
+    };
+
+
     useEffect(() => {
         fetchData();
+        fetchTimeSeriesData(); // Gọi hàm fetch dữ liệu Time-Series khi component mount
     }, []);
 
     const handleMenuClick = (e) => {
         if (e.key === 'userManagement') {
-            navigate('/quanlitaikhoan'); // Navigate to the new component
+            navigate('/quanlitaikhoan');
         } else if (e.key === 'logout') {
             handleLogout();
         }
@@ -259,6 +306,34 @@ const AdminDashboard = () => {
                                             <Tooltip />
                                         </PieChart>
                                     </ResponsiveContainer>
+                                </div>
+
+                                {/* Time-Series Chart (Recharts) */}
+                                <div style={{ width: '100%', height: 400, marginTop: '24px' }}>
+                                    <h2>Thống kê trạng thái máy tính theo thời gian</h2>
+                                    {timeSeriesLoading ? (
+                                        <Spin />
+                                    ) : timeSeriesError ? (
+                                        <div>Error: {timeSeriesError}</div>
+                                    ) : (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <LineChart
+                                                data={timeSeriesData}
+                                                margin={{
+                                                    top: 5, right: 30, left: 20, bottom: 5,
+                                                }}
+                                            >
+                                                <CartesianGrid strokeDasharray="3 3" />
+                                                <XAxis dataKey="time" type="category" tickFormatter={(time) => time.toLocaleDateString()} />
+                                                <YAxis />
+                                                <Tooltip labelFormatter={(value) => new Date(value).toLocaleDateString()} />
+                                                <Legend />
+                                                <Line type="monotone" dataKey="Đang hoạt động" stroke="#82ca9d" activeDot={{ r: 8 }} />
+                                                <Line type="monotone" dataKey="Đã hỏng" stroke="#FF0000" activeDot={{ r: 8 }} />
+                                                <Line type="monotone" dataKey="Không hoạt động" stroke="#FFA500" activeDot={{ r: 8 }} />
+                                            </LineChart>
+                                        </ResponsiveContainer>
+                                    )}
                                 </div>
                             </>
                         )}

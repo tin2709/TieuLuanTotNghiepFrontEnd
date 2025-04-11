@@ -142,7 +142,7 @@ const Login = () => {
             localStorage.setItem("maTK", loginData.maTK); // Use the correct field name from DTO
             localStorage.setItem("refreshToken", loginData.refreshToken); // *** STORE REFRESH TOKEN ***
             localStorage.setItem("username", loginData.tenDangNhap || username); // Prefer username from response
-            // localStorage.setItem("password", password); // AVOID storing password
+            localStorage.setItem("password", password); // AVOID storing password
             // Store the role (quyen) - Use role from loginData if available, fallback to checkUserData
             const userRole = loginData.quyen || quyen;
             localStorage.setItem("userRole", userRole.toString());
