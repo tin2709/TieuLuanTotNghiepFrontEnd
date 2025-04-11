@@ -1,8 +1,12 @@
 // Login.js
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
-import "./style.css"; // Keep your existing styles
+import "./style.css";
+import { GoogleLogin } from '@react-oauth/google'; // Import GoogleLogin từ @react-oauth/google
+import { jwtDecode } from "jwt-decode"; // Import jwt-decode
+
+const clientId = "25503328823-80ck8k2dpchg36qs1beleuj5s1clqukh.apps.googleusercontent.com"; // **QUAN TRỌNG:** Thay bằng Client ID thật của bạn
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -16,38 +20,29 @@ const Login = () => {
 
   useEffect(() => {
     const authToken = localStorage.getItem("authToken");
-    // You might also check for refreshToken here if needed for auto-login logic later
-    // const refreshToken = localStorage.getItem("refreshToken");
-
-    // Simplified check: if authToken exists, assume logged in for initial render.
-    // A robust implementation would involve verifying the token (or using the refresh token)
-    // with the backend to confirm session validity.
     if (authToken) {
       console.log("Auth Token found, attempting to redirect based on stored role.");
       const storedRole = localStorage.getItem("userRole");
       if (storedRole) {
-        setIsLoggedIn(true); // Set logged in state
-        // Redirect immediately based on stored role
-        if (storedRole === "1") { // Assuming '1' is Admin
+        setIsLoggedIn(true);
+        if (storedRole === "1") {
           navigate("/admin");
-        } else { // Other roles (Teacher, Staff, etc.)
+        } else {
           navigate("/homepage");
         }
       } else {
-        // If role isn't stored but token is, maybe clear storage or try to fetch user info
         console.warn("Auth token exists but role is missing. Clearing potentially inconsistent state.");
         localStorage.removeItem("authToken");
-        localStorage.removeItem("refreshToken"); // Clear refresh token too
+        localStorage.removeItem("refreshToken");
         localStorage.removeItem("username");
-        // localStorage.removeItem("password"); // Avoid storing password
         localStorage.removeItem("userRole");
         setIsLoggedIn(false);
       }
-      setIsCheckingLogin(false); // Finish checking
+      setIsCheckingLogin(false);
     } else {
-      setIsCheckingLogin(false); // No token, not logged in
+      setIsCheckingLogin(false);
     }
-  }, [navigate]); // Added navigate to dependency array
+  }, [navigate]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -56,6 +51,158 @@ const Login = () => {
       [name]: value,
     });
   };
+
+  const handleGoogleLoginSuccess = async (credentialResponse) => {
+    console.log('Google Login Success:', credentialResponse);
+    const idToken = credentialResponse.credential;
+
+    try {
+      const decodedToken = jwtDecode(idToken);
+      console.log("Decoded Token:", decodedToken); // **Thêm dòng này để xem cấu trúc decodedToken**
+      const email = decodedToken.email;
+      console.log("Extracted Email:", email); // **Thêm dòng này để xem email lấy được**
+
+
+      if (email) {
+        const response = await fetch(`https://localhost:8080/taikhoanemail?email=${encodeURIComponent(email)}`);
+        if (!response.ok) {
+          throw new Error(`Không tìm thấy tài khoản với email này. (Mã lỗi: ${response.status})`);
+        }
+        const userDataFromEmailAPI = await response.json();
+        console.log("userDataFromEmailAPI Response:", userDataFromEmailAPI); // **Xem response từ API /taikhoanemail**
+
+
+        // Lấy username và password từ userDataFromEmailAPI
+        const googleLoginUsername = userDataFromEmailAPI.tenDangNhap;
+        const googleLoginPassword = userDataFromEmailAPI.matKhau;
+
+        if (!googleLoginUsername || !googleLoginPassword) {
+          Swal.fire({
+            icon: "error",
+            title: "Lỗi đăng nhập Google",
+            text: "Không thể lấy thông tin đăng nhập từ tài khoản Google.",
+          });
+          return;
+        }
+
+        // Tiến hành đăng nhập bằng username và password lấy từ /taikhoan/email API
+        const loginFormData = new FormData();
+        loginFormData.append('username', googleLoginUsername);
+        loginFormData.append('password', googleLoginPassword);
+
+        try {
+          const loginResponse = await fetch("https://localhost:8080/login", {
+            method: "POST",
+            body: loginFormData,
+          });
+          console.log("Login API Response:", loginResponse); // **Xem response từ API /login**
+
+
+          if (loginResponse.ok) {
+            const loginData = await loginResponse.json();
+            console.log("Login Data:", loginData); // **Xem dữ liệu trả về sau khi login thành công**
+
+
+            if (loginData.token && loginData.refreshToken) {
+              localStorage.setItem("authToken", loginData.token);
+              localStorage.setItem("maTK", loginData.maTK);
+              localStorage.setItem("refreshToken", loginData.refreshToken);
+              localStorage.setItem("username", loginData.tenDangNhap || googleLoginUsername);
+              localStorage.setItem("userRole", loginData.quyen || userDataFromEmailAPI.quyen.maQuyen);
+              localStorage.setItem('loginSuccessTimestamp', Date.now().toString());
+
+              const userRole = loginData.quyen || userDataFromEmailAPI.quyen.maQuyen;
+              if (userRole === 1) {
+                Swal.fire({
+                  icon: "success",
+                  title: "Đăng nhập thành công (Admin)!",
+                  text: "Đang chuyển hướng đến trang quản trị...",
+                  showConfirmButton: false,
+                  timer: 1500
+                }).then(() => {
+                  navigate("/admin");
+                });
+              } else {
+                Swal.fire({
+                  icon: "success",
+                  title: "Đăng nhập thành công!",
+                  text: "Đang chuyển hướng đến trang chủ...",
+                  showConfirmButton: false,
+                  timer: 1500
+                }).then(() => {
+                  navigate("/homepage");
+                });
+              }
+            } else {
+              Swal.fire({
+                icon: "error",
+                title: "Lỗi Đăng nhập",
+                text: loginData.message || "Không nhận được đủ thông tin token từ máy chủ.",
+              });
+            }
+          } else {
+            let errorMsg = "Lỗi trong quá trình đăng nhập.";
+            if (loginResponse.status === 401) {
+              errorMsg = "Sai tên đăng nhập hoặc mật khẩu!";
+            } else if (loginResponse.status === 403) {
+              errorMsg = "Tài khoản này đã bị khóa.";
+            } else if (loginResponse.status === 404) {
+              errorMsg = "Tài khoản không tồn tại.";
+            } else {
+              try {
+                const errorData = await loginResponse.json();
+                errorMsg = errorData.message || `Lỗi máy chủ (${loginResponse.status})`;
+              } catch (e) { /* Ignore if response is not JSON */ }
+            }
+            Swal.fire({
+              icon: "error",
+              title: "Đăng nhập thất bại",
+              text: errorMsg,
+            });
+          }
+
+
+        } catch (loginError) {
+          console.error("Login error after Google:", loginError);
+          Swal.fire({
+            icon: "error",
+            title: "Đã có lỗi xảy ra",
+            text: "Không thể đăng nhập sau khi xác thực Google. Vui lòng thử lại!",
+          });
+        }
+
+
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Lỗi đăng nhập Google',
+          text: 'Không thể lấy email từ tài khoản Google.',
+        });
+        // onGoogleLoginFailure({ message: 'Không thể lấy email từ tài khoản Google.' }); // No need to call failure handler here, just handle the email error
+      }
+
+    } catch (error) {
+      console.error("Google Login Error (Fetching User Data):", error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Lỗi đăng nhập Google',
+        text: error.message || 'Không thể lấy thông tin tài khoản từ email Google.',
+      });
+      // onGoogleLoginFailure(error); // No need to call failure handler here, already handling error
+    }
+  };
+
+  const handleGoogleLoginFailure = (error) => {
+    console.error("Google Login Failure:", error);
+    Swal.fire({
+      icon: 'error',
+      title: 'Lỗi đăng nhập Google',
+      text: 'Đăng nhập bằng Google thất bại. Vui lòng thử lại.',
+    });
+    // REMOVE or COMMENT OUT THIS LINE:
+    // onGoogleLoginFailure(error);
+  };
+
 
   const handleSubmitLogin = async (e) => {
     e.preventDefault();
@@ -70,17 +217,12 @@ const Login = () => {
       return;
     }
 
-    // Clear previous login attempt data (important!)
     localStorage.removeItem("authToken");
-    localStorage.removeItem("refreshToken"); // Clear previous refresh token too
+    localStorage.removeItem("refreshToken");
     localStorage.removeItem("username");
-    localStorage.removeItem("password"); // AVOID storing password ideally
     localStorage.removeItem("userRole");
 
 
-    // 1. Call /checkUser to verify credentials and get role/ban status
-    //    NOTE: This step might be redundant if /login handles all checks,
-    //    but keeping it as per the original structure.
     try {
       const checkUserResponse = await fetch(
           `https://localhost:8080/checkUser?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
@@ -88,9 +230,10 @@ const Login = () => {
             method: "GET",
           }
       );
+      console.log("Check User API Response:", checkUserResponse); // **Xem response từ API /checkUser**
+
 
       if (!checkUserResponse.ok) {
-        // Handle non-2xx responses from /checkUser (e.g., 400 Bad Request, 500 Server Error)
         let errorMsg = `Không thể kiểm tra thông tin người dùng. (Mã lỗi: ${checkUserResponse.status})`;
         try {
           const errorData = await checkUserResponse.json();
@@ -102,54 +245,51 @@ const Login = () => {
           title: "Lỗi Kiểm Tra",
           text: errorMsg,
         });
-        return; // Stop the process
+        return;
       }
 
-      // Assuming 2xx response means proceed
       const checkUserData = await checkUserResponse.json();
+      console.log("Check User Data:", checkUserData); // **Xem dữ liệu trả về từ API /checkUser**
+
 
       if (checkUserData.status === "success") {
-        const { quyen, isBanned } = checkUserData.data; // Assuming 'quyen' is the role ID
+        const { quyen, isBanned } = checkUserData.data;
 
-        // 2. Handle ban status (Check before attempting the actual login)
-        // Adjust the role check if needed (e.g., maybe admins can log in even if banned?)
-        if (isBanned) { // Check ban status regardless of role for simplicity, adjust if needed
+        if (isBanned) {
           Swal.fire({
             icon: "error",
             title: "Tài khoản bị khóa",
             text: "Tài khoản của bạn đã bị quản trị viên khóa!",
           });
-          return; // Stop here if banned
+          return;
         }
 
-        // 3. Proceed with /login to get tokens
         const loginFormData = new FormData();
         loginFormData.append('username', username);
         loginFormData.append('password', password);
 
         const loginResponse = await fetch("https://localhost:8080/login", {
           method: "POST",
-          body: loginFormData, // Send username/password again
+          body: loginFormData,
         });
+        console.log("Login API Response (Form):", loginResponse); // **Xem response từ API /login (form login)**
+
 
         if (loginResponse.ok) {
-          const loginData = await loginResponse.json(); // This should be LoginResponseDTO
+          const loginData = await loginResponse.json();
+          console.log("Login Data (Form):", loginData); // **Xem dữ liệu trả về sau khi login form thành công**
 
-          // Check if both accessToken (token) and refreshToken are present
+
           if (loginData.token && loginData.refreshToken) {
-            // 4. Store tokens, username, AND ROLE
-            localStorage.setItem("authToken", loginData.token); // Use the correct field name from DTO
-            localStorage.setItem("maTK", loginData.maTK); // Use the correct field name from DTO
-            localStorage.setItem("refreshToken", loginData.refreshToken); // *** STORE REFRESH TOKEN ***
-            localStorage.setItem("username", loginData.tenDangNhap || username); // Prefer username from response
-            localStorage.setItem("password", password); // AVOID storing password
-            // Store the role (quyen) - Use role from loginData if available, fallback to checkUserData
-            const userRole = loginData.quyen || quyen;
-            localStorage.setItem("userRole", userRole.toString());
+            localStorage.setItem("authToken", loginData.token);
+            localStorage.setItem("maTK", loginData.maTK);
+            localStorage.setItem("refreshToken", loginData.refreshToken);
+            localStorage.setItem("username", loginData.tenDangNhap || username);
+            localStorage.setItem("userRole", loginData.quyen || quyen);
             localStorage.setItem('loginSuccessTimestamp', Date.now().toString());
 
-            // 5. Redirect based on role AFTER successful /login and storage
-            if (userRole === 1) { // Admin role (Assuming 5 based on backend ban logic)
+            const userRole = loginData.quyen || quyen;
+            if (userRole === 1) {
               Swal.fire({
                 icon: "success",
                 title: "Đăng nhập thành công (Admin)!",
@@ -159,7 +299,7 @@ const Login = () => {
               }).then(() => {
                 navigate("/admin");
               });
-            } else { // Other roles -> Home page
+            } else {
               Swal.fire({
                 icon: "success",
                 title: "Đăng nhập thành công!",
@@ -167,7 +307,7 @@ const Login = () => {
                 showConfirmButton: false,
                 timer: 1500
               }).then(() => {
-                navigate("/homepage"); // Navigate to homepage for other roles
+                navigate("/homepage");
               });
             }
           } else {
@@ -178,13 +318,12 @@ const Login = () => {
             });
           }
         } else {
-          // Handle different login failure statuses specifically
           let errorMsg = "Lỗi trong quá trình đăng nhập.";
-          if (loginResponse.status === 401) { // Unauthorized (Wrong password)
+          if (loginResponse.status === 401) {
             errorMsg = "Sai tên đăng nhập hoặc mật khẩu!";
-          } else if (loginResponse.status === 403) { // Forbidden (Account Banned - Although checked earlier, double-check)
+          } else if (loginResponse.status === 403) {
             errorMsg = "Tài khoản này đã bị khóa.";
-          } else if (loginResponse.status === 404) { // Not Found (User doesn't exist - less likely if checkUser passed)
+          } else if (loginResponse.status === 404) {
             errorMsg = "Tài khoản không tồn tại.";
           } else {
             try {
@@ -200,7 +339,6 @@ const Login = () => {
         }
 
       } else {
-        // Handle /checkUser failure (e.g., invalid credentials reported by checkUser)
         Swal.fire({
           icon: "error",
           title: "Đăng nhập thất bại",
@@ -218,7 +356,6 @@ const Login = () => {
   };
 
 
-  // --- JSX (No changes needed in the structure) ---
   return (
       <div className="container">
         <main className="hero-section">
@@ -241,57 +378,72 @@ const Login = () => {
                       <p className="text-success">
                         Bạn đã đăng nhập vào hệ thống!
                       </p>
-                      {/* Optional: Button to navigate based on role */}
                       <button onClick={() => {
                         const role = localStorage.getItem("userRole");
-                        // Assuming role '5' is Admin based on backend logic for ban/unban
-                        if (role === "5") navigate('/admin');
+                        if (role === "1") navigate('/admin');
                         else navigate('/homepage');
                       }} className="btn btn-info mt-3">Đi tới trang chính</button>
                     </div>
                 ) : (
-                    <form onSubmit={handleSubmitLogin}>
-                      {/* Form inputs remain the same */}
-                      <div className="form-group mb-4">
-                        <label htmlFor="username" className="form-label">
-                          Tài khoản
-                        </label>
-                        <input
-                            type="text"
-                            id="username"
-                            name="username"
-                            className="form-control"
-                            placeholder="Nhập tài khoản"
-                            value={formData.username}
-                            onChange={handleInputChange}
-                            required
-                        />
+                    <>
+                      <form onSubmit={handleSubmitLogin}>
+                        <div className="form-group mb-4">
+                          <label htmlFor="username" className="form-label">
+                            Tài khoản
+                          </label>
+                          <input
+                              type="text"
+                              id="username"
+                              name="username"
+                              className="form-control"
+                              placeholder="Nhập tài khoản"
+                              value={formData.username}
+                              onChange={handleInputChange}
+                              required
+                          />
+                        </div>
+
+                        <div className="form-group mb-4">
+                          <label htmlFor="password" className="form-label">
+                            Mật khẩu
+                          </label>
+                          <input
+                              type="password"
+                              id="password"
+                              name="password"
+                              className="form-control"
+                              placeholder="Nhập mật khẩu"
+                              value={formData.password}
+                              onChange={handleInputChange}
+                              required
+                          />
+                        </div>
+
+                        <div className="mb-4">
+                          <button type="submit" className="btn btn-primary w-100">
+                            Đăng nhập
+                          </button>
+                        </div>
+                      </form>
+
+                      <div className="or-separator">
+                        <hr className="separator-line" />
+                        <span className="or-text">HOẶC</span>
+                        <hr className="separator-line" />
                       </div>
 
-                      <div className="form-group mb-4">
-                        <label htmlFor="password" className="form-label">
-                          Mật khẩu
-                        </label>
-                        <input
-                            type="password"
-                            id="password"
-                            name="password"
-                            className="form-control"
-                            placeholder="Nhập mật khẩu"
-                            value={formData.password}
-                            onChange={handleInputChange}
-                            required
+                      <div className="mb-4 text-center">
+                        <GoogleLogin
+                            clientId={clientId}
+                            buttonText="Đăng nhập với Google"
+                            onSuccess={handleGoogleLoginSuccess}
+                            onFailure={handleGoogleLoginFailure}
+                            cookiePolicy={'single_host_origin'}
                         />
                       </div>
-
-                      <div className="mb-4">
-                        <button type="submit" className="btn btn-primary w-100">
-                          Đăng nhập
-                        </button>
-                      </div>
-                    </form>
+                    </>
                 )}
-                {/* Links should ideally be outside the conditional rendering */}
+
                 {!isLoggedIn && !isCheckingLogin && (
                     <>
                       <div className="text-center mt-3">

@@ -6,6 +6,7 @@ import reportWebVitals from './reportWebVitals';
 import { Provider } from 'react-redux';
 import { store } from './redux/ConfigRedux'; // Import store của bạn
 import ReactGA from "react-ga4";
+import { GoogleOAuthProvider } from '@react-oauth/google';
 
 ReactGA.initialize("G-E9T4ZC6VKP");
 
@@ -13,11 +14,15 @@ ReactGA.send({
     hitType: "pageview",
     page: window.location.pathname,
 });
+
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
     <React.StrictMode>
         <Provider store={store}>  {/* Bọc ứng dụng trong Provider và truyền vào store */}
-            <App />
+            {/* Bọc App component với GoogleOAuthProvider và cung cấp client ID */}
+            <GoogleOAuthProvider clientId="25503328823-80ck8k2dpchg36qs1beleuj5s1clqukh.apps.googleusercontent.com">
+                <App />
+            </GoogleOAuthProvider>
         </Provider>
     </React.StrictMode>
 );
