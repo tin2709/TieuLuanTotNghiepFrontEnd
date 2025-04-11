@@ -157,3 +157,22 @@ a:hover {
 label{
     color: #000;
 }
+/* style.css hoặc trong file CSS riêng của component */
+.custom-select {
+    height: auto; /* Để chiều cao tự động */
+    padding: 0.875rem 0.75rem; /* Điều chỉnh padding cho phù hợp với input */
+    line-height: 1.5rem; /* Điều chỉnh line-height cho phù hợp với input */
+    -webkit-appearance: auto; /* Đảm bảo giao diện giống input trên Safari */
+    -moz-appearance: auto; /* Đảm bảo giao diện giống input trên Firefox */
+    appearance: auto; /* Đảm bảo giao diện giống input trên các trình duyệt khác */
+}
+
+.error-message.below-input-error {
+    display: block; /* Ensure it's a block element */
+    color: red;      /* Keep the red color */
+    font-size: 0.875em; /* Keep the font size */
+    margin-top: 0.25rem; /* Add a small top margin for spacing */
+    /* Remove any styles that might be floating or positioning it to the right */
+    float: none;
+    text-align: left; /* Align text to the left if needed */
+}
