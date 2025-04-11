@@ -1,12 +1,13 @@
+// phongmayHandler.js
 import Swal from 'sweetalert2';
 import { message } from 'antd';
 import { ACTIONS, BROKEN_STATUS, ACTIVE_STATUS, INACTIVE_STATUS } from './action';
-
 // --- Hàm Factory tạo Handlers ---
 export const createLabManagementHandlers = ({ dispatch, state, navigate, form, setAvatarImage }) => {
-
-    // --- Helpers ---
+// --- Helpers ---
     const getToken = () => localStorage.getItem("authToken");
+    const getUsername = () => localStorage.getItem("username");
+    const getPassword = () => localStorage.getItem("password");
 
     /**
      * Helper function to make authenticated API calls.
@@ -86,7 +87,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     };
 
 
-    // --- Table & Search Handlers ---
+// --- Table & Search Handlers ---
     const handleSearchChange = (value) => {
         dispatch({ type: ACTIONS.SET_SEARCH, payload: value });
         if (!value) dispatch({ type: ACTIONS.CLEAR_SEARCH }); // useEffect handles UPDATE_DISPLAYED_DATA
@@ -122,7 +123,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     };
 
 
-    // --- Delete Handlers ---
+// --- Delete Handlers ---
     const deleteLabRoomApi = async (maPhong) => {
         dispatch({ type: ACTIONS.DELETE_START });
         try {
@@ -171,7 +172,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     };
 
 
-    // --- QR Modal Handlers ---
+// --- QR Modal Handlers ---
     const fetchLabRoomsForQrCode = async () => { // Renamed to indicate it fetches and shows
         dispatch({ type: ACTIONS.SHOW_QR_MODAL_START });
         try {
@@ -188,7 +189,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     const handleCancelQrModal = () => dispatch({ type: ACTIONS.HIDE_QR_MODAL });
 
 
-    // --- Status Modal (Computers & Devices) Handlers ---
+// --- Status Modal (Computers & Devices) Handlers ---
     const fetchComputers = async (maPhong) => {
         dispatch({ type: ACTIONS.LOAD_COMPUTERS_START });
         try {
@@ -247,7 +248,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     };
 
 
-    // --- Computer Update Modal Handlers ---
+// --- Computer Update Modal Handlers ---
     const handleOpenUpdateModal = () => {
         if (!state.statusModal.computers || state.statusModal.computers.length === 0) {
             message.warning("Không có dữ liệu máy tính để cập nhật."); return;
@@ -298,7 +299,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     };
 
 
-    // --- Device Update Modal Handlers ---
+// --- Device Update Modal Handlers ---
     const handleOpenDeviceUpdateModal = (maLoai, tenLoai) => {
         if (!state.statusModal.currentDevices || state.statusModal.currentDevices.length === 0) {
             message.warning(`Không có dữ liệu ${tenLoai} để cập nhật.`); return;
@@ -349,16 +350,28 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     };
 
 
-    // --- User Profile Handlers ---
+// --- User Profile Handlers ---
     const checkUserAndShowModal = async () => {
         dispatch({ type: ACTIONS.LOAD_USER_PROFILE_START });
         try {
             // Assuming an API endpoint to get profile using the token
-            const url = `https://localhost:8080/api/taikhoan/profile`; // Adjust your actual profile endpoint
-            const response = await fetchApi(url); // fetchApi handles token & 401
-            const profileData = await response.json();
+            const username = getUsername();
+            const password = getPassword();
+            if (!username || !password) {
+                console.error("Username or password not found in localStorage for checkUser");
+                throw new Error("Unauthorized");
+            }
 
-            if (profileData) {
+            const params = new URLSearchParams();
+            params.append('username', username);
+            params.append('password', password);
+
+            const url = `https://localhost:8080/checkUser?${params.toString()}`;
+            const response = await fetchApi(url, {}, true); // Mark as public
+            const responseData = await response.json();
+
+            if (responseData.status === "success") {
+                const profileData = responseData.data;
                 dispatch({ type: ACTIONS.LOAD_USER_PROFILE_SUCCESS, payload: profileData });
                 // Set form values AFTER dispatch updates the state
                 form.setFieldsValue({
@@ -378,10 +391,13 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
                 }
 
             } else {
-                throw new Error("Dữ liệu hồ sơ trống hoặc không hợp lệ");
+                throw new Error(responseData.message || "Lỗi khi tải dữ liệu hồ sơ");
             }
         } catch (error) {
             // fetchApi shows Swal for network/HTTP errors (except 401)
+            if (error.message !== "Unauthorized") { // Prevent duplicate error for unauthorized
+                Swal.fire("Lỗi", `Không thể tải hồ sơ người dùng: ${error.message}`, "error");
+            }
             dispatch({ type: ACTIONS.LOAD_USER_PROFILE_ERROR, payload: error.message });
         }
     };
@@ -448,7 +464,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     const handleUserProfileModalCancel = () => dispatch({ type: ACTIONS.HIDE_USER_PROFILE_MODAL });
 
 
-    // --- Logout Handler ---
+// --- Logout Handler ---
     const handleLogout = async () => {
         try {
             const url = `https://localhost:8080/logout`;
@@ -471,7 +487,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
         }
     };
 
-    // --- Return all handlers ---
+// --- Return all handlers ---
     return {
         handleSearchChange, handleColumnSelect, performSearch, handleTableChange, onSelectChange,
         handleDelete, confirmDeleteMultiple,
