@@ -12,7 +12,8 @@ import {
     UserOutlined,
     InfoCircleOutlined,
     CustomerServiceOutlined,
-    ContactsOutlined
+    ContactsOutlined,
+    ScheduleOutlined, // Thêm icon ScheduleOutlined cho Ca thực hành
 } from '@ant-design/icons';
 
 // Import đúng cách cho OverPack và QueueAnim
@@ -80,6 +81,12 @@ const HomePage = () => {
             icon: <ClusterOutlined />,
             label: 'Quản lý Máy tính',
             onClick: () => navigate('/maytinh'),
+        },
+        {
+            key: '/cathuchanh', // Thêm key cho Ca thực hành
+            icon: <ScheduleOutlined />, // Sử dụng ScheduleOutlined icon
+            label: 'Quản lý Ca thực hành', // Label cho Ca thực hành
+            onClick: () => navigate('/cathuchanh'), // Navigate tới /cathuchanh
         },
     ];
 

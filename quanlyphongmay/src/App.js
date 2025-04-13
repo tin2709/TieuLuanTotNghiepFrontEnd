@@ -15,7 +15,7 @@ import ProtectedRoute from "./components/auth/index";
 import { labManagementLoader } from './components/Loader/phongmayLoader'; // Đảm bảo đường dẫn đúng
 import { tangLoader } from './components/Loader/tangLoader'; // Đảm bảo đường dẫn đúng
 import { maytinhLoader } from './components/Loader/maytinhLoader'; // Đảm bảo đường dẫn đúng
-
+import { caThucHanhLoader } from './components/Loader/caThucHanhLoader';
 // --- Component hiển thị khi chờ tải code ---
 const LoadingFallback = () => (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -41,6 +41,7 @@ const Login = lazy(() => import('./components/Login'));
 const HomePage = lazy(() => import('./components/Home/homepage'));
 const Home = lazy(() => import('./components/Home/index'));
 const PhongMay = lazy(() => import('./components/PhongMay/phongmay'));
+const CaThucHanh = lazy(() => import('./components/CaThucHanh/caThucHanh'));
 const EditPhongMay = lazy(() => import('./components/PhongMay/editphongmay'));
 const AddPhongMay = lazy(() => import('./components/PhongMay/addphongmay'));
 const Tang = lazy(() => import('./components/Tang/tang'));
@@ -122,7 +123,12 @@ const router = createBrowserRouter([
       },
       {
         path: "addmaytinh",
-        element: <ProtectedRoute component={AddMayTinh} />
+        element: <ProtectedRoute component={AddMayTinh} />,
+      },
+      {
+        path: "cathuchanh",
+        element: <ProtectedRoute component={CaThucHanh} />,
+        loader: caThucHanhLoader
       },
       {
         path: "admin",
