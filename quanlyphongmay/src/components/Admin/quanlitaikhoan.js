@@ -257,6 +257,9 @@ const QuanLyTaiKhoan = () => {
                     <Menu.Item key="userManagement" icon={<UserOutlined />}>
                         Quản lý tài khoản
                     </Menu.Item>
+                    <Menu.Item key="teacherManagement" icon={<UserOutlined />}>
+                        Quản lý giáo viên
+                    </Menu.Item>
                     <Menu.Item key="logout" icon={<LogoutOutlined />}>
                         Đăng xuất
                     </Menu.Item>

@@ -49,6 +49,7 @@ const EditTang = lazy(() => import('./components/Tang/edittang'));
 const AddTang = lazy(() => import('./components/Tang/addtang'));
 const Admin = lazy(() => import('./components/Admin/admin'));
 const QuanLiTaiKhoan = lazy(() => import('./components/Admin/quanlitaikhoan'));
+const QuanLiGiaoVien = lazy(() => import('./components/Admin/quanligiaovien'));
 const Maytinh = lazy(() => import('./components/maytinh/maytinh'));
 const EditMayTinh = lazy(() => import('./components/maytinh/editmaytinh'));
 const AddMayTinh = lazy(() => import('./components/maytinh/addmaytinh'));
@@ -137,6 +138,11 @@ const router = createBrowserRouter([
       {
         path: "quanlitaikhoan",
         element: <ProtectedRoute component={QuanLiTaiKhoan} />,
+        // loader: quanLiTaiKhoanLoader, // Loader nếu cần
+      },
+      {
+        path: "quanligiaovien",
+        element: <ProtectedRoute component={QuanLiGiaoVien} />,
         // loader: quanLiTaiKhoanLoader, // Loader nếu cần
       },
 

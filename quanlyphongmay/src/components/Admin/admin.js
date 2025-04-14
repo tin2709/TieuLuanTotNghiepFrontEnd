@@ -149,6 +149,8 @@ const AdminDashboard = () => {
             navigate('/quanlitaikhoan');
         } else if (e.key === 'logout') {
             handleLogout();
+        } else if (e.key === 'teacherManagement') {
+            navigate('/quanligiaovien');
         }
     };
 
@@ -205,6 +207,9 @@ const AdminDashboard = () => {
                     </Menu.Item>
                     <Menu.Item key="userManagement" icon={<UserOutlined />}>
                         Quản lý tài khoản
+                    </Menu.Item>
+                    <Menu.Item key="teacherManagement" icon={<UserOutlined />}>
+                        Quản lý giáo viên
                     </Menu.Item>
                     <Menu.Item key="logout" icon={<LogoutOutlined />}>
                         Đăng xuất
