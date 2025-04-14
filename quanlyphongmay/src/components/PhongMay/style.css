@@ -1,5 +1,5 @@
 .lab-management-container {
-    max-width: 900px;
+    max-width: 900px; /* Giữ nguyên max-width cho màn hình lớn */
     margin: 0 auto;
     padding: 20px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -151,13 +151,222 @@
     resize: none;
 }
 
+/* Media Queries cho Responsive Design */
+
+/* Cho màn hình tablet trở xuống (max-width: 768px) */
 @media (max-width: 768px) {
     .lab-management-container {
+        max-width: 100%; /* Mở rộng container để chiếm toàn bộ chiều rộng */
+        padding: 16px; /* Giảm padding một chút */
+    }
+
+    .edit-form {
+        padding: 16px; /* Giảm padding form */
+    }
+
+    .lab-header {
+        margin-bottom: 16px; /* Giảm margin bottom header */
+        padding-bottom: 12px; /* Giảm padding bottom header */
+    }
+
+    .lab-header h1 {
+        font-size: 22px; /* Giảm kích thước font tiêu đề */
+        margin-bottom: 6px; /* Giảm margin bottom tiêu đề */
+    }
+
+    .lab-header p {
+        font-size: 14px; /* Giảm kích thước font mô tả header */
+    }
+
+    .form-title {
+        margin-bottom: 16px; /* Giảm margin bottom tiêu đề form */
+    }
+
+    .form-title h2 {
+        font-size: 16px; /* Giảm kích thước font tiêu đề form */
+    }
+
+    .action-buttons {
+        margin-top: 24px; /* Giảm margin top nút hành động */
+        flex-direction: column; /* Chuyển nút hành động sang cột dọc */
+        align-items: flex-start; /* Căn chỉnh nút về bên trái khi ở dạng cột */
+    }
+
+    .action-buttons button {
+        margin-bottom: 8px; /* Thêm margin bottom giữa các nút khi xếp dọc */
+        width: 100%; /* Nút chiếm toàn bộ chiều rộng */
+        justify-content: center; /* Căn giữa chữ trong nút khi nút rộng hơn */
+    }
+
+    .save-button,
+    .cancel-button {
+        padding: 0 16px; /* Giảm padding nút */
+        height: 34px; /* Giảm chiều cao nút */
+        font-size: 14px; /* Giảm kích thước font nút */
+    }
+
+    .ant-form-item {
+        margin-bottom: 16px; /* Giảm margin bottom form item */
+    }
+}
+
+/* Cho màn hình điện thoại (max-width: 576px) - Tùy chỉnh thêm nếu cần */
+@media (max-width: 576px) {
+    .lab-management-container {
+        padding: 12px; /* Giảm padding container cho điện thoại */
+    }
+
+    .edit-form {
+        padding: 12px; /* Giảm padding form cho điện thoại */
+    }
+
+    .lab-header h1 {
+        font-size: 20px; /* Giảm kích thước font tiêu đề cho điện thoại */
+    }
+
+    .lab-header p {
+        font-size: 13px; /* Giảm kích thước font mô tả header cho điện thoại */
+    }
+
+    .form-title h2 {
+        font-size: 15px; /* Giảm kích thước font tiêu đề form cho điện thoại */
+    }
+
+    .ant-form-item-label > label {
+        font-size: 14px; /* Giảm kích thước font label form item cho điện thoại */
+    }
+
+    .ant-input,
+    .ant-select-selector {
+        font-size: 14px; /* Giảm kích thước font input và select cho điện thoại */
+        height: 30px !important; /* Giảm chiều cao input và select cho điện thoại */
+    }
+
+    .ant-select-selector {
+        padding: 0 8px !important; /* Giảm padding select cho điện thoại */
+    }
+}
+@media (max-width: 768px) {
+    .lab-management-container {
+        max-width: 100%;
         padding: 16px;
     }
 
     .edit-form {
         padding: 16px;
     }
+
+    .lab-header {
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+    }
+
+    .lab-header h1 {
+        font-size: 22px;
+        margin-bottom: 6px;
+    }
+
+    .lab-header p {
+        font-size: 14px;
+    }
+
+    .form-title {
+        margin-bottom: 16px;
+    }
+
+    .form-title h2 {
+        font-size: 16px;
+    }
+
+    .action-buttons {
+        margin-top: 24px;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .action-buttons button {
+        margin-bottom: 8px;
+        width: 100%;
+        justify-content: center;
+    }
+
+    .save-button,
+    .cancel-button {
+        padding: 0 16px;
+        height: 34px;
+        font-size: 14px;
+    }
+
+    .ant-form-item {
+        margin-bottom: 16px;
+    }
+
+    /* --- Responsive cho Bảng --- */
+    .border.rounded-lg.overflow-x-auto.mb-4 { /* Container bảng */
+        overflow-x: auto; /* Bật cuộn ngang cho container */
+        width: 100%;      /* Đảm bảo container chiếm 100% chiều rộng */
+        /* Thêm các thuộc tính sau để cải thiện trải nghiệm cuộn (tùy chọn) */
+        -webkit-overflow-scrolling: touch; /* Cho phép cuộn mượt mà trên iOS */
+        /* Có thể thêm padding-bottom để tránh nội dung bị che bởi thanh cuộn ngang nếu cần */
+    }
+
+    .ant-table { /* Bản thân bảng Ant Design */
+        width: auto;     /* Cho phép bảng tự điều chỉnh độ rộng dựa trên nội dung, không cố định */
+        min-width: 100%; /* Đảm bảo bảng không bị quá hẹp, ít nhất bằng chiều rộng container */
+    }
+
+    .ant-table-thead > tr > th,
+    .ant-table-tbody > tr > td {
+        white-space: nowrap; /* Ngăn chặn xuống dòng trong ô, ép bảng rộng hơn nếu cần */
+        padding: 8px;       /* Giảm padding ô bảng cho màn hình nhỏ hơn */
+        font-size: 14px;    /* Giảm kích thước font chữ trong bảng cho màn hình nhỏ hơn */
+    }
 }
 
+/* Cho màn hình điện thoại (max-width: 576px) - Tùy chỉnh thêm nếu cần */
+@media (max-width: 576px) {
+    .lab-management-container {
+        padding: 12px;
+    }
+
+    .edit-form {
+        padding: 12px;
+    }
+
+    .lab-header h1 {
+        font-size: 20px;
+    }
+
+    .lab-header p {
+        font-size: 13px;
+    }
+
+    .form-title h2 {
+        font-size: 15px;
+    }
+
+    .ant-form-item-label > label {
+        font-size: 14px;
+    }
+
+    .ant-input,
+    .ant-select-selector {
+        font-size: 14px;
+        height: 30px !important;
+    }
+
+    .ant-select-selector {
+        padding: 0 8px !important;
+    }
+
+    /* --- Responsive cho Bảng (Điện thoại) - Tùy chỉnh thêm nếu cần --- */
+    .border.rounded-lg.overflow-x-auto.mb-4 { /* Container bảng (điện thoại) */
+        /* Không cần thay đổi nhiều, các style từ tablet đã đủ tốt, có thể điều chỉnh padding nếu cần */
+    }
+
+    .ant-table-thead > tr > th,
+    .ant-table-tbody > tr > td {
+        padding: 6px;       /* Giảm thêm padding ô bảng cho điện thoại */
+        font-size: 13px;    /* Giảm thêm kích thước font chữ trong bảng cho điện thoại */
+    }
+}
