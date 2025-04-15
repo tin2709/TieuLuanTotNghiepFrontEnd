@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Button, Input, Select, Form, Space, Spin } from "antd";
 import Swal from "sweetalert2";
 import "./style.css";
-import { useParams, useNavigate } from "react-router-dom"; // Import useParams and useNavigate
+import { useParams, useNavigate } from "react-router-dom";
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -15,15 +15,14 @@ export default function EditLabRoom() {
         moTa: "",
         soMay: 0,
         trangThai: "Trống",
+        version: 0, // Initialize version in formData
     });
     const [tangs, setTangs] = useState([]);
-    const { maPhong } = useParams(); // Get the 'maPhong' parameter from the URL
-    const navigate = useNavigate(); // Initialize useNavigate
+    const { maPhong } = useParams();
+    const navigate = useNavigate();
 
     useEffect(() => {
-        // Fetch the lab room data when the component mounts
         fetchLabRoomData();
-        // Fetch the list of tangs (floors)
         fetchTangs();
     }, [maPhong]);
 
@@ -52,6 +51,7 @@ export default function EditLabRoom() {
                 moTa: data.moTa,
                 soMay: data.soMay,
                 trangThai: data.trangThai,
+                version: data.version, // Store version from API response
             });
         } catch (error) {
             console.error("Error fetching lab room:", error);
@@ -112,7 +112,7 @@ export default function EditLabRoom() {
         }
 
         try {
-            const url = `https://localhost:8080/CapNhatPhongMay?maPhong=${maPhong}&tenPhong=${formData.tenPhong}&soMay=${formData.soMay}&moTa=${formData.moTa}&trangThai=${formData.trangThai}&maTang=${formData.maTang}&token=${token}`;
+            const url = `https://localhost:8080/CapNhatPhongMay?maPhong=${maPhong}&tenPhong=${formData.tenPhong}&soMay=${formData.soMay}&moTa=${formData.moTa}&trangThai=${formData.trangThai}&maTang=${formData.maTang}&version=${formData.version}&token=${token}`; // Include version in URL
             const response = await fetch(url, {
                 method: "POST",
                 headers: {
@@ -120,13 +120,19 @@ export default function EditLabRoom() {
                 },
             });
 
-            if (!response.ok) {
+            if (response.status === 409) { // Check for 409 Conflict status
+                Swal.fire("Lỗi", "Đã phát hiện cập nhật đồng thời. Vui lòng làm mới và thử lại.", "error");
+            }
+            else if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
+            else {
+                Swal.fire("Thành công!", "Đã cập nhật phòng máy thành công!", "success").then(() => {
+                    navigate("/PhongMay");
+                });
+            }
 
-            Swal.fire("Thành công!", "Đã cập nhật phòng máy thành công!", "success").then(() => {
-                navigate("/PhongMay"); // Navigate back to the lab rooms list
-            });
+
         } catch (error) {
             console.error("Error updating lab room:", error);
             Swal.fire("Error", "Có lỗi xảy ra khi cập nhật phòng máy: " + error.message, "error");
