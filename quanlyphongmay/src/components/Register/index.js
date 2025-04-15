@@ -342,11 +342,6 @@ export default function Register() {
         formDataLuuGiaoVien.append("taiKhoanMaTK", maTKFromStorage);
         formDataLuuGiaoVien.append("khoaMaKhoa", maKhoa);
 
-        console.log("Data sent to LuuGiaoVien API:");
-        for (let pair of formDataLuuGiaoVien.entries()) {
-          console.log(pair[0] + ": " + pair[1]);
-        }
-
         const responseLuuGiaoVien = await fetch("https://localhost:8080/LuuGiaoVien", {
           method: "POST",
           body: formDataLuuGiaoVien,
@@ -368,11 +363,6 @@ export default function Register() {
         formDataLuuNhanVien.append("sDT", soDienThoai);
         formDataLuuNhanVien.append("maCV", maCVNV);
         formDataLuuNhanVien.append("taiKhoanMaTK", maTKFromStorage);
-
-        console.log("Data sent to LuuNhanVien API:");
-        for (let pair of formDataLuuNhanVien.entries()) {
-          console.log(pair[0] + ": " + pair[1]);
-        }
 
         const responseLuuNhanVien = await fetch("https://localhost:8080/LuuNhanVien", {
           method: "POST",
