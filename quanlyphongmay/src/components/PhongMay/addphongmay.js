@@ -16,7 +16,8 @@ export default function AddLabRoom() {
         soMay: 0,
         trangThai: "Trống",  // default state
     });
-    const [tangs, setTangs] = useState([]); // Changed from PhongMays to Tangs
+    const [tangs, setTangs] = useState([]);
+    const [requestToken, setRequestToken] = useState(null); // State to store requestToken
 
     useEffect(() => {
         fetchTangs();
@@ -53,7 +54,7 @@ export default function AddLabRoom() {
             const data = await response.json();
             console.log("Tangs Data:", data);
 
-            setTangs(data); // Store the Tang data
+            setTangs(data);
         } catch (error) {
             console.error("Error fetching Tangs:", error);
             console.log("Error Message:", error.message);
@@ -62,6 +63,30 @@ export default function AddLabRoom() {
             setLoading(false);
         }
     };
+
+    const fetchRequestToken = async () => {
+        try {
+            const response = await fetch("https://localhost:8080/request-token", {
+                method: "GET",
+                headers: {
+                    "Content-Type": "text/plain", // Expecting plain text response
+                },
+            });
+
+            if (!response.ok) {
+                console.error("Error fetching request token:", response.status, response.statusText);
+                return null; // Or throw an error if you want to handle it differently
+            }
+
+            const token = await response.text();
+            console.log("Request Token:", token);
+            return token;
+        } catch (error) {
+            console.error("Error fetching request token:", error);
+            return null; // Or throw an error
+        }
+    };
+
 
     const handleInputChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -72,7 +97,7 @@ export default function AddLabRoom() {
     };
 
     const handleStateChange = (value) => {
-        setFormData({ ...formData, trangThai: value }); // Update trangThai when state changes
+        setFormData({ ...formData, trangThai: value });
     };
     const handleReset = () => {
         setFormData({
@@ -94,41 +119,55 @@ export default function AddLabRoom() {
             return;
         }
 
+        const requestTokenValue = await fetchRequestToken();
+        if (!requestTokenValue) {
+            Swal.fire("Error", "Không thể lấy mã yêu cầu. Vui lòng thử lại sau.", "error");
+            setLoading(false);
+            return;
+        }
+        setRequestToken(requestTokenValue); // Store the token in state
+
+
         try {
-            const url = `https://localhost:8080/LuuPhongMay?tenPhong=${formData.tenPhong}&soMay=${formData.soMay}&moTa=${formData.moTa}&trangThai=${formData.trangThai}&maTang=${formData.maTang}&token=${token}`;
+            const url = `https://localhost:8080/LuuPhongMay?tenPhong=${formData.tenPhong}&soMay=${formData.soMay}&moTa=${formData.moTa}&trangThai=${formData.trangThai}&maTang=${formData.maTang}&token=${token}&requestToken=${requestTokenValue}`;
 
             console.log("Submitting URL:", url);
 
             const response = await fetch(url, {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json", // Adjust content type if needed
+                    "Content-Type": "application/json", // Adjust content type if needed, though for GET params, this might not be strictly necessary
                 },
-                body: JSON.stringify(formData), // Remove this line if you are using URL parameters
+                // body: JSON.stringify(formData), // No body needed when sending data as URL params
             });
 
             console.log("Submit Response Status:", response.status);
 
-            if (!response.ok) {
+            if (response.status === 409) {
+                Swal.fire("Error", "Yêu cầu trùng lặp. Vui lòng chờ một khoảng thời gian trước khi thử lại.", "error");
+            }
+            else if (!response.ok) {
                 console.error("Submit Error:", response.status, response.statusText);
                 throw new Error(`HTTP error! status: ${response.status}`);
+            } else {
+
+                const data = await response.json();
+                console.log("Submit Data:", data);
+
+                Swal.fire("Success", "Tạo phòng máy thành công!", "success");
+
+
+                setFormData({
+                    tenPhong: "",
+                    maTang: null,
+                    moTa: "",
+                    soMay: 0,
+                    trangThai: "Trống",
+                });
+                setEditMode(false);
+                window.location.href = "/PhongMay";
             }
 
-            const data = await response.json();
-            console.log("Submit Data:", data);
-
-            Swal.fire("Success", "Tạo phòng máy thành công!", "success");
-
-            // Reset form and return to previous page (adjust as necessary)
-            setFormData({
-                tenPhong: "",
-                maTang: null,
-                moTa: "",
-                soMay: 0,
-                trangThai: "Trống",  // default state after submission
-            });
-            setEditMode(false);
-            window.location.href = "/PhongMay";
 
         } catch (error) {
             console.error("Error creating lab room:", error);
@@ -137,6 +176,7 @@ export default function AddLabRoom() {
             setLoading(false);
         }
     };
+
 
     return (
         <div className="lab-management-container">
