@@ -1,4 +1,4 @@
-// LabManagement.js (or phongmay.js - based on your component name in the original code)
+// LabManagement.js
 import React, { useState, useEffect, useReducer, useMemo } from "react";
 import { useLoaderData, useNavigate } from "react-router-dom";
 import {
@@ -8,26 +8,29 @@ import {
 import {
     HomeOutlined, EditOutlined, DeleteOutlined, MessageOutlined, PlusOutlined,
     FileAddOutlined, LogoutOutlined, QrcodeOutlined, UserOutlined, InboxOutlined,
-    DesktopOutlined, ToolOutlined,
-    SunOutlined, // Import icon cho Dark Mode
-    MoonOutlined // Import icon cho Dark Mode
+    DesktopOutlined, ToolOutlined, QuestionCircleOutlined,
+    SunOutlined, MoonOutlined
 } from "@ant-design/icons";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import * as XLSX from "xlsx";
-import * as DarkReader from "darkreader"; // Import DarkReader
-// Internal Imports
-// *** Điều chỉnh đường dẫn import dựa trên cấu trúc thư mục thực tế của bạn ***
-import { labManagementReducer, initialState } from '../Reducer/labManagementReducer'; // Hoặc ../features/labManagement/labManagementReducer
-import { ACTIONS, BROKEN_STATUS, ACTIVE_STATUS, INACTIVE_STATUS } from './action'; // Hoặc ../features/labManagement/actions
-import { createLabManagementHandlers } from './phongmayHandler'; // Hoặc ../features/labManagement/labManagementHandlers
-// Bỏ import DarkModeToggle vì đã tích hợp vào đây
-// import DarkModeToggle from '../../components/DarkModeToggle';
+import * as DarkReader from "darkreader";
+// Import Intro.js CSS
+import 'intro.js/introjs.css'; // Make sure path is correct
+
+// Internal Imports (adjust paths as needed)
+import { labManagementReducer, initialState } from '../Reducer/labManagementReducer';
+import { ACTIONS, BROKEN_STATUS, ACTIVE_STATUS, INACTIVE_STATUS } from './action';
+import { createLabManagementHandlers } from './phongmayHandler';
+import introJs from 'intro.js'; // Import intro.js library
+
+
 const { Option } = Select;
 const { Header, Content } = Layout;
 const { TabPane } = Tabs;
 const { Dragger } = Upload;
-// --- Các hàm Helpers UI ---
+
+// --- UI Helpers ---
 const getDeviceStatusColor = (status) => {
     if (status === BROKEN_STATUS) return '#ff4d4f';
     if (status === ACTIVE_STATUS) return '#52c41a';
@@ -40,8 +43,7 @@ const getDeviceIcon = (deviceName) => {
     if (lowerName.includes('quạt')) return <ToolOutlined />;
     return <ToolOutlined />;
 };
-// --- Component con để Render Nhóm Thiết bị/Máy tính ---
-const RenderGroupedItemsComponent = ({ items, isComputerTab = false }) => { // Đổi tên items thay vì devices
+const RenderGroupedItemsComponent = ({ items, isComputerTab = false }) => {
     if (!items || items.length === 0) return null;
     const renderItem = (item) => (
         <div key={isComputerTab ? item.maMay : item.maThietBi} style={{ textAlign: 'center', width: '100px', padding: '10px', borderRadius: '4px' }}>
@@ -104,23 +106,112 @@ const RenderGroupedItemsComponent = ({ items, isComputerTab = false }) => { // �
         </div>
     );
 };
-// --- Component Chính: LabManagement ---
+
+// --- Main Component: LabManagement ---
 export default function LabManagement() {
-// --- Hooks ---
+    // --- Hooks ---
     const loaderResult = useLoaderData();
     const navigate = useNavigate();
     const [form] = Form.useForm();
     const [state, dispatch] = useReducer(labManagementReducer, initialState);
     const [avatarImage, setAvatarImage] = useState(null);
-// --- State cho Dark Mode (Tích hợp từ DarkModeToggle) ---
     const [isDarkMode, setIsDarkMode] = useState(false);
-// --- Tạo Handlers ---
     const handlers = useMemo(() => createLabManagementHandlers({
         dispatch, state, navigate, form, setAvatarImage
     }), [dispatch, state, navigate, form, setAvatarImage]);
 
-// --- Effects ---
-// 1. Xử lý loader data
+    // --- Intro.js Tour ---
+    const startIntroTour = () => {
+        const steps = [
+            {
+                element: '#search-input',
+                intro: 'Nhập tên phòng hoặc thông tin liên quan để tìm kiếm.',
+                position: 'bottom-start'
+            },
+            {
+                element: '#column-select',
+                intro: 'Chọn cột bạn muốn tìm kiếm (Tên phòng, Số máy, Mô tả, Trạng thái).',
+                position: 'bottom-start',
+                // Intro.js doesn't have direct conditional step display like Driver.js.
+                // We can handle visibility in the component itself if needed, or always include and let it be skipped if not rendered.
+                // For simplicity, we'll include it always, and if #column-select is not rendered, intro.js will likely skip it.
+            },
+            {
+                element: '#qr-code-button',
+                intro: 'Tạo mã QR để thống kê nhanh thông tin phòng máy.',
+                position: 'bottom-start'
+            },
+            {
+                element: '#export-pdf-button',
+                intro: 'Xuất danh sách phòng máy ra file PDF.',
+                position: 'bottom-start'
+            },
+            {
+                element: '#export-excel-button',
+                intro: 'Xuất danh sách phòng máy ra file Excel.',
+                position: 'bottom-start'
+            },
+            {
+                element: '#create-new-dropdown',
+                intro: 'Tạo phòng máy mới bằng form hoặc import từ file.',
+                position: 'bottom-start'
+            },
+            {
+                element: '.ant-table-thead > tr > th:nth-child(3)',
+                intro: 'Click vào đây để sắp xếp danh sách phòng máy theo tên phòng.',
+                position: 'bottom' // Adjust position as needed for table headers
+            },
+            {
+                element: '.ant-table-thead > tr > th:nth-child(5)',
+                intro: 'Click vào đây để sắp xếp danh sách phòng máy theo số lượng máy.',
+                position: 'bottom'
+            },
+            {
+                element: '.ant-table-thead > tr > th:nth-child(6)',
+                intro: 'Click vào đây để sắp xếp danh sách phòng máy theo trạng thái hoạt động.',
+                position: 'bottom'
+            },
+            {
+                element: '.ant-table-thead > tr > th:last-child',
+                intro: 'Tại cột này, bạn có thể chỉnh sửa, xóa phòng máy hoặc xem trạng thái chi tiết.',
+                position: 'left' // Or 'right' depending on layout
+            },
+            {
+                element: '#delete-selected-button',
+                intro: 'Xóa các phòng máy đã được chọn (tick vào checkbox).',
+                position: 'top-end',
+                // Conditional step handling would require checking state before starting intro.js or using callbacks.
+                // For now, include it always and it will be skipped if #delete-selected-button is not rendered.
+            },
+            {
+                element: '#dark-mode-button',
+                intro: 'Bật/tắt chế độ Dark Mode để bảo vệ mắt khi sử dụng vào ban đêm hoặc trong điều kiện ánh sáng yếu.',
+                position: 'bottom-end'
+            },
+            {
+                element: '#user-avatar',
+                intro: 'Xem và chỉnh sửa thông tin hồ sơ người dùng của bạn.',
+                position: 'bottom-end'
+            },
+            {
+                element: '#logout-button',
+                intro: 'Đăng xuất khỏi ứng dụng quản lý phòng máy.',
+                position: 'bottom-end'
+            },
+        ];
+
+        introJs().setOptions({
+            steps: steps,
+            nextLabel: 'Tiếp theo',
+            prevLabel: 'Quay lại',
+            doneLabel: 'Hoàn tất',
+            scrollTo: 'element',
+            overlayOpacity: 0.5,
+        }).start();
+    };
+
+
+    // --- Effects ---
     useEffect(() => {
         console.log("[Component] Loader Result Received:", loaderResult);
         if (loaderResult?.error) {
@@ -132,27 +223,17 @@ export default function LabManagement() {
         }
     }, [loaderResult, dispatch]);
 
-// 2. Cập nhật dữ liệu hiển thị
     useEffect(() => {
         dispatch({ type: ACTIONS.UPDATE_DISPLAYED_DATA });
     }, [state.pagination, state.sortInfo, state.initialLabRooms, state.filteredLabRooms, dispatch]);
 
-// 3. Effect cho Dark Mode (Tích hợp từ DarkModeToggle)
     useEffect(() => {
-        // Tự động kích hoạt DarkReader dựa trên cài đặt hệ thống hoặc tùy chọn đã lưu (nếu có)
-        // DarkReader.auto() có thể không lý tưởng nếu muốn kiểm soát hoàn toàn bằng nút bấm
-        // Thay vào đó, kiểm tra trạng thái ban đầu nếu cần (ví dụ: từ localStorage)
-        // Hoặc đơn giản là không làm gì khi mount, chờ người dùng bấm nút
-
-        // Chỉ setup cleanup
         return () => {
-            // Tắt DarkReader khi component unmount để tránh rò rỉ
             DarkReader.disable();
         };
-    }, []); // Chạy một lần khi mount
+    }, []);
 
-
-// --- Handler cho Dark Mode (Tích hợp từ DarkModeToggle) ---
+    // --- Dark Mode Handler ---
     const toggleDarkMode = () => {
         setIsDarkMode((prevIsDarkMode) => {
             const nextIsDarkMode = !prevIsDarkMode;
@@ -162,20 +243,15 @@ export default function LabManagement() {
                     contrast: 90,
                     sepia: 10,
                 });
-                // Lưu trạng thái vào localStorage (tùy chọn)
-                // localStorage.setItem('darkMode', 'enabled');
             } else {
                 DarkReader.disable();
-                // localStorage.setItem('darkMode', 'disabled');
             }
             return nextIsDarkMode;
         });
     };
 
-
-// --- Định nghĩa Cột ---
+    // --- Columns Definitions ---
     const columns = useMemo(() => [
-        // Checkbox selection column - Improved logic
         {
             title: (<Checkbox
                 checked={state.labRooms.length > 0 && state.labRooms.every(r => state.selectedRowKeys.includes(r.maPhong))}
@@ -189,7 +265,6 @@ export default function LabManagement() {
                 }}
             />),
             key: "selection", width: 60, fixed: "left",
-            // dataIndex: 'maPhong', // Không cần dataIndex nếu dùng render
             render: (text, record) => <Checkbox checked={state.selectedRowKeys.includes(record.maPhong)} onChange={(e) => {
                 const isChecked = e.target.checked;
                 const newSelectedKeys = isChecked
@@ -200,7 +275,7 @@ export default function LabManagement() {
         },
         { title: "STT", key: "stt", width: 60, render: (text, record, index) => (state.pagination.current - 1) * state.pagination.pageSize + index + 1 },
         { title: "Tên phòng", dataIndex: "tenPhong", key: "tenPhong", sorter: true, width: 150 },
-        { title: "Mô tả", dataIndex: "moTa", key: "moTa", sorter: true, ellipsis: true }, // Thêm ellipsis cho mô tả dài
+        { title: "Mô tả", dataIndex: "moTa", key: "moTa", sorter: true, ellipsis: true },
         { title: "Số máy", dataIndex: "soMay", key: "soMay", align: "center", sorter: true, width: 100 },
         { title: "Trạng thái", dataIndex: "trangThai", key: "trangThai", sorter: true, width: 150 },
         { title: "Hành động", key: "action", align: "center", width: 120, fixed: 'right', render: (text, record) => (
@@ -234,8 +309,7 @@ export default function LabManagement() {
             }},
     ], [state.deviceUpdateModal.selectedKeys, handlers]);
 
-
-// --- Menu Tạo Mới ---
+    // --- Create New Menu ---
     const menu = useMemo(() => (
         <Menu>
             <Menu.Item key="1" icon={<PlusOutlined />} onClick={() => navigate(`/addphongmay`)}>Tạo mới (form)</Menu.Item>
@@ -243,12 +317,10 @@ export default function LabManagement() {
         </Menu>
     ), [navigate]);
 
-// --- Các hàm Export ---
+    // --- Export Functions ---
     const exportToPDF = () => {
         if (!state.labRooms || state.labRooms.length === 0) { message.warning("Không có dữ liệu."); return; }
         const doc = new jsPDF();
-        // Nên sử dụng font hỗ trợ tiếng Việt và nhúng vào PDF
-        // Ví dụ đơn giản (có thể cần cài font hoặc dùng font hệ thống hỗ trợ)
         doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
         doc.setFont('Roboto');
         doc.text("Danh sách phòng máy", 14, 10);
@@ -276,37 +348,30 @@ export default function LabManagement() {
         }));
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.json_to_sheet(dataToExport);
-        // Tùy chỉnh độ rộng cột (ví dụ)
         ws['!cols'] = [ { wch: 5 }, { wch: 25 }, { wch: 40 }, { wch: 10 }, { wch: 20 }];
         XLSX.utils.book_append_sheet(wb, ws, "Danh sách phòng máy");
         XLSX.writeFile(wb, "DanhSachPhongMay.xlsx");
     };
 
-
-// --- JSX Return ---
+    // --- JSX Return ---
     return (
         <Layout className="lab-management-layout">
             {/* Header */}
             <Header className="lab-management-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#fff", padding: "0 24px", borderBottom: '1px solid #f0f0f0' }}>
                 <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#1890ff" }}>Quản Lý Phòng Máy</div>
                 <div className="actions" style={{ display: "flex", alignItems: "center" }}>
-                    {/* Nút Dark Mode được tích hợp */}
                     <Button
+                        id="dark-mode-button"
                         icon={
-                            isDarkMode ? (
-                                <SunOutlined style={{ color: "yellow" }} />
-                            ) : (
-                                <MoonOutlined style={{ color: "black" }} /> // Màu icon có thể cần điều chỉnh theo theme
-                            )
+                            isDarkMode ? <SunOutlined style={{ color: "yellow" }} /> : <MoonOutlined style={{ color: "black" }} />
                         }
                         onClick={toggleDarkMode}
-                        type="text" // Sử dụng type text để loại bỏ viền/nền mặc định
-                        shape="circle" // Làm cho nút tròn hơn
-                        style={{ fontSize: "20px", marginRight: "10px" }} // Điều chỉnh kích thước và khoảng cách
+                        type="text" shape="circle" style={{ fontSize: "20px", marginRight: "10px" }}
                         aria-label={isDarkMode ? "Chuyển sang chế độ Sáng" : "Chuyển sang chế độ Tối"}
                     />
-                    <Avatar size="large" icon={<UserOutlined />} src={avatarImage} onClick={handlers.checkUserAndShowModal} style={{ cursor: "pointer" }} />
-                    <Button icon={<LogoutOutlined />} type="text" onClick={handlers.handleLogout} style={{ marginLeft: '10px' }}>Đăng xuất</Button>
+                    <Avatar id="user-avatar" size="large" icon={<UserOutlined />} src={avatarImage} onClick={handlers.checkUserAndShowModal} style={{ cursor: "pointer", marginRight: '10px' }} />
+                    <Button id="logout-button" icon={<LogoutOutlined />} type="text" onClick={handlers.handleLogout} style={{ marginLeft: '10px', marginRight: '10px' }}>Đăng xuất</Button>
+                    <Button icon={<QuestionCircleOutlined />} type="primary" onClick={startIntroTour}>Hướng dẫn</Button>
                 </div>
             </Header>
 
@@ -327,18 +392,18 @@ export default function LabManagement() {
 
                         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
                             <div className="flex items-center gap-2 flex-wrap">
-                                <Input placeholder="Tìm kiếm phòng..." value={state.search} onChange={(e) => handlers.handleSearchChange(e.target.value)} style={{ width: 200 }} onPressEnter={() => { if (state.search && state.selectedColumn) handlers.performSearch(state.search, state.selectedColumn); }} allowClear />
+                                <Input id="search-input" placeholder="Tìm kiếm phòng..." value={state.search} onChange={(e) => handlers.handleSearchChange(e.target.value)} style={{ width: 200 }} onPressEnter={() => { if (state.search && state.selectedColumn) handlers.performSearch(state.search, state.selectedColumn); }} allowClear />
                                 {state.showColumnSelect && (
-                                    <Select placeholder="Theo" value={state.selectedColumn} style={{ width: 120 }} onChange={handlers.handleColumnSelect}>
+                                    <Select id="column-select" placeholder="Theo" value={state.selectedColumn} style={{ width: 120 }} onChange={handlers.handleColumnSelect}>
                                         <Option value="ten_phong">Tên phòng</Option> <Option value="so_may">Số máy</Option> <Option value="mo_ta">Mô tả</Option> <Option value="trang_thai">Trạng thái</Option>
                                     </Select>
                                 )}
                             </div>
                             <div className="flex items-center gap-2 flex-wrap">
-                                <Button icon={<QrcodeOutlined />} onClick={handlers.fetchLabRoomsForQrCode}>Mã QR</Button>
-                                <Button onClick={exportToPDF} >Xuất PDF</Button>
-                                <Button onClick={exportToExcel} >Xuất Excel</Button>
-                                <Dropdown overlay={menu} placement="bottomRight" arrow>
+                                <Button id="qr-code-button" icon={<QrcodeOutlined />} onClick={handlers.fetchLabRoomsForQrCode}>Mã QR</Button>
+                                <Button id="export-pdf-button" onClick={exportToPDF} >Xuất PDF</Button>
+                                <Button id="export-excel-button" onClick={exportToExcel} >Xuất Excel</Button>
+                                <Dropdown id="create-new-dropdown" overlay={menu} placement="bottomRight" arrow>
                                     <Button type="primary" icon={<PlusOutlined />}>Tạo mới</Button>
                                 </Dropdown>
                             </div>
@@ -365,14 +430,14 @@ export default function LabManagement() {
                         </div>
 
                         {state.hasSelected && (
-                            <Button type="primary" danger onClick={handlers.confirmDeleteMultiple} disabled={state.tableLoading} icon={<DeleteOutlined />}>
+                            <Button id="delete-selected-button" type="primary" danger onClick={handlers.confirmDeleteMultiple} disabled={state.tableLoading} icon={<DeleteOutlined />}>
                                 Xóa ({state.selectedRowKeys.length}) phòng đã chọn
                             </Button>
                         )}
                     </div>
                 )}
 
-                {/* --- Modals --- */}
+                {/* Modals */}
                 <Modal title="Mã QR Thống Kê Phòng Máy" visible={state.qrModal.visible} onCancel={handlers.handleCancelQrModal} footer={[<Button key="back" onClick={handlers.handleCancelQrModal}>Đóng</Button>]}>
                     <div style={{ display: "flex", justifyContent: "center", padding: "20px 0" }}>
                         {state.qrModal.loading ? <Spin size="large" /> : <QRCode value={state.qrModal.value || 'Không có dữ liệu'} size={256} bgColor="#fff" />}
