@@ -1,10 +1,11 @@
-// phongmayHandler.js
 import Swal from 'sweetalert2';
 import { message } from 'antd';
 import { ACTIONS, BROKEN_STATUS, ACTIVE_STATUS, INACTIVE_STATUS } from './action';
+import { useNavigate } from 'react-router-dom'; // Import useNavigate if not already imported
+
 // --- Hàm Factory tạo Handlers ---
 export const createLabManagementHandlers = ({ dispatch, state, navigate, form, setAvatarImage }) => {
-// --- Helpers ---
+    // --- Helpers ---
     const getToken = () => localStorage.getItem("authToken");
     const getUsername = () => localStorage.getItem("username");
     const getPassword = () => localStorage.getItem("password");
@@ -87,7 +88,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     };
 
 
-// --- Table & Search Handlers ---
+    // --- Table & Search Handlers ---
     const handleSearchChange = (value) => {
         dispatch({ type: ACTIONS.SET_SEARCH, payload: value });
         if (!value) dispatch({ type: ACTIONS.CLEAR_SEARCH }); // useEffect handles UPDATE_DISPLAYED_DATA
@@ -107,7 +108,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
             if (response.status !== 204) results = (await response.json()).results || [];
             dispatch({ type: ACTIONS.SEARCH_COMPLETE, payload: { results } });
         } catch (error) {
-            // fetchApi handles Swal for network/HTTP errors (except 401 handled globally)
+            // fetchApi handles Swal for network/HTTP errors (except 401)
             dispatch({ type: ACTIONS.SEARCH_COMPLETE, payload: { error: error.message } });
         }
     };
@@ -123,7 +124,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     };
 
 
-// --- Delete Handlers ---
+    // --- Delete Handlers ---
     const deleteLabRoomApi = async (maPhong) => {
         dispatch({ type: ACTIONS.DELETE_START });
         try {
@@ -172,24 +173,39 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     };
 
 
-// --- QR Modal Handlers ---
+    // --- QR Modal Handlers ---
     const fetchLabRoomsForQrCode = async () => { // Renamed to indicate it fetches and shows
         dispatch({ type: ACTIONS.SHOW_QR_MODAL_START });
         try {
-            const url = `https://localhost:8080/phong-may-thong-ke`;
+            const url = `https://localhost:8080/phong-may-thong-ke`; // Use the endpoint for QR data
             const response = await fetchApi(url); // Token added automatically
             const data = await response.json();
-            const qrData = JSON.stringify(data, null, 2); // Adjust transformation if needed
-            dispatch({ type: ACTIONS.SHOW_QR_MODAL_SUCCESS, payload: qrData });
+
+            // **Data for QR Code - START**
+            // The API now returns the data in the desired format, so we use it directly.
+            const qrDataString = JSON.stringify(data, null, 2); // Stringify the array of lab room stats
+            // **Data for QR Code - END**
+
+            try {
+                dispatch({ type: ACTIONS.SHOW_QR_MODAL_SUCCESS, payload: qrDataString });
+            } catch (qrError) {
+                if (qrError instanceof RangeError && qrError.message === "Data too long") {
+                    dispatch({ type: ACTIONS.SHOW_QR_MODAL_DATA_TOO_LONG_ERROR });
+                } else {
+                    dispatch({ type: ACTIONS.SHOW_QR_MODAL_ERROR, payload: qrError.message }); // Generic QR error
+                }
+            }
         } catch (error) {
             // fetchApi shows Swal for errors (except 401)
-            dispatch({ type: ACTIONS.SHOW_QR_MODAL_ERROR });
+            dispatch({ type: ACTIONS.SHOW_QR_MODAL_ERROR, payload: error.message }); // API fetch error
         }
     };
+
+
     const handleCancelQrModal = () => dispatch({ type: ACTIONS.HIDE_QR_MODAL });
 
 
-// --- Status Modal (Computers & Devices) Handlers ---
+    // --- Status Modal (Computers & Devices) Handlers ---
     const fetchComputers = async (maPhong) => {
         dispatch({ type: ACTIONS.LOAD_COMPUTERS_START });
         try {
@@ -248,7 +264,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     };
 
 
-// --- Computer Update Modal Handlers ---
+    // --- Computer Update Modal Handlers ---
     const handleOpenUpdateModal = () => {
         if (!state.statusModal.computers || state.statusModal.computers.length === 0) {
             message.warning("Không có dữ liệu máy tính để cập nhật."); return;
@@ -299,7 +315,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     };
 
 
-// --- Device Update Modal Handlers ---
+    // --- Device Update Modal Handlers ---
     const handleOpenDeviceUpdateModal = (maLoai, tenLoai) => {
         if (!state.statusModal.currentDevices || state.statusModal.currentDevices.length === 0) {
             message.warning(`Không có dữ liệu ${tenLoai} để cập nhật.`); return;
@@ -350,7 +366,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     };
 
 
-// --- User Profile Handlers ---
+    // --- User Profile Handlers ---
     const checkUserAndShowModal = async () => {
         dispatch({ type: ACTIONS.LOAD_USER_PROFILE_START });
         try {
@@ -464,7 +480,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     const handleUserProfileModalCancel = () => dispatch({ type: ACTIONS.HIDE_USER_PROFILE_MODAL });
 
 
-// --- Logout Handler ---
+    // --- Logout Handler ---
     const handleLogout = async () => {
         try {
             const url = `https://localhost:8080/logout`;
@@ -487,7 +503,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
         }
     };
 
-// --- Return all handlers ---
+    // --- Return all handlers ---
     return {
         handleSearchChange, handleColumnSelect, performSearch, handleTableChange, onSelectChange,
         handleDelete, confirmDeleteMultiple,

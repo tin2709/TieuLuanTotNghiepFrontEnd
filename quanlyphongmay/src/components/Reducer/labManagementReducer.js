@@ -1,7 +1,7 @@
+// src/Reducer/labManagementReducer.js
 import { ACTIONS } from '../PhongMay/action';
 
 // --- Helper Function: Sort Data ---
-// (Giữ lại hàm sortData hoặc import từ utils nếu tách ra)
 const sortData = (data, sortKey, sortOrder) => {
     if (!sortKey || !data || !Array.isArray(data)) return data;
 
@@ -40,7 +40,7 @@ export const initialState = {
     // UI Interaction
     showColumnSelect: false,
     // Modals
-    qrModal: { visible: false, value: '', loading: false },
+    qrModal: { visible: false, value: '', loading: false, qrError: null }, // Added qrError for error message
     userProfileModal: { visible: false, profile: {}, image: null, loading: false, updating: false },
     statusModal: { visible: false, loadingComputers: false, loadingDeviceTypes: false, loadingDevices: false, computers: [], deviceTypes: [], currentDevices: [], roomName: '', roomId: null, activeTab: 'computers' },
     computerUpdateModal: { visible: false, selectedKeys: [], updating: false },
@@ -153,11 +153,13 @@ export function labManagementReducer(state, action) {
 
         // --- QR Modal ---
         case ACTIONS.SHOW_QR_MODAL_START:
-            return { ...state, qrModal: { ...state.qrModal, visible: true, loading: true, value: '' } };
+            return { ...state, qrModal: { ...state.qrModal, visible: true, loading: true, value: '', qrError: null } }; // Reset qrError
         case ACTIONS.SHOW_QR_MODAL_SUCCESS:
-            return { ...state, qrModal: { ...state.qrModal, loading: false, value: action.payload } };
+            return { ...state, qrModal: { ...state.qrModal, loading: false, value: action.payload, qrError: null } };
         case ACTIONS.SHOW_QR_MODAL_ERROR:
-            return { ...state, qrModal: { ...state.qrModal, loading: false /* Add error state? */ } };
+            return { ...state, qrModal: { ...state.qrModal, loading: false, qrError: action.payload || 'Không thể tạo mã QR.' } }; // Set qrError message
+        case ACTIONS.SHOW_QR_MODAL_DATA_TOO_LONG_ERROR:
+            return { ...state, qrModal: { ...state.qrModal, loading: false, qrError: 'Dữ liệu quá lớn để tạo mã QR. Vui lòng xuất dữ liệu theo cách khác.' } }; // Specific error for data too long
         case ACTIONS.HIDE_QR_MODAL:
             return { ...state, qrModal: { ...initialState.qrModal } }; // Reset QR modal state
 

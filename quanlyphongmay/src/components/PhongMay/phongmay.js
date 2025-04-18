@@ -1,4 +1,3 @@
-// LabManagement.js
 import React, { useState, useEffect, useReducer, useMemo } from "react";
 import { useLoaderData, useNavigate } from "react-router-dom";
 import {
