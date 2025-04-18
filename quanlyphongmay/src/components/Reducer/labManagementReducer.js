@@ -1,4 +1,3 @@
-// src/Reducer/labManagementReducer.js
 import { ACTIONS } from '../PhongMay/action';
 
 // --- Helper Function: Sort Data ---
@@ -45,6 +44,7 @@ export const initialState = {
     statusModal: { visible: false, loadingComputers: false, loadingDeviceTypes: false, loadingDevices: false, computers: [], deviceTypes: [], currentDevices: [], roomName: '', roomId: null, activeTab: 'computers' },
     computerUpdateModal: { visible: false, selectedKeys: [], updating: false },
     deviceUpdateModal: { visible: false, selectedKeys: [], updating: false, currentType: { maLoai: null, tenLoai: '' } },
+    computerDetailModal: { visible: false, detailLoading: false, computerDetail: null, detailError: null }, // New modal state for computer detail
 };
 
 // --- Reducer Function ---
@@ -261,6 +261,16 @@ export function labManagementReducer(state, action) {
         case ACTIONS.UPDATE_DEVICE_STATUS_COMPLETE:
             // Close modal regardless of success/error
             return { ...state, deviceUpdateModal: { ...initialState.deviceUpdateModal } }; // Reset and close
+
+        // --- Computer Detail Modal ---
+        case ACTIONS.SHOW_COMPUTER_DETAIL_MODAL_START:
+            return { ...state, computerDetailModal: { ...initialState.computerDetailModal, visible: true, detailLoading: true } };
+        case ACTIONS.SHOW_COMPUTER_DETAIL_MODAL_SUCCESS:
+            return { ...state, computerDetailModal: { ...state.computerDetailModal, detailLoading: false, computerDetail: action.payload } };
+        case ACTIONS.SHOW_COMPUTER_DETAIL_MODAL_ERROR:
+            return { ...state, computerDetailModal: { ...state.computerDetailModal, detailLoading: false, detailError: action.payload } };
+        case ACTIONS.HIDE_COMPUTER_DETAIL_MODAL:
+            return { ...state, computerDetailModal: { ...initialState.computerDetailModal } };
 
         default:
             console.warn("Unhandled action type:", action.type);

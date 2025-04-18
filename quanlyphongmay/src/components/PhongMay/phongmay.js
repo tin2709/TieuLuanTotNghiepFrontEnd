@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useReducer, useMemo } from "react";
+import React, { useState, useEffect, useReducer, useMemo, useRef } from "react"; // Import useRef
 import { useLoaderData, useNavigate } from "react-router-dom";
 import {
     Layout, Button, Input, Select, Table, Checkbox, Dropdown, Menu,
@@ -42,10 +42,19 @@ const getDeviceIcon = (deviceName) => {
     if (lowerName.includes('quạt')) return <ToolOutlined />;
     return <ToolOutlined />;
 };
-const RenderGroupedItemsComponent = ({ items, isComputerTab = false }) => {
+const RenderGroupedItemsComponent = ({ items, isComputerTab = false, onComputerIconRightClick }) => { // Add onComputerIconRightClick prop
     if (!items || items.length === 0) return null;
     const renderItem = (item) => (
-        <div key={isComputerTab ? item.maMay : item.maThietBi} style={{ textAlign: 'center', width: '100px', padding: '10px', borderRadius: '4px' }}>
+        <div
+            key={isComputerTab ? item.maMay : item.maThietBi}
+            style={{ textAlign: 'center', width: '100px', padding: '10px', borderRadius: '4px', userSelect: 'none' }} // Prevent text selection on right-click
+            onContextMenu={(e) => {
+                e.preventDefault(); // Prevent default context menu
+                if (isComputerTab && onComputerIconRightClick) {
+                    onComputerIconRightClick(e, item); // Call the handler with event and item
+                }
+            }}
+        >
             {React.cloneElement(
                 isComputerTab ? <DesktopOutlined /> : getDeviceIcon(item.tenThietBi),
                 { style: { fontSize: '3rem', color: getDeviceStatusColor(item.trangThai) } }
@@ -115,9 +124,13 @@ export default function LabManagement() {
     const [state, dispatch] = useReducer(labManagementReducer, initialState);
     const [avatarImage, setAvatarImage] = useState(null);
     const [isDarkMode, setIsDarkMode] = useState(false);
+    const [contextMenuVisible, setContextMenuVisible] = useState(false); // Context menu visibility state
+    const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 }); // Context menu position state
+    const [contextMenuComputerId, setContextMenuComputerId] = useState(null); // Store computer ID for context menu
     const handlers = useMemo(() => createLabManagementHandlers({
         dispatch, state, navigate, form, setAvatarImage
     }), [dispatch, state, navigate, form, setAvatarImage]);
+    const contextMenuRef = useRef(null); // Ref for context menu to handle clicks outside
 
     // --- Intro.js Tour ---
     const startIntroTour = () => {
@@ -231,6 +244,19 @@ export default function LabManagement() {
             DarkReader.disable();
         };
     }, []);
+
+    useEffect(() => {
+        const handleClickOutsideContextMenu = (event) => {
+            if (contextMenuVisible && contextMenuRef.current && !contextMenuRef.current.contains(event.target)) {
+                setContextMenuVisible(false); // Hide context menu on outside click
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutsideContextMenu);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutsideContextMenu);
+        };
+    }, [contextMenuVisible]);
 
     // --- Dark Mode Handler ---
     const toggleDarkMode = () => {
@@ -352,6 +378,18 @@ export default function LabManagement() {
         XLSX.writeFile(wb, "DanhSachPhongMay.xlsx");
     };
 
+    const handleComputerIconRightClick = (event, computer) => {
+        setContextMenuPosition({ x: event.clientX, y: event.clientY });
+        setContextMenuComputerId(computer.maMay);
+        setContextMenuVisible(true);
+    };
+
+    const handleContextMenuViewDetail = () => {
+        setContextMenuVisible(false); // Hide context menu
+        handlers.fetchComputerDetail(contextMenuComputerId); // Fetch details for the clicked computer
+    };
+
+
     // --- JSX Return ---
     return (
         <Layout className="lab-management-layout">
@@ -453,7 +491,7 @@ export default function LabManagement() {
                         <TabPane tab="Máy tính" key="computers">
                             {state.statusModal.loadingComputers ? (<div style={{ textAlign: 'center', padding: '50px' }}><Spin size="large" tip="Đang tải máy tính..." /></div>) : (
                                 state.statusModal.computers && state.statusModal.computers.length > 0
-                                    ? <RenderGroupedItemsComponent items={state.statusModal.computers} isComputerTab={true} />
+                                    ? <RenderGroupedItemsComponent items={state.statusModal.computers} isComputerTab={true} onComputerIconRightClick={handleComputerIconRightClick} /> // Pass right-click handler
                                     : <p style={{ textAlign: 'center', padding: '30px 0' }}>Không có máy tính hoặc không thể tải.</p>
                             )}
                         </TabPane>
@@ -473,6 +511,31 @@ export default function LabManagement() {
                         ))}
                         {state.statusModal.loadingDeviceTypes && <TabPane tab={<Spin size="small" />} key="loading_types" disabled />}
                     </Tabs>
+                    {/* Custom Context Menu */}
+                    {contextMenuVisible && (
+                        <div
+                            ref={contextMenuRef}
+                            className="custom-context-menu"
+                            style={{
+                                position: 'fixed',
+                                top: contextMenuPosition.y,
+                                left: contextMenuPosition.x,
+                                zIndex: 1000,
+                                background: '#fff',
+                                border: '1px solid #d9d9d9',
+                                borderRadius: '4px',
+                                padding: '4px 0',
+                                boxShadow: '2px 2px 8px rgba(0, 0, 0, 0.15)',
+                            }}
+                        >
+                            <div
+                                style={{ padding: '8px 16px', cursor: 'pointer', hover: { background: '#e6f7ff' } }}
+                                onClick={handleContextMenuViewDetail}
+                            >
+                                Xem chi tiết
+                            </div>
+                        </div>
+                    )}
                 </Modal>
 
                 <Modal title={`Cập nhật trạng thái Máy tính - Phòng ${state.statusModal.roomName}`} visible={state.computerUpdateModal.visible} onCancel={handlers.handleComputerUpdateModalClose} width={700} bodyStyle={{ maxHeight: '60vh', overflowY: 'auto' }} footer={[
@@ -494,6 +557,31 @@ export default function LabManagement() {
                         <Table columns={deviceUpdateColumns} dataSource={state.statusModal.currentDevices} rowKey="maThietBi" pagination={false} size="small" scroll={{ y: 'calc(60vh - 160px)' }}/>
                     </Spin>
                 </Modal>
+
+                <Modal
+                    title={`Chi tiết Máy tính - ${state.computerDetailModal.computerDetail?.tenMay || `Máy ${state.computerDetailModal.computerDetail?.maMay}` || '...'}`}
+                    visible={state.computerDetailModal.visible}
+                    onCancel={handlers.handleComputerDetailModalClose}
+                    footer={[<Button key="back" onClick={handlers.handleComputerDetailModalClose}>Đóng</Button>]}
+                >
+                    <Spin spinning={state.computerDetailModal.detailLoading} tip="Đang tải chi tiết máy...">
+                        {state.computerDetailModal.computerDetail ? (
+                            <div>
+                                <p><strong>Mã Máy:</strong> {state.computerDetailModal.computerDetail.maMay}</p>
+                                <p><strong>Tên Máy:</strong> {state.computerDetailModal.computerDetail.tenMay}</p>
+                                <p><strong>Trạng Thái:</strong> {state.computerDetailModal.computerDetail.trangThai}</p>
+                                <p><strong>Mô Tả:</strong> {state.computerDetailModal.computerDetail.moTa || 'Không có'}</p>
+                                <p><strong>Ngày Lắp Đặt:</strong> {state.computerDetailModal.computerDetail.ngayLapDat ? new Date(state.computerDetailModal.computerDetail.ngayLapDat).toLocaleDateString() : 'Không có'}</p>
+                                <p><strong>Ngày Cập Nhật:</strong> {state.computerDetailModal.computerDetail.ngayCapNhat ? new Date(state.computerDetailModal.computerDetail.ngayCapNhat).toLocaleDateString() : 'Không có'}</p>
+                            </div>
+                        ) : state.computerDetailModal.detailError ? (
+                            <Result status="error" title="Lỗi tải chi tiết máy tính" subTitle={state.computerDetailModal.detailError} />
+                        ) : (
+                            <p>Không có dữ liệu chi tiết.</p>
+                        )}
+                    </Spin>
+                </Modal>
+
 
                 <Modal title="Hồ sơ người dùng" visible={state.userProfileModal.visible} confirmLoading={state.userProfileModal.updating || state.userProfileModal.loading} onOk={handlers.handleUserProfileUpdate} onCancel={handlers.handleUserProfileModalCancel} okText="Cập Nhật" cancelText="Đóng">
                     <Spin spinning={state.userProfileModal.loading} tip="Đang tải hồ sơ...">

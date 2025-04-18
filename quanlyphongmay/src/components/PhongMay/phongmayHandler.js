@@ -263,6 +263,20 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
         }
     };
 
+    // --- Computer Detail Modal Handlers ---
+    const fetchComputerDetail = async (maMay) => {
+        dispatch({ type: ACTIONS.SHOW_COMPUTER_DETAIL_MODAL_START });
+        try {
+            const url = `https://localhost:8080/MayTinh?maMay=${maMay}`;
+            const response = await fetchApi(url);
+            const data = await response.json();
+            dispatch({ type: ACTIONS.SHOW_COMPUTER_DETAIL_MODAL_SUCCESS, payload: data });
+        } catch (error) {
+            dispatch({ type: ACTIONS.SHOW_COMPUTER_DETAIL_MODAL_ERROR, payload: error.message });
+        }
+    };
+
+    const handleComputerDetailModalClose = () => dispatch({ type: ACTIONS.HIDE_COMPUTER_DETAIL_MODAL });
 
     // --- Computer Update Modal Handlers ---
     const handleOpenUpdateModal = () => {
@@ -513,5 +527,6 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
         handleOpenDeviceUpdateModal, handleDeviceUpdateModalClose, toggleDeviceUpdateSelection, handleCompleteDeviceUpdate,
         checkUserAndShowModal, handleUserProfileUpdate, handleUserProfileModalCancel,
         handleLogout,
+        fetchComputerDetail, handleComputerDetailModalClose, // Add new handlers
     };
 };
