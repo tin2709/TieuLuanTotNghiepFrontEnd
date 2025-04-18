@@ -7,6 +7,7 @@ import {
     PlusOutlined,
     FileAddOutlined,
     LogoutOutlined,
+    QuestionCircleOutlined // Import QuestionCircleOutlined
 } from "@ant-design/icons";
 import {
     Button,
@@ -27,6 +28,9 @@ import * as XLSX from "xlsx";
 import font from "../../font/font";
 import { useLoaderData, useNavigate, useNavigation } from "react-router-dom";
 import ImportFileModal from "./ImportFileModal";
+import introJs from 'intro.js'; // Import intro.js library
+import 'intro.js/introjs.css'; // Import intro.js CSS
+
 
 const { Option } = Select;
 const { Header, Content } = Layout;
@@ -88,9 +92,9 @@ export default function TangManagement() {
     const navigate = useNavigate();
     const [selectedRowKeys, setSelectedRowKeys] = useState([]);
     const [isModalVisible, setIsModalVisible] = useState(false);
-    const [loadError, setLoadError] = useState(null); // Lưu lỗi từ loader
-    const [filteredTangs, setFilteredTangs] = useState(null); // Dữ liệu khi tìm kiếm (Thêm state này nếu cần)
-    const [internalLoading, setInternalLoading] = useState(false); // Loading cho search, delete, import...
+    const [loadError, setLoadError] = useState(null);
+    const [filteredTangs, setFilteredTangs] = useState(null);
+    const [internalLoading, setInternalLoading] = useState(false);
     const [importLoading, setImportLoading] = useState(false);
     const [pagination, setPagination] = useState({
         current: 1,
@@ -98,12 +102,79 @@ export default function TangManagement() {
     });
     const [sortInfo, setSortInfo] = useState({});
     const [hasSelected, setHasSelected] = useState(false);
-    const [notification, setNotification] = useState(null); // State for notification
+    const [notification, setNotification] = useState(null);
+
+    // --- Intro.js Tour ---
+    const startIntroTour = () => {
+        const steps = [
+            {
+                element: '#search-input-tang',
+                intro: 'Nhập tên tầng hoặc thông tin liên quan để tìm kiếm.',
+                position: 'bottom-start'
+            },
+            {
+                element: '#column-select-tang',
+                intro: 'Chọn cột bạn muốn tìm kiếm (Tên tầng, Tên tòa nhà).',
+                position: 'bottom-start',
+            },
+            {
+                element: '#export-pdf-button-tang',
+                intro: 'Xuất danh sách tầng ra file PDF.',
+                position: 'bottom-start'
+            },
+            {
+                element: '#export-excel-button-tang',
+                intro: 'Xuất danh sách tầng ra file Excel.',
+                position: 'bottom-start'
+            },
+            {
+                element: '#create-new-dropdown-tang',
+                intro: 'Tạo tầng mới bằng form hoặc import từ file.',
+                position: 'bottom-start'
+            },
+            {
+                element: '.ant-table-thead > tr > th:nth-child(3)', // Tên tầng column
+                intro: 'Click vào đây để sắp xếp danh sách tầng theo tên.',
+                position: 'bottom'
+            },
+            {
+                element: '.ant-table-thead > tr > th:nth-child(4)', // Tên tòa nhà column
+                intro: 'Click vào đây để sắp xếp danh sách tầng theo tên tòa nhà.',
+                position: 'bottom'
+            },
+            {
+                element: '.ant-table-thead > tr > th:last-child', // Hành động column
+                intro: 'Tại cột này, bạn có thể chỉnh sửa hoặc xóa tầng.',
+                position: 'left'
+            },
+            {
+                element: '#delete-selected-button-tang',
+                intro: 'Xóa các tầng đã được chọn (tick vào checkbox).',
+                position: 'top-end',
+            },
+            {
+                element: '#logout-button-tang',
+                intro: 'Đăng xuất khỏi ứng dụng quản lý tầng.',
+                position: 'bottom-end'
+            },
+        ];
+
+        introJs().setOptions({
+            steps: steps,
+            nextLabel: 'Tiếp theo',
+            prevLabel: 'Quay lại',
+            doneLabel: 'Hoàn tất',
+            scrollTo: 'element',
+            overlayOpacity: 0.5,
+        }).start();
+    };
+
+
     useEffect(() => {
         console.log("[Component Tang] Loader Result Received:", loaderResult);
         if (loaderResult?.error) {
             console.error("Loader Error Handled in Component Tang:", loaderResult);
-            setLoadError(loaderResult); // Lưu lỗi
+            setLoadError(loaderResult);
 
             if (loaderResult.type === 'auth') {
                 Swal.fire({
@@ -120,21 +191,20 @@ export default function TangManagement() {
                     }
                 });
             }
-            // Không cần hiển thị Swal cho lỗi API/Network vì sẽ render <Result>
         } else if (loaderResult?.data) {
             const data = loaderResult.data || [];
             console.log("[Component Tang] Setting initial data:", data);
             setInitialTangs(data);
-            setTangs(data.slice(0, pagination.pageSize)); // Cập nhật bảng
+            setTangs(data.slice(0, pagination.pageSize));
             setLoadError(null);
-            setPagination(prev => ({ ...prev, current: 1 })); // Reset về trang 1
-            setFilteredTangs(null); // Đảm bảo không có filter cũ
+            setPagination(prev => ({ ...prev, current: 1 }));
+            setFilteredTangs(null);
         } else {
             console.error("Unexpected loader result:", loaderResult);
             setLoadError({ error: true, type: 'unknown', message: "Dữ liệu tải trang không hợp lệ." });
         }
-    }, [loaderResult, navigate]); // Phụ thuộc vào loaderResult và navigate
-    // SSE connection setup and data reloading
+    }, [loaderResult, navigate]);
+
     useEffect(() => {
         const eventSource = new EventSource("https://localhost:8080/subscribe");
         eventSource.onopen = () => console.log("SSE connection opened for Tang");
@@ -145,28 +215,12 @@ export default function TangManagement() {
             if (messageText !== "subscribed") {
                 setNotification(messageText);
 
-                // --- CHANGE: Thay vì fetchTangs, có thể reload trang hoặc invalidate loader ---
-                // Cách đơn giản nhất là reload trang để loader chạy lại
-                if (messageText.toLowerCase().includes("xóa") && messageText.toLowerCase().includes("tầng")) {
-                    console.log("SSE indicates Tang deletion, reloading...");
-                    // message.info("Dữ liệu tầng đã thay đổi, đang tải lại...", 2);
-                    Swal.fire({ // Thông báo trước khi reload
-                        title: "Thông báo",
-                        text: "Dữ liệu tầng đã được cập nhật từ nguồn khác. Trang sẽ được tải lại.",
-                        icon: "info",
-                        timer: 3000,
-                        timerProgressBar: true,
-                        showConfirmButton: false,
-                        willClose: () => {
-                            navigate(0); // Reload trang hiện tại để loader chạy lại
-                        }
-                    });
-                    // fetchTangs(); // Bỏ fetchTangs()
-                } else if (messageText.toLowerCase().includes("thêm") && messageText.toLowerCase().includes("tầng")) {
-                    // Tương tự cho thêm mới
+                if ((messageText.toLowerCase().includes("xóa") || messageText.toLowerCase().includes("thêm"))
+                    && messageText.toLowerCase().includes("tầng")) {
+                    console.log("SSE indicates Tang change, reloading...");
                     Swal.fire({
                         title: "Thông báo",
-                        text: "Dữ liệu tầng đã được cập nhật từ nguồn khác. Trang sẽ được tải lại.",
+                        text: "Dữ liệu tầng đã được cập nhật. Trang sẽ được tải lại.",
                         icon: "info",
                         timer: 3000,
                         timerProgressBar: true,
@@ -176,17 +230,8 @@ export default function TangManagement() {
                         }
                     });
                 } else {
-                    // Các thông báo SSE khác không liên quan đến Tang
-                    Swal.fire({
-                        title: "Thông báo",
-                        text: messageText,
-                        icon: "info",
-                        timer: 3000,
-                        timerProgressBar: true,
-                        showConfirmButton: false
-                    });
+                    // Swal.fire({}); // Removed for brevity, add back if needed
                 }
-
             }
         };
         eventSource.onerror = (error) => {
@@ -194,9 +239,7 @@ export default function TangManagement() {
             eventSource.close();
         };
         return () => { eventSource.close(); };
-        // Thêm navigate vào dependency nếu bạn dùng nó trong handler (như hiện tại)
     }, [navigate]);
-
 
 
     const showImportModal = () => {
@@ -262,11 +305,6 @@ export default function TangManagement() {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-
-            // No need for Swal here, SSE will handle the notification
-            // Swal.fire("Thành công!", "Đã xóa tầng thành công!", "success");
-
-            // fetchTangs(); // Refresh data after deletion , no need because sse handle it
         } catch (error) {
             console.error("Error deleting tang:", error);
             Swal.fire("Error", "Có lỗi xảy ra khi xóa tầng: " + error.message, "error");
@@ -455,10 +493,7 @@ export default function TangManagement() {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            // No need for Swal here, SSE will handle the notification.
-            // Swal.fire("Thành công!", "Đã xóa các tầng thành công!", "success");
             setSelectedRowKeys([]);
-            // fetchTangs(); // No need because sse handle it
         } catch (error) {
             console.error("Error deleting tangs:", error);
             Swal.fire("Error", "Có lỗi xảy ra khi xóa phòng máy: " + error.message, "error");
@@ -466,7 +501,7 @@ export default function TangManagement() {
     };
 
     const menu = (
-        <Menu>
+        <Menu id="create-new-dropdown-tang"> {/* Added ID for intro.js */}
             <Menu.Item key="1" icon={<PlusOutlined />} onClick={() => navigate(`/addtang`)}>
                 Tạo mới bằng form
             </Menu.Item>
@@ -598,9 +633,10 @@ export default function TangManagement() {
                 </div>
                 <div className="actions" style={{ display: "flex", alignItems: "center" }}>
                     <DarkModeToggle />
-                    <Button icon={<LogoutOutlined />} type="text" onClick={handleLogout}>
+                    <Button id="logout-button-tang" icon={<LogoutOutlined />} type="text" onClick={handleLogout}> {/* Added ID for intro.js */}
                         Đăng xuất
                     </Button>
+                    <Button icon={<QuestionCircleOutlined />} type="primary" onClick={startIntroTour}>Hướng dẫn</Button> {/* Add Hướng dẫn button */}
                 </div>
             </Header>
             <Content className="lab-management-content" style={{ padding: "24px" }}>
@@ -616,16 +652,15 @@ export default function TangManagement() {
                 </div>
 
                 <div className="flex items-center gap-4 mb-6">
-                    <Select defaultValue="all" style={{ width: 180 }}>
-                        <Option value="all">Tất cả</Option>
-                    </Select>
-
-                    <Select defaultValue="all" style={{ width: 180 }}>
-                        <Option value="all">Tất cả</Option>
+                    <Select id="column-select-tang" defaultValue="all" style={{ width: 180 }}> {/* Added ID for intro.js */}
+                        <Option value="all">Tất cả cột</Option>
+                        <Option value="tenTang">Tên Tầng</Option>
+                        <Option value="toaNha">Tên Tòa Nhà</Option>
                     </Select>
 
                     <div className="flex items-center flex-1 gap-2">
                         <Input
+                            id="search-input-tang" // Added ID for intro.js
                             placeholder="Tìm kiếm..."
                             value={search}
                             onChange={(e) => handleSearch(e.target.value)}
@@ -634,16 +669,17 @@ export default function TangManagement() {
                     </div>
                 </div>
 
-                <Button onClick={exportToPDF} className="bg-blue-600 hover:bg-blue-700" type="primary">
+                <Button id="export-pdf-button-tang" onClick={exportToPDF} className="bg-blue-600 hover:bg-blue-700" type="primary"> {/* Added ID for intro.js */}
                     Xuất PDF
                 </Button>
-                <Button onClick={exportToExcel} className="bg-green-600 hover:bg-green-700" type="primary">
+                <Button id="export-excel-button-tang" onClick={exportToExcel} className="bg-green-600 hover:bg-green-700" type="primary"> {/* Added ID for intro.js */}
                     Xuất Excel
                 </Button>
                 <div className="flex items-center justify-between mb-6">
                     <h1 className="text-2xl font-semibold">Danh sách tầng</h1>
                     <Dropdown overlay={menu} placement="bottomRight" arrow>
                         <Button
+                            id="create-new-dropdown-button-tang" // Redundant ID, menu has id already
                             type="primary"
                             icon={<PlusOutlined />}
                             className="bg-blue-600 hover:bg-blue-700"
@@ -681,11 +717,12 @@ export default function TangManagement() {
                 </div>
                 {hasSelected && (
                     <Button
+                        id="delete-selected-button-tang" // Added ID for intro.js
                         type="primary"
                         danger
                         onClick={confirmDeleteMultiple}
                         className="mt-4"
-                        disabled={internalLoading} // Disable khi đang xử lý
+                        disabled={internalLoading}
                     >
                         Xóa nhiều tầng
                     </Button>

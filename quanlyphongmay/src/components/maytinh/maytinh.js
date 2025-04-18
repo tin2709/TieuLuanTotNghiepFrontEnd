@@ -7,6 +7,7 @@ import {
     PlusOutlined,
     FileAddOutlined,
     LogoutOutlined,
+    QuestionCircleOutlined // Import QuestionCircleOutlined
 } from "@ant-design/icons";
 import {
     Button,
@@ -26,6 +27,9 @@ import "jspdf-autotable";
 import * as XLSX from "xlsx";
 import font from "../../font/font";
 import { useLoaderData, useNavigate, useNavigation } from "react-router-dom";
+import introJs from 'intro.js'; // Import intro.js library
+import 'intro.js/introjs.css'; // Import intro.js CSS
+
 const { Option } = Select;
 const { Header, Content } = Layout;
 
@@ -77,97 +81,164 @@ const DarkModeToggle = () => {
     );
 };
 
-    export default function MayTinhManagement() {
-        const loaderResult = useLoaderData();
-        const [search, setSearch] = useState("");
-    const [mayTinhs, setMayTinhs] = useState([]);  // Changed variable name to lowercase
-        const [filteredMayTinhs, setFilteredMayTinhs] = useState(null); // Data after filtering/searching
-        const [selectedColumn, setSelectedColumn] = useState(null);
-    const [initialMayTinhs, setInitialMayTinhs] = useState([]); // Changed variable name to lowercase
+export default function MayTinhManagement() {
+    const loaderResult = useLoaderData();
+    const [search, setSearch] = useState("");
+    const [mayTinhs, setMayTinhs] = useState([]);
+    const [filteredMayTinhs, setFilteredMayTinhs] = useState(null);
+    const [selectedColumn, setSelectedColumn] = useState(null);
+    const [initialMayTinhs, setInitialMayTinhs] = useState([]);
     const navigate = useNavigate();
     const [selectedRowKeys, setSelectedRowKeys] = useState([]);
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [importLoading, setImportLoading] = useState(false);
-    const [loadError, setLoadError] = useState(null); // Lưu lỗi từ loader
-    const [internalLoading, setInternalLoading] = useState(false); // Loading cho search, delete, import...
+    const [loadError, setLoadError] = useState(null);
+    const [internalLoading, setInternalLoading] = useState(false);
     const [pagination, setPagination] = useState({
         current: 1,
         pageSize: 10,
     });
     const [sortInfo, setSortInfo] = useState({});
     const [hasSelected, setHasSelected] = useState(false);
-    const [notification, setNotification] = useState(null); // State for notification
-        useEffect(() => {
-            console.log("[Component MayTinh] Loader Result Received:", loaderResult);
-            if (loaderResult?.error) {
-                console.error("Loader Error Handled in Component MayTinh:", loaderResult);
-                setLoadError(loaderResult);
+    const [notification, setNotification] = useState(null);
 
-                if (loaderResult.type === 'auth') {
-                    Swal.fire({
-                        title: "Lỗi Xác thực",
-                        text: loaderResult.message || "Phiên đăng nhập hết hạn.",
-                        icon: "error",
-                        timer: 2500,
-                        showConfirmButton: false,
-                        willClose: () => {
-                            localStorage.removeItem('authToken');
-                            localStorage.removeItem('username');
-                            localStorage.removeItem('userRole');
-                            navigate('/login', { replace: true });
-                        }
-                    });
-                }
-            } else if (loaderResult?.data) {
-                const data = loaderResult.data || [];
-                console.log("[Component MayTinh] Setting initial data:", data);
-                setInitialMayTinhs(data);
-                setMayTinhs(data.slice(0, pagination.pageSize)); // Update display table
-                setLoadError(null);
-                setPagination(prev => ({ ...prev, current: 1 })); // Reset page
-                setFilteredMayTinhs(null); // Clear any previous filters
-            } else {
-                console.error("Unexpected loader result:", loaderResult);
-                setLoadError({ error: true, type: 'unknown', message: "Dữ liệu tải trang không hợp lệ." });
-            }
-        }, [loaderResult, navigate]);
-    // SSE connection setup and data reloading
-        useEffect(() => {
-            const eventSource = new EventSource("https://localhost:8080/subscribe");
-            eventSource.onopen = () => console.log("SSE connection opened for MayTinh");
-            eventSource.onmessage = (event) => {
-                const messageText = event.data;
-                console.log("Received SSE message:", messageText);
+    // --- Intro.js Tour ---
+    const startIntroTour = () => {
+        const steps = [
+            {
+                element: '#search-input-maytinh',
+                intro: 'Nhập tên máy tính hoặc thông tin liên quan để tìm kiếm.',
+                position: 'bottom-start'
+            },
+            {
+                element: '#column-select-maytinh',
+                intro: 'Chọn cột bạn muốn tìm kiếm (Tên máy tính, Trạng thái, Mô tả, Ngày lắp đặt).',
+                position: 'bottom-start',
+            },
+            {
+                element: '#status-select-maytinh',
+                intro: 'Lọc danh sách máy tính theo trạng thái hoạt động.',
+                position: 'bottom-start'
+            },
+            {
+                element: '#export-pdf-button-maytinh',
+                intro: 'Xuất danh sách máy tính ra file PDF.',
+                position: 'bottom-start'
+            },
+            {
+                element: '#export-excel-button-maytinh',
+                intro: 'Xuất danh sách máy tính ra file Excel.',
+                position: 'bottom-start'
+            },
+            {
+                element: '#create-new-dropdown-maytinh',
+                intro: 'Tạo máy tính mới bằng form hoặc import từ file.',
+                position: 'bottom-start'
+            },
+            {
+                element: '.ant-table-thead > tr > th:nth-child(3)', // Tên máy tính column
+                intro: 'Click vào đây để sắp xếp danh sách máy tính theo tên.',
+                position: 'bottom'
+            },
+            {
+                element: '.ant-table-thead > tr > th:nth-child(6)', // Trạng thái column
+                intro: 'Click vào đây để sắp xếp danh sách máy tính theo trạng thái.',
+                position: 'bottom'
+            },
+            {
+                element: '.ant-table-thead > tr > th:last-child', // Hành động column
+                intro: 'Tại cột này, bạn có thể chỉnh sửa, xóa máy tính hoặc gửi tin nhắn.',
+                position: 'left'
+            },
+            {
+                element: '#delete-selected-button-maytinh',
+                intro: 'Xóa các máy tính đã được chọn (tick vào checkbox).',
+                position: 'top-end',
+            },
+            {
+                element: '#logout-button-maytinh',
+                intro: 'Đăng xuất khỏi ứng dụng quản lý máy tính.',
+                position: 'bottom-end'
+            },
+        ];
 
-                if (messageText !== "subscribed") {
-                    setNotification(messageText);
+        introJs().setOptions({
+            steps: steps,
+            nextLabel: 'Tiếp theo',
+            prevLabel: 'Quay lại',
+            doneLabel: 'Hoàn tất',
+            scrollTo: 'element',
+            overlayOpacity: 0.5,
+        }).start();
+    };
 
-                    // Reload on relevant changes
-                    if ((messageText.toLowerCase().includes("xóa") || messageText.toLowerCase().includes("thêm"))
-                        && messageText.toLowerCase().includes("máy tính"))
-                    {
-                        console.log("SSE indicates MayTinh change, reloading...");
-                        Swal.fire({
-                            title: "Thông báo",
-                            text: "Dữ liệu máy tính đã được cập nhật. Trang sẽ được tải lại.",
-                            icon: "info",
-                            timer: 3000,
-                            timerProgressBar: true,
-                            showConfirmButton: false,
-                            willClose: () => navigate(0) // Reload page
-                        });
-                        // fetchMayTinhs(); // REMOVE OLD FETCH
-                    } else {
-                        // Show other SSE messages
-                        Swal.fire({ /* ... show other messages ... */ });
+    useEffect(() => {
+        console.log("[Component MayTinh] Loader Result Received:", loaderResult);
+        if (loaderResult?.error) {
+            console.error("Loader Error Handled in Component MayTinh:", loaderResult);
+            setLoadError(loaderResult);
+
+            if (loaderResult.type === 'auth') {
+                Swal.fire({
+                    title: "Lỗi Xác thực",
+                    text: loaderResult.message || "Phiên đăng nhập hết hạn.",
+                    icon: "error",
+                    timer: 2500,
+                    showConfirmButton: false,
+                    willClose: () => {
+                        localStorage.removeItem('authToken');
+                        localStorage.removeItem('username');
+                        localStorage.removeItem('userRole');
+                        navigate('/login', { replace: true });
                     }
-                }
-            };
-            eventSource.onerror = (error) => { console.error("SSE error:", error); eventSource.close(); };
-            return () => { eventSource.close(); };
-        }, [navigate]); // Add navigate dependency
+                });
+            }
+        } else if (loaderResult?.data) {
+            const data = loaderResult.data || [];
+            console.log("[Component MayTinh] Setting initial data:", data);
+            setInitialMayTinhs(data);
+            setMayTinhs(data.slice(0, pagination.pageSize));
+            setLoadError(null);
+            setPagination(prev => ({ ...prev, current: 1 }));
+            setFilteredMayTinhs(null);
+        } else {
+            console.error("Unexpected loader result:", loaderResult);
+            setLoadError({ error: true, type: 'unknown', message: "Dữ liệu tải trang không hợp lệ." });
+        }
+    }, [loaderResult, navigate]);
 
-        const showImportModal = () => {
+    useEffect(() => {
+        const eventSource = new EventSource("https://localhost:8080/subscribe");
+        eventSource.onopen = () => console.log("SSE connection opened for MayTinh");
+        eventSource.onmessage = (event) => {
+            const messageText = event.data;
+            console.log("Received SSE message:", messageText);
+
+            if (messageText !== "subscribed") {
+                setNotification(messageText);
+
+                if ((messageText.toLowerCase().includes("xóa") || messageText.toLowerCase().includes("thêm"))
+                    && messageText.toLowerCase().includes("máy tính")) {
+                    console.log("SSE indicates MayTinh change, reloading...");
+                    Swal.fire({
+                        title: "Thông báo",
+                        text: "Dữ liệu máy tính đã được cập nhật. Trang sẽ được tải lại.",
+                        icon: "info",
+                        timer: 3000,
+                        timerProgressBar: true,
+                        showConfirmButton: false,
+                        willClose: () => navigate(0)
+                    });
+                } else {
+                    // Swal.fire({  }); // Removed for brevity, add back if needed
+                }
+            }
+        };
+        eventSource.onerror = (error) => { console.error("SSE error:", error); eventSource.close(); };
+        return () => { eventSource.close(); };
+    }, [navigate]);
+
+    const showImportModal = () => {
         setIsModalVisible(true);
     };
 
@@ -200,19 +271,19 @@ const DarkModeToggle = () => {
     const handleDelete = (record) => {
         Swal.fire({
             title: "Bạn có chắc chắn muốn xóa máy tính này?",
-            text: `Máy tính: ${record.tenMay}`, // Use tenMay
+            text: `Máy tính: ${record.tenMay}`,
             icon: "warning",
             showCancelButton: true,
             confirmButtonText: "Xóa",
             cancelButtonText: "Hủy",
         }).then((result) => {
             if (result.isConfirmed) {
-                deleteMayTinh(record.maMay);  //Use maMay
+                deleteMayTinh(record.maMay);
             }
         });
     };
 
-    const deleteMayTinh = async (maMay) => { // Use maMay
+    const deleteMayTinh = async (maMay) => {
         const token = localStorage.getItem("authToken");
 
         if (!token) {
@@ -221,7 +292,7 @@ const DarkModeToggle = () => {
         }
 
         try {
-            const url = `https://localhost:8080/XoaMayTinh?maMay=${maMay}&token=${token}`; // Corrected URL and parameter
+            const url = `https://localhost:8080/XoaMayTinh?maMay=${maMay}&token=${token}`;
             const response = await fetch(url, {
                 method: "DELETE",
                 headers: {
@@ -233,13 +304,10 @@ const DarkModeToggle = () => {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            // No need for Swal here, SSE will handle the notification
-            // Swal.fire("Thành công!", "Đã xóa máy tính thành công!", "success"); // Changed to "máy tính"
 
-            // fetchMayTinhs(); // Refresh data after deletion , no need because sse handle it
         } catch (error) {
             console.error("Error deleting MayTinh:", error);
-            Swal.fire("Error", "Có lỗi xảy ra khi xóa máy tính: " + error.message, "error"); // Changed to "máy tính"
+            Swal.fire("Error", "Có lỗi xảy ra khi xóa máy tính: " + error.message, "error");
         }
     };
 
@@ -281,11 +349,10 @@ const DarkModeToggle = () => {
                 Swal.fire("Error", "Bạn chưa đăng nhập", "error");
                 return;
             }
-            setInternalLoading(true); // Bật loading nội bộ
+            setInternalLoading(true);
 
             try {
-                // const url = `https://localhost:8080/searchMayTinh?keyword=${searchColumn}:${searchValue}&token=${token}`; //Correct if have search api
-                const url = `https://localhost:8080/DSMayTinh?token=${token}`; // Use the correct endpoint for listing all
+                const url = `https://localhost:8080/DSMayTinh?token=${token}`;
                 const response = await fetch(url, {
                     method: "GET",
                     headers: {
@@ -307,7 +374,6 @@ const DarkModeToggle = () => {
                     const text = await response.text();
                     console.log("Response Body:", text);
                     const data = JSON.parse(text);
-                    // setMayTinhs(data.results); // Use data directly, not data.results
                     let filteredData = data;
                     if (searchValue && searchColumn) {
                         filteredData = data.filter(item =>
@@ -366,7 +432,7 @@ const DarkModeToggle = () => {
         onChange: onSelectChange,
         getCheckboxProps: (record) => ({
             disabled: false,
-            name: record.maMay, // Use maMay
+            name: record.maMay,
         }),
     };
 
@@ -380,30 +446,30 @@ const DarkModeToggle = () => {
         doc.setFont("Arial");
 
         doc.autoTable({
-            head: [["STT", "Tên Máy Tính", "Trạng Thái", "Mô Tả", "Ngày Lắp Đặt", "Phòng"]], // Added headers
-            body: mayTinhs.map((mayTinh, index) => [ // Changed variable name to lowercase
+            head: [["STT", "Tên Máy Tính", "Trạng Thái", "Mô Tả", "Ngày Lắp Đặt", "Phòng"]],
+            body: mayTinhs.map((mayTinh, index) => [
                 index + 1,
-                mayTinh.tenMay,  // Use tenMay
+                mayTinh.tenMay,
                 mayTinh.trangThai,
                 mayTinh.moTa,
                 mayTinh.ngayLapDat,
-                mayTinh.phongMay.tenPhong // Access tenPhong through phongMay
+                mayTinh.phongMay.tenPhong
             ]),
         });
 
-        doc.save("DanhSachMayTinh.pdf"); // Changed file name
+        doc.save("DanhSachMayTinh.pdf");
     };
 
     const exportToExcel = () => {
         const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.json_to_sheet(mayTinhs); // Changed variable name to lowercase
-        XLSX.utils.book_append_sheet(wb, ws, "DanhSachMayTinh"); // Changed sheet name
-        XLSX.writeFile(wb, "DanhSachMayTinh.xlsx");  // Changed file name
+        const ws = XLSX.utils.json_to_sheet(mayTinhs);
+        XLSX.utils.book_append_sheet(wb, ws, "DanhSachMayTinh");
+        XLSX.writeFile(wb, "DanhSachMayTinh.xlsx");
     };
     const confirmDeleteMultiple = () => {
         Swal.fire({
             title: "Bạn có chắc chắn muốn xóa các máy tính đã chọn?",
-            text: `Bạn đang cố gắng xóa ${selectedRowKeys.length} máy tính.`, // Changed to "máy tính"
+            text: `Bạn đang cố gắng xóa ${selectedRowKeys.length} máy tính.`,
             icon: "warning",
             showCancelButton: true,
             confirmButtonText: "Xóa",
@@ -424,8 +490,8 @@ const DarkModeToggle = () => {
         }
 
         try {
-            const maMayListString = selectedRowKeys.join(","); // Changed variable name
-            const url = `https://localhost:8080/XoaNhieuMayTinh?maMayTinhList=${maMayListString}&token=${token}`; //Corrected URL
+            const maMayListString = selectedRowKeys.join(",");
+            const url = `https://localhost:8080/XoaNhieuMayTinh?maMayTinhList=${maMayListString}&token=${token}`;
 
             const response = await fetch(url, {
                 method: "DELETE",
@@ -438,18 +504,17 @@ const DarkModeToggle = () => {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
 
-            // No need for Swal here, SSE will handle the notification.
-            // Swal.fire("Thành công!", "Đã xóa các máy tính thành công!", "success"); // Changed to "máy tính"
+
             setSelectedRowKeys([]);
-            // fetchMayTinhs(); // No need because sse handle it
+
         } catch (error) {
             console.error("Error deleting MayTinhs:", error);
-            Swal.fire("Error", "Có lỗi xảy ra khi xóa máy tính: " + error.message, "error"); // Changed "phòng máy" to "máy tính"
+            Swal.fire("Error", "Có lỗi xảy ra khi xóa máy tính: " + error.message, "error");
         }
     };
 
     const menu = (
-        <Menu>
+        <Menu id="create-new-dropdown-maytinh"> {/* Added ID for intro.js */}
             <Menu.Item key="1" icon={<PlusOutlined />} onClick={() => navigate(`/addMayTinh`)}>
                 Tạo mới bằng form
             </Menu.Item>
@@ -499,13 +564,13 @@ const DarkModeToggle = () => {
             title: (
                 <Checkbox
                     onChange={(e) => {
-                        const allKeys = mayTinhs.map((record) => record.maMay); // Use maMay and changed variable
+                        const allKeys = mayTinhs.map((record) => record.maMay);
                         setSelectedRowKeys(e.target.checked ? allKeys : []);
                         setHasSelected(e.target.checked);
                     }}
-                    checked={mayTinhs.length > 0 && selectedRowKeys.length === mayTinhs.length} // Changed variable
+                    checked={mayTinhs.length > 0 && selectedRowKeys.length === mayTinhs.length}
                     indeterminate={
-                        selectedRowKeys.length > 0 && selectedRowKeys.length < mayTinhs.length // Changed variable
+                        selectedRowKeys.length > 0 && selectedRowKeys.length < mayTinhs.length
                     }
                 />
             ),
@@ -522,9 +587,9 @@ const DarkModeToggle = () => {
         },
         {
             title: "Tên máy tính",
-            dataIndex: "tenMay", // Use tenMay
+            dataIndex: "tenMay",
             width: "10%",
-            sorter: (a, b) => a.tenMay.localeCompare(b.tenMay), // Use tenMay
+            sorter: (a, b) => a.tenMay.localeCompare(b.tenMay),
         },
 
         {
@@ -549,9 +614,9 @@ const DarkModeToggle = () => {
         },
         {
             title: "Phòng",
-            dataIndex: ["phongMay", "tenPhong"], // Access tenPhong through phongMay
+            dataIndex: ["phongMay", "tenPhong"],
             width: "15%",
-            sorter: (a, b) => a.phongMay.tenPhong.localeCompare(b.phongMay.tenPhong), // Sort by tenPhong
+            sorter: (a, b) => a.phongMay.tenPhong.localeCompare(b.phongMay.tenPhong),
         },
         {
             title: "Hành động",
@@ -561,7 +626,7 @@ const DarkModeToggle = () => {
                         icon={<EditOutlined />}
                         size="small"
                         type="link"
-                        onClick={() => navigate(`/editMayTinh/${record.maMay}`)} // Use maMay
+                        onClick={() => navigate(`/editMayTinh/${record.maMay}`)}
                     />
                     <Button
                         icon={<DeleteOutlined />}
@@ -574,7 +639,7 @@ const DarkModeToggle = () => {
                         size="small"
                         type="link"
                         onClick={() =>
-                            Swal.fire("Message", `Message to computer ${record.tenMay}`, "question") // Changed to "computer" and tenMay
+                            Swal.fire("Message", `Message to computer ${record.tenMay}`, "question")
                         }
                     />
                 </div>
@@ -595,13 +660,14 @@ const DarkModeToggle = () => {
                 }}
             >
                 <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#000" }}>
-                    Danh sách máy tính {/* Changed to "máy tính" */}
+                    Danh sách máy tính
                 </div>
                 <div className="actions" style={{ display: "flex", alignItems: "center" }}>
                     <DarkModeToggle />
-                    <Button icon={<LogoutOutlined />} type="text" onClick={handleLogout}>
+                    <Button id="logout-button-maytinh" icon={<LogoutOutlined />} type="text" onClick={handleLogout}> {/* Added ID for intro.js */}
                         Đăng xuất
                     </Button>
+                    <Button icon={<QuestionCircleOutlined />} type="primary" onClick={startIntroTour}>Hướng dẫn</Button> {/* Add Hướng dẫn button */}
                 </div>
             </Header>
             <Content className="lab-management-content" style={{ padding: "24px" }}>
@@ -613,12 +679,13 @@ const DarkModeToggle = () => {
                 </nav>
 
                 <div className="flex items-center justify-between mb-6">
-                    <h1 className="text-2xl font-semibold">Danh sách máy tính {/* Changed to "máy tính" */}</h1>
+                    <h1 className="text-2xl font-semibold">Danh sách máy tính</h1>
                 </div>
 
                 <div className="flex items-center gap-4 mb-6">
-                    {/* Example of using a dropdown for status */}
+                    {/* Status Select */}
                     <Select
+                        id="status-select-maytinh" // Added ID for intro.js
                         defaultValue="all"
                         style={{ width: 180 }}
                         onChange={(value) => {
@@ -637,11 +704,12 @@ const DarkModeToggle = () => {
                         <Option value="Bảo trì">Bảo trì</Option>
                     </Select>
 
-
+                    {/* Column Select */}
                     <Select
+                        id="column-select-maytinh" // Added ID for intro.js
                         defaultValue="all"
                         style={{ width: 180 }}
-                        onChange={(value) => handleColumnSelect(value)} // Set selected column
+                        onChange={(value) => handleColumnSelect(value)}
                     >
                         <Option value="all">Tất cả cột</Option>
                         <Option value="tenMay">Tên Máy Tính</Option>
@@ -650,8 +718,10 @@ const DarkModeToggle = () => {
                         <Option value="ngayLapDat">Ngày Lắp Đặt</Option>
                     </Select>
 
+                    {/* Search Input */}
                     <div className="flex items-center flex-1 gap-2">
                         <Input
+                            id="search-input-maytinh" // Added ID for intro.js
                             placeholder="Tìm kiếm..."
                             value={search}
                             onChange={(e) => handleSearch(e.target.value)}
@@ -660,16 +730,17 @@ const DarkModeToggle = () => {
                     </div>
                 </div>
 
-                <Button onClick={exportToPDF} className="bg-blue-600 hover:bg-blue-700" type="primary">
+                <Button id="export-pdf-button-maytinh" onClick={exportToPDF} className="bg-blue-600 hover:bg-blue-700" type="primary"> {/* Added ID for intro.js */}
                     Xuất PDF
                 </Button>
-                <Button onClick={exportToExcel} className="bg-green-600 hover:bg-green-700" type="primary">
+                <Button id="export-excel-button-maytinh" onClick={exportToExcel} className="bg-green-600 hover:bg-green-700" type="primary"> {/* Added ID for intro.js */}
                     Xuất Excel
                 </Button>
                 <div className="flex items-center justify-between mb-6">
-                    <h1 className="text-2xl font-semibold">Danh sách máy tính {/* Changed to "máy tính" */}</h1>
+                    <h1 className="text-2xl font-semibold">Danh sách máy tính</h1>
                     <Dropdown overlay={menu} placement="bottomRight" arrow>
                         <Button
+                            id="create-new-dropdown-button-maytinh" // Added ID for intro.js - redundant ID, menu has id already
                             type="primary"
                             icon={<PlusOutlined />}
                             className="bg-blue-600 hover:bg-blue-700"
@@ -686,8 +757,8 @@ const DarkModeToggle = () => {
                             onChange: onSelectChange,
                         }}
                         columns={columns}
-                        dataSource={mayTinhs} // Changed variable name
-                        rowKey="maMay"       // Use maMay
+                        dataSource={mayTinhs}
+                        rowKey="maMay"
                         loading={internalLoading}
                         pagination={{
                             current: pagination.current,
@@ -707,13 +778,14 @@ const DarkModeToggle = () => {
                 </div>
                 {hasSelected && (
                     <Button
+                        id="delete-selected-button-maytinh" // Added ID for intro.js
                         type="primary"
                         danger
                         onClick={confirmDeleteMultiple}
                         className="mt-4"
-                        disabled={internalLoading} // Disable khi đang xử lý
+                        disabled={internalLoading}
                     >
-                        Xóa nhiều máy tính {/* Changed to "máy tính" */}
+                        Xóa nhiều máy tính
                     </Button>
                 )}
 
