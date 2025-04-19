@@ -1,22 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer,
-    LineChart, Line,
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line,
 } from 'recharts';
-import { Card, Statistic, Row, Col, Spin, Layout, Menu, Button as AntButton, Popover } from 'antd';
 import {
-    UserOutlined,
-    DashboardOutlined,
-    LogoutOutlined,
+    Layout, // Use Layout directly from ant design
+    Card,
+    Statistic,
+    Row,
+    Col,
+    Spin,
+    Button as AntButton,
+    Popover
+} from 'antd';
+import {
     SettingOutlined,
+    SunOutlined,
+    MoonOutlined
 } from '@ant-design/icons';
+
 import Swal from 'sweetalert2';
 import * as DarkReader from 'darkreader';
-import { SunOutlined, MoonOutlined } from "@ant-design/icons";
-import { Header } from "antd/es/layout/layout";
 import { useNavigate } from 'react-router-dom';
+import SidebarAdmin from './Sidebar/SidebarAdmin'; // Ensure correct path
 
-const { Content, Sider } = Layout;
+const { Header, Content } = Layout; // Use Layout directly, no need to rename
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
@@ -52,7 +59,7 @@ const AdminDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [roomStats, setRoomStats] = useState([]);
     const [error, setError] = useState(null);
-    const [collapsed, setCollapsed] = useState(false);
+    const [collapsed, setCollapsed] = useState(false); // State for sidebar collapse
     const navigate = useNavigate();
 
     // State và dữ liệu cho Time-Series Chart (Recharts)
@@ -144,28 +151,6 @@ const AdminDashboard = () => {
         fetchTimeSeriesData(); // Gọi hàm fetch dữ liệu Time-Series khi component mount
     }, []);
 
-    const handleMenuClick = (e) => {
-        if (e.key === 'userManagement') {
-            navigate('/quanlitaikhoan');
-        } else if (e.key === 'logout') {
-            handleLogout();
-        } else if (e.key === 'teacherManagement') {
-            navigate('/quanligiaovien');
-        }
-    };
-
-    const handleLogout = () => {
-        localStorage.removeItem('authToken');
-        Swal.fire({
-            icon: 'success',
-            title: 'Logged Out',
-            text: 'You have been successfully logged out.',
-            showConfirmButton: false,
-            timer: 1500,
-        }).then(() => {
-            navigate('/login');
-        });
-    };
 
     const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
         const RADIAN = Math.PI / 180;
@@ -198,25 +183,9 @@ const AdminDashboard = () => {
     ];
 
     return (
-        <Layout style={{ minHeight: '100vh' }}>
-            <Sider collapsible collapsed={collapsed} onCollapse={(value) => setCollapsed(value)}>
-                <div style={{ height: 32, margin: 16, background: 'rgba(255, 255, 255, 0.2)' }} />
-                <Menu theme="dark" defaultSelectedKeys={['dashboard']} mode="inline" onClick={handleMenuClick}>
-                    <Menu.Item key="dashboard" icon={<DashboardOutlined />}>
-                        Thống kê
-                    </Menu.Item>
-                    <Menu.Item key="userManagement" icon={<UserOutlined />}>
-                        Quản lý tài khoản
-                    </Menu.Item>
-                    <Menu.Item key="teacherManagement" icon={<UserOutlined />}>
-                        Quản lý giáo viên
-                    </Menu.Item>
-                    <Menu.Item key="logout" icon={<LogoutOutlined />}>
-                        Đăng xuất
-                    </Menu.Item>
-                </Menu>
-            </Sider>
-            <Layout>
+        <Layout style={{ minHeight: '100vh' }}> {/* Use Layout here, not MainLayout */}
+            <SidebarAdmin collapsed={collapsed} onCollapse={setCollapsed} /> {/* Use SidebarAdmin component */}
+            <Layout> {/* Nested Layout for Header and Content */}
                 <Header
                     className="lab-management-header"
                     style={{
@@ -228,7 +197,7 @@ const AdminDashboard = () => {
                     }}
                 >
                     <div style={{ display: "flex", alignItems: "center", fontSize: "1.5rem", fontWeight: "bold", color: "#000" }}>
-                        <Popover content={<div>Quản lí tài khoản</div>} trigger="hover">
+                        <Popover content={<div>Thống kê</div>} trigger="hover">
                             <SettingOutlined style={{ marginRight: 8, cursor: 'pointer' }} />
                         </Popover>
                         Thống kê

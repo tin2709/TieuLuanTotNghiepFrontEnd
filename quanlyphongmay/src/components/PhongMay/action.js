@@ -1,6 +1,11 @@
-
 // action.js
 export const ACTIONS = {
+    // Login & Refresh Token
+    LOGIN_SUCCESS: 'LOGIN_SUCCESS', // Add this action if needed to store login info in reducer
+    LOGIN_ERROR: 'LOGIN_ERROR',     // Add this action if needed
+    REFRESH_TOKEN_START: 'REFRESH_TOKEN_START',
+    REFRESH_TOKEN_SUCCESS: 'REFRESH_TOKEN_SUCCESS',
+    REFRESH_TOKEN_ERROR: 'REFRESH_TOKEN_ERROR',
     // Load Data
     LOAD_DATA_SUCCESS: 'LOAD_DATA_SUCCESS',
     LOAD_DATA_ERROR: 'LOAD_DATA_ERROR',

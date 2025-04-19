@@ -1,4 +1,3 @@
-
 // LabManagement.js
 import React, { useState, useEffect, useReducer, useMemo, useRef } from "react"; // Import useRef
 import { useLoaderData, useNavigate } from "react-router-dom";
@@ -205,7 +204,7 @@ export default function LabManagement() {
                 position: 'top-end',
                 // Conditional step handling would require checking state before starting intro.js or using callbacks.
                 // For now, include it always and it will be skipped if #delete-selected-button is not rendered.
-                },
+            },
             {
                 element: '#dark-mode-button',
                 intro: 'Bật/tắt chế độ Dark Mode để bảo vệ mắt khi sử dụng vào ban đêm hoặc trong điều kiện ánh sáng yếu.',
@@ -276,6 +275,20 @@ export default function LabManagement() {
         };
     }, [contextMenuVisible, deviceContextMenuVisible]);
 
+    useEffect(() => {
+        // Check token expiration every 30 seconds (adjust as needed)
+        const intervalId = setInterval(() => {
+            if (handlers.isTokenExpired()) {
+                console.log("Token sắp hết hạn hoặc đã hết hạn. Tiến hành làm mới...");
+                // Token refresh is handled silently in fetchApi, no need to do anything here
+                // Optionally, you could add a visual cue if refresh fails repeatedly, but as requested, it's silent.
+            }
+        }, 30000); // Check every 30 seconds
+
+        return () => clearInterval(intervalId); // Clear interval on component unmount
+    }, [handlers]);
+
+
     // --- Dark Mode Handler ---
     const toggleDarkMode = () => {
         setIsDarkMode((prevIsDarkMode) => {
@@ -340,21 +353,21 @@ export default function LabManagement() {
             { title: 'Trạng thái', dataIndex: 'trangThai', key: 'trangThai', render: (status) => (<span style={{ fontWeight: 'bold', color: getDeviceStatusColor(status) }}>{status}</span>)},
             ...(isRole3 && roomStatusForUpdate === 'Trống' ? [ // Columns for Role 3 in "Trống" room
                 { title: 'Đang hoạt động/Không hoạt động', key: 'attendance', align: 'center', width: '25%', render: (text, record) => {
-                    if (record.trangThai !== BROKEN_STATUS) return null; // Only show for BROKEN status
-                    return (<Checkbox
-                        checked={state.computerUpdateModal.attendanceKeys.includes(record.maMay)}
-                        onChange={(e) => handlers.toggleComputerAttendanceSelection(record.maMay, record.trangThai)}
-                    />);
-                }}
+                        if (record.trangThai !== BROKEN_STATUS) return null; // Only show for BROKEN status
+                        return (<Checkbox
+                            checked={state.computerUpdateModal.attendanceKeys.includes(record.maMay)}
+                            onChange={(e) => handlers.toggleComputerAttendanceSelection(record.maMay, record.trangThai)}
+                        />);
+                    }}
             ] : [ // Columns for other roles or non-"Trống" rooms
                 { title: 'Điểm danh', key: 'attendance', align: 'center', width: '15%', render: (text, record) => {
-                    if (record.trangThai === BROKEN_STATUS) return <span style={{ color: '#ff4d4f', fontStyle: 'italic' }}>Hỏng</span>;
-                    return (<Checkbox
-                        checked={state.computerUpdateModal.attendanceKeys.includes(record.maMay) ? false : record.trangThai === ACTIVE_STATUS}
-                        onChange={(e) => handlers.toggleComputerAttendanceSelection(record.maMay, record.trangThai)}
-                        disabled={record.trangThai === BROKEN_STATUS}
-                    />);
-                }},
+                        if (record.trangThai === BROKEN_STATUS) return <span style={{ color: '#ff4d4f', fontStyle: 'italic' }}>Hỏng</span>;
+                        return (<Checkbox
+                            checked={state.computerUpdateModal.attendanceKeys.includes(record.maMay) ? false : record.trangThai === ACTIVE_STATUS}
+                            onChange={(e) => handlers.toggleComputerAttendanceSelection(record.maMay, record.trangThai)}
+                            disabled={record.trangThai === BROKEN_STATUS}
+                        />);
+                    }},
                 { // 'Báo hỏng' column - Hidden for role 3 in "Trống" room
                     title: 'Báo hỏng', key: 'reportBroken', align: 'center', width: '15%', render: (text, record) => {
                         if (record.trangThai === BROKEN_STATUS) return <span style={{ color: '#ff4d4f', fontStyle: 'italic' }}>Hỏng</span>;
@@ -380,21 +393,21 @@ export default function LabManagement() {
             { title: 'Trạng thái', dataIndex: 'trangThai', key: 'trangThai', render: (status) => (<span style={{ fontWeight: 'bold', color: getDeviceStatusColor(status) }}>{status}</span>)},
             ...(isRole3 && roomStatusForUpdate === 'Trống' ? [ // Columns for Role 3 in "Trống" room
                 { title: 'Đang hoạt động/Không hoạt động', key: 'activeInactive', align: 'center', width: '25%', render: (text, record) => {
-                    if (record.trangThai !== BROKEN_STATUS) return null; // Only show for BROKEN status
-                    return (<Checkbox
-                        checked={state.deviceUpdateModal.selectedKeys.includes(record.maThietBi)}
-                        onChange={() => handlers.toggleDeviceUpdateSelection(record.maThietBi, record.trangThai)}
-                    />);
-                }}
+                        if (record.trangThai !== BROKEN_STATUS) return null; // Only show for BROKEN status
+                        return (<Checkbox
+                            checked={state.deviceUpdateModal.selectedKeys.includes(record.maThietBi)}
+                            onChange={() => handlers.toggleDeviceUpdateSelection(record.maThietBi, record.trangThai)}
+                        />);
+                    }}
             ] : [ // Columns for other roles or non-"Trống" rooms
                 { title: 'Thay đổi', key: 'activeInactive', align: 'center', width: '15%', render: (text, record) => {
-                    if (record.trangThai === BROKEN_STATUS) return <span style={{ color: getDeviceStatusColor(BROKEN_STATUS), fontStyle: 'italic' }}>Hỏng</span>;
-                    return (<Checkbox
-                        checked={state.deviceUpdateModal.selectedKeys.includes(record.maThietBi)}
-                        onChange={() => handlers.toggleDeviceUpdateSelection(record.maThietBi, record.trangThai)}
-                        disabled={record.trangThai === BROKEN_STATUS}
-                    />);
-                }},
+                        if (record.trangThai === BROKEN_STATUS) return <span style={{ color: getDeviceStatusColor(BROKEN_STATUS), fontStyle: 'italic' }}>Hỏng</span>;
+                        return (<Checkbox
+                            checked={state.deviceUpdateModal.selectedKeys.includes(record.maThietBi)}
+                            onChange={() => handlers.toggleDeviceUpdateSelection(record.maThietBi, record.trangThai)}
+                            disabled={record.trangThai === BROKEN_STATUS}
+                        />);
+                    }},
                 {
                     title: 'Báo hỏng', key: 'reportBroken', align: 'center', width: '15%', render: (text, record) => {
                         if (record.trangThai === BROKEN_STATUS) return <span style={{ color: getDeviceStatusColor(BROKEN_STATUS), fontStyle: 'italic' }}>Hỏng</span>;
@@ -666,7 +679,7 @@ export default function LabManagement() {
                 <Modal title={`Cập nhật trạng thái ${state.deviceUpdateModal.currentType.tenLoai || 'Thiết bị'} - Phòng ${state.statusModal.roomName}`} visible={state.deviceUpdateModal.visible} onCancel={handlers.handleDeviceUpdateModalClose} width={700} bodyStyle={{ maxHeight: '60vh', overflowY: 'auto' }} footer={[
                     <Button key="cancelDU" onClick={handlers.handleDeviceUpdateModalClose} disabled={state.deviceUpdateModal.updating}>Hủy</Button>,
                     <Button key="submitDU" type="primary" loading={state.deviceUpdateModal.updating} onClick={handlers.handleCompleteDeviceUpdate}>Hoàn tất cập nhật</Button>,
-                ]} maskClosable={!state.deviceUpdateModal.updating} keyboard={!state.deviceUpdateModal.updating}>
+                ]} maskClosable={state.deviceUpdateModal.updating} keyboard={!state.deviceUpdateModal.updating}>
                     <Spin spinning={state.deviceUpdateModal.updating} tip="Đang cập nhật...">
                         <p style={{ marginBottom: '15px', fontStyle: 'italic', textAlign: 'center' }}>Tick/Untick để đổi trạng thái. Thiết bị 'Đã hỏng' không đổi được.</p>
                         <Table columns={deviceUpdateColumns} dataSource={state.statusModal.currentDevices} rowKey="maThietBi" pagination={false} size="small" scroll={{ y: 'calc(60vh - 160px)' }}/>
