@@ -1,4 +1,4 @@
-import { ACTIONS } from '../PhongMay/action';
+import { ACTIONS, BROKEN_STATUS, ACTIVE_STATUS, INACTIVE_STATUS } from '../PhongMay/action'; // Adjust path if needed
 
 // --- Helper Function: Sort Data ---
 const sortData = (data, sortKey, sortOrder) => {
@@ -41,10 +41,25 @@ export const initialState = {
     // Modals
     qrModal: { visible: false, value: '', loading: false, qrError: null }, // Added qrError for error message
     userProfileModal: { visible: false, profile: {}, image: null, loading: false, updating: false },
-    statusModal: { visible: false, loadingComputers: false, loadingDeviceTypes: false, loadingDevices: false, computers: [], deviceTypes: [], currentDevices: [], roomName: '', roomId: null, activeTab: 'computers' },
-    computerUpdateModal: { visible: false, selectedKeys: [], updating: false },
-    deviceUpdateModal: { visible: false, selectedKeys: [], updating: false, currentType: { maLoai: null, tenLoai: '' } },
+    statusModal: { visible: false, loadingComputers: false, loadingDeviceTypes: false, loadingDevices: false, computers: [], deviceTypes: [], currentDevices: [], roomName: '', roomId: null, activeTab: 'computers', roomStatus: '' }, // Added roomStatus
+    computerUpdateModal: {
+        visible: false,
+        attendanceKeys: [], // Renamed from selectedKeys for clarity
+        brokenReportKeys: [], // New state for reported broken keys
+        updating: false,
+        isChangeAllBrokenActive: false, // State for "Change All Broken" button
+        userRole: null, // Store user role for modal context
+        roomStatusForUpdate: '', // Store room status for update modal context
+    },
+    deviceUpdateModal: {
+        visible: false,
+        selectedKeys: [],
+        updating: false,
+        currentType: { maLoai: null, tenLoai: '' },
+        brokenReportKeys: [], // New state for device broken reports
+    },
     computerDetailModal: { visible: false, detailLoading: false, computerDetail: null, detailError: null }, // New modal state for computer detail
+    deviceDetailModal: { visible: false, detailLoading: false, deviceDetail: null, detailError: null }, // New modal state for device detail
 };
 
 // --- Reducer Function ---
@@ -204,7 +219,7 @@ export function labManagementReducer(state, action) {
 
         // --- Status Modal ---
         case ACTIONS.SHOW_STATUS_MODAL:
-            return { ...state, statusModal: { ...initialState.statusModal, visible: true, roomName: action.payload.tenPhong, roomId: action.payload.maPhong } };
+            return { ...state, statusModal: { ...initialState.statusModal, visible: true, roomName: action.payload.tenPhong, roomId: action.payload.maPhong, roomStatus: action.payload.trangThaiPhong } }; // Store roomStatus
         case ACTIONS.HIDE_STATUS_MODAL:
             return { ...state, statusModal: { ...initialState.statusModal } };
         case ACTIONS.LOAD_COMPUTERS_START:
@@ -230,20 +245,86 @@ export function labManagementReducer(state, action) {
 
         // --- Computer Update Modal ---
         case ACTIONS.SHOW_COMPUTER_UPDATE_MODAL:
-            return { ...state, statusModal: { ...state.statusModal, visible: false }, computerUpdateModal: { ...initialState.computerUpdateModal, visible: true } };
+            return { ...state, statusModal: { ...state.statusModal, visible: false }, computerUpdateModal: { ...initialState.computerUpdateModal, visible: true, userRole: action.payload.userRole, roomStatusForUpdate: state.statusModal.roomStatus } }; //Pass userRole and roomStatus
         case ACTIONS.HIDE_COMPUTER_UPDATE_MODAL:
             return { ...state, computerUpdateModal: { ...initialState.computerUpdateModal } };
-        case ACTIONS.TOGGLE_COMPUTER_UPDATE_SELECTION: {
-            const key = action.payload;
-            const selectedKeys = state.computerUpdateModal.selectedKeys;
-            const newSelectedKeys = selectedKeys.includes(key) ? selectedKeys.filter(k => k !== key) : [...selectedKeys, key];
-            return { ...state, computerUpdateModal: { ...state.computerUpdateModal, selectedKeys: newSelectedKeys } };
+        case ACTIONS.TOGGLE_COMPUTER_ATTENDANCE_SELECTION: {
+            const key = action.payload.key;
+            const userRole = action.payload.userRole;
+            const roomStatusForUpdate = action.payload.roomStatusForUpdate;
+            const computerStatus = action.payload.computerStatus;
+
+            let newAttendanceKeys = [...state.computerUpdateModal.attendanceKeys];
+            let newBrokenReportKeys = [...state.computerUpdateModal.brokenReportKeys];
+
+            if (userRole === '3' && roomStatusForUpdate === 'Trống') {
+                if (computerStatus !== BROKEN_STATUS) return state; // Role 3 only updates from BROKEN
+                if (!newAttendanceKeys.includes(key)) {
+                    newAttendanceKeys.push(key); // Select attendance (meaning active/inactive for role 3 from BROKEN)
+                    newBrokenReportKeys = newBrokenReportKeys.filter(k => k !== key); // Deselect broken report just in case
+                    return { ...state, computerUpdateModal: { ...state.computerUpdateModal, attendanceKeys: newAttendanceKeys, brokenReportKeys: newBrokenReportKeys, isChangeAllBrokenActive: false } };
+                } else {
+                    newAttendanceKeys = newAttendanceKeys.filter(k => k !== key); // Deselect attendance
+                    return { ...state, computerUpdateModal: { ...state.computerUpdateModal, attendanceKeys: newAttendanceKeys, brokenReportKeys: newBrokenReportKeys, isChangeAllBrokenActive: false } };
+                }
+            } else { // For other roles or non-empty rooms, keep original logic
+                if (newAttendanceKeys.includes(key)) {
+                    newAttendanceKeys = newAttendanceKeys.filter(k => k !== key); // Deselect attendance
+                } else {
+                    newAttendanceKeys.push(key); // Select attendance
+                    newBrokenReportKeys = newBrokenReportKeys.filter(k => k !== key); // Deselect broken report
+                }
+                return { ...state, computerUpdateModal: { ...state.computerUpdateModal, attendanceKeys: newAttendanceKeys, brokenReportKeys: newBrokenReportKeys, isChangeAllBrokenActive: false } }; // Reset "Change All Broken" state when individual toggles are used
+            }
+        }
+        case ACTIONS.TOGGLE_COMPUTER_REPORT_BROKEN_SELECTION: {
+            const key = action.payload.key;
+            const userRole = action.payload.userRole;
+            const roomStatusForUpdate = action.payload.roomStatusForUpdate;
+            const computerStatus = action.payload.computerStatus;
+
+            let newAttendanceKeys = [...state.computerUpdateModal.attendanceKeys];
+            let newBrokenReportKeys = [...state.computerUpdateModal.brokenReportKeys];
+
+            if (userRole === '3' && roomStatusForUpdate === 'Trống') {
+                return state; // Role 3 should not report broken from modal in empty room context
+            } else { // Original logic for other roles/contexts
+                if (newBrokenReportKeys.includes(key)) {
+                    newBrokenReportKeys = newBrokenReportKeys.filter(k => k !== key); // Deselect broken report
+                } else {
+                    newBrokenReportKeys.push(key); // Select broken report
+                    newAttendanceKeys = newAttendanceKeys.filter(k => k !== key); // Deselect attendance
+                }
+                return { ...state, computerUpdateModal: { ...state.computerUpdateModal, attendanceKeys: newAttendanceKeys, brokenReportKeys: newBrokenReportKeys, isChangeAllBrokenActive: false } }; // Reset "Change All Broken" state when individual toggles are used
+            }
         }
         case ACTIONS.UPDATE_COMPUTER_STATUS_START:
             return { ...state, computerUpdateModal: { ...state.computerUpdateModal, updating: true } };
         case ACTIONS.UPDATE_COMPUTER_STATUS_COMPLETE:
-            // Close modal regardless of success/error
-            return { ...state, computerUpdateModal: { ...initialState.computerUpdateModal } }; // Reset and close
+            return { ...state, computerUpdateModal: { ...initialState.computerUpdateModal } };
+        case ACTIONS.TOGGLE_CHANGE_ALL_BROKEN_ACTIVE: {
+            const shouldActivateAllBroken = !state.computerUpdateModal.isChangeAllBrokenActive;
+            let newBrokenReportKeys = [...state.computerUpdateModal.brokenReportKeys];
+
+            if (shouldActivateAllBroken) {
+                newBrokenReportKeys = state.statusModal.computers
+                    .filter(comp => comp.trangThai !== BROKEN_STATUS)
+                    .map(comp => comp.maMay);
+            } else {
+                newBrokenReportKeys = []; // Clear all broken reports if deactivating
+            }
+
+            return {
+                ...state,
+                computerUpdateModal: {
+                    ...state.computerUpdateModal,
+                    isChangeAllBrokenActive: shouldActivateAllBroken,
+                    brokenReportKeys: newBrokenReportKeys,
+                    attendanceKeys: state.computerUpdateModal.attendanceKeys.filter(key => !newBrokenReportKeys.includes(key)), // Deselect attendance for newly broken reports
+                }
+            };
+        }
+
 
         // --- Device Update Modal ---
         case ACTIONS.SHOW_DEVICE_UPDATE_MODAL:
@@ -252,9 +333,53 @@ export function labManagementReducer(state, action) {
             return { ...state, deviceUpdateModal: { ...initialState.deviceUpdateModal } };
         case ACTIONS.TOGGLE_DEVICE_UPDATE_SELECTION: {
             const key = action.payload;
-            const selectedKeys = state.deviceUpdateModal.selectedKeys;
-            const newSelectedKeys = selectedKeys.includes(key) ? selectedKeys.filter(k => k !== key) : [...selectedKeys, key];
-            return { ...state, deviceUpdateModal: { ...state.deviceUpdateModal, selectedKeys: newSelectedKeys } };
+            const userRole = localStorage.getItem("userRole");
+            const roomStatusForUpdate = state.computerUpdateModal.roomStatusForUpdate;
+            const deviceStatus = action.payload.deviceStatus;
+
+            let newSelectedKeys = [...state.deviceUpdateModal.selectedKeys];
+            let newBrokenReportKeys = [...state.deviceUpdateModal.brokenReportKeys];
+
+            if (userRole === '3' && roomStatusForUpdate === 'Trống') {
+                if (deviceStatus !== BROKEN_STATUS) return state; // Role 3 only updates from BROKEN
+                if (!newSelectedKeys.includes(key)) {
+                    newSelectedKeys.push(key); // Select for active/inactive toggle
+                    newBrokenReportKeys = newBrokenReportKeys.filter(k => k !== key); // Deselect broken report just in case
+                    return { ...state, deviceUpdateModal: { ...state.deviceUpdateModal, selectedKeys: newSelectedKeys, brokenReportKeys: newBrokenReportKeys } };
+                } else {
+                    newSelectedKeys = newSelectedKeys.filter(k => k !== key); // Deselect
+                    return { ...state, deviceUpdateModal: { ...state.deviceUpdateModal, selectedKeys: newSelectedKeys, brokenReportKeys: newBrokenReportKeys } };
+                }
+            } else {
+                if (newSelectedKeys.includes(key)) {
+                    newSelectedKeys = newSelectedKeys.filter(k => k !== key);
+                } else {
+                    newSelectedKeys.push(key);
+                    newBrokenReportKeys = newBrokenReportKeys.filter(k => k !== key); // Deselect broken report when toggling active/inactive
+                }
+                return { ...state, deviceUpdateModal: { ...state.deviceUpdateModal, selectedKeys: newSelectedKeys, brokenReportKeys: newBrokenReportKeys } };
+            }
+        }
+        case ACTIONS.TOGGLE_DEVICE_REPORT_BROKEN_SELECTION: {
+            const key = action.payload;
+            const userRole = localStorage.getItem("userRole");
+            const roomStatusForUpdate = state.computerUpdateModal.roomStatusForUpdate;
+            const deviceStatus = action.payload.deviceStatus;
+
+            let newSelectedKeys = [...state.deviceUpdateModal.selectedKeys];
+            let newBrokenReportKeys = [...state.deviceUpdateModal.brokenReportKeys];
+
+            if (userRole === '3' && roomStatusForUpdate === 'Trống') {
+                return state; // Role 3 should not report broken from modal in empty room context
+            } else {
+                if (newBrokenReportKeys.includes(key)) {
+                    newBrokenReportKeys = newBrokenReportKeys.filter(k => k !== key);
+                } else {
+                    newBrokenReportKeys.push(key);
+                    newSelectedKeys = newSelectedKeys.filter(k => k !== key) // Deselect active/inactive when reporting broken
+                }
+                return { ...state, deviceUpdateModal: { ...state.deviceUpdateModal, brokenReportKeys: newBrokenReportKeys, selectedKeys: newSelectedKeys } };
+            }
         }
         case ACTIONS.UPDATE_DEVICE_STATUS_START:
             return { ...state, deviceUpdateModal: { ...state.deviceUpdateModal, updating: true } };
@@ -271,6 +396,16 @@ export function labManagementReducer(state, action) {
             return { ...state, computerDetailModal: { ...state.computerDetailModal, detailLoading: false, detailError: action.payload } };
         case ACTIONS.HIDE_COMPUTER_DETAIL_MODAL:
             return { ...state, computerDetailModal: { ...initialState.computerDetailModal } };
+
+        // --- Device Detail Modal ---
+        case ACTIONS.SHOW_DEVICE_DETAIL_MODAL_START:
+            return { ...state, deviceDetailModal: { ...initialState.deviceDetailModal, visible: true, detailLoading: true } };
+        case ACTIONS.SHOW_DEVICE_DETAIL_MODAL_SUCCESS:
+            return { ...state, deviceDetailModal: { ...state.deviceDetailModal, detailLoading: false, deviceDetail: action.payload } };
+        case ACTIONS.SHOW_DEVICE_DETAIL_MODAL_ERROR:
+            return { ...state, deviceDetailModal: { ...state.deviceDetailModal, detailLoading: false, detailError: action.payload } };
+        case ACTIONS.HIDE_DEVICE_DETAIL_MODAL:
+            return { ...state, deviceDetailModal: { ...initialState.deviceDetailModal } };
 
         default:
             console.warn("Unhandled action type:", action.type);
