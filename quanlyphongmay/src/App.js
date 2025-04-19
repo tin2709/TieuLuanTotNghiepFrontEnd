@@ -12,10 +12,15 @@ import { Spin } from 'antd'; // Sử dụng Spin của Antd làm fallback
 import ProtectedRoute from "./components/auth/index";
 
 // --- Import Loader (từ file riêng, phiên bản không throw lỗi) ---
-import { labManagementLoader } from './components/Loader/phongmayLoader'; // Đảm bảo đường dẫn đúng
-import { tangLoader } from './components/Loader/tangLoader'; // Đảm bảo đường dẫn đúng
-import { maytinhLoader } from './components/Loader/maytinhLoader'; // Đảm bảo đường dẫn đúng
+import { labManagementLoader } from './components/Loader/phongmayLoader';
+import { tangLoader } from './components/Loader/tangLoader';
+import { maytinhLoader } from './components/Loader/maytinhLoader';
 import { caThucHanhLoader } from './components/Loader/caThucHanhLoader';
+import { taikhoanAdminLoader } from './components/Loader/taikhoanAdminLoader';
+import { nhanvienAdminLoader } from './components/Loader/nhanvienAdminLoader';
+import { giaovienAdminLoader } from './components/Loader/giaovienAdminLoader';
+
+
 // --- Component hiển thị khi chờ tải code ---
 const LoadingFallback = () => (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -48,8 +53,9 @@ const Tang = lazy(() => import('./components/Tang/tang'));
 const EditTang = lazy(() => import('./components/Tang/edittang'));
 const AddTang = lazy(() => import('./components/Tang/addtang'));
 const Admin = lazy(() => import('./components/Admin/admin'));
-const QuanLiTaiKhoan = lazy(() => import('./components/Admin/quanlitaikhoan'));
+const QuanLiTaiKhoan = lazy(() => import('./components/Admin/TaiKhoan/quanlitaikhoan'));
 const QuanLiGiaoVien = lazy(() => import('./components/Admin/GiaoVien/quanligiaovien'));
+const QuanLiNhanVien = lazy(() => import('./components/Admin/NhanVien/quanlinhanvien'));
 const Maytinh = lazy(() => import('./components/maytinh/maytinh'));
 const EditMayTinh = lazy(() => import('./components/maytinh/editmaytinh'));
 const AddMayTinh = lazy(() => import('./components/maytinh/addmaytinh'));
@@ -138,12 +144,17 @@ const router = createBrowserRouter([
       {
         path: "quanlitaikhoan",
         element: <ProtectedRoute component={QuanLiTaiKhoan} />,
-        // loader: quanLiTaiKhoanLoader, // Loader nếu cần
+        loader: taikhoanAdminLoader, // Loader nếu cần
       },
       {
         path: "quanligiaovien",
         element: <ProtectedRoute component={QuanLiGiaoVien} />,
-        // loader: quanLiTaiKhoanLoader, // Loader nếu cần
+        loader: giaovienAdminLoader, // Loader nếu cần
+      },
+      {
+        path: "quanlinhanvien",
+        element: <ProtectedRoute component={QuanLiNhanVien} />,
+        loader: nhanvienAdminLoader, // Loader nếu cần
       },
 
       // --- Catch-all hoặc trang 404 (Tùy chọn) ---

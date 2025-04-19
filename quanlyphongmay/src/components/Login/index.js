@@ -96,6 +96,7 @@ const Login = () => {
             const loginData = await loginResponse.json();
             console.log("Login Data:", loginData);
 
+              localStorage.setItem("password", formData.password);
             if (loginData.token && loginData.refreshToken) {
               localStorage.setItem("authToken", loginData.token);
               localStorage.setItem("maTK", loginData.maTK);
@@ -103,6 +104,7 @@ const Login = () => {
               localStorage.setItem("username", loginData.tenDangNhap || googleLoginUsername);
               localStorage.setItem("userRole", loginData.maQuyen || userDataFromEmailAPI.quyen.maQuyen);
               localStorage.setItem('loginSuccessTimestamp', Date.now().toString());
+
 
               const userRole = loginData.quyen || userDataFromEmailAPI.quyen.maQuyen;
               if (userRole === 1) {
@@ -223,6 +225,7 @@ const Login = () => {
           localStorage.setItem("username", loginData.tenDangNhap || username);
           localStorage.setItem("userRole", loginData.maQuyen);
           localStorage.setItem('loginSuccessTimestamp', Date.now().toString());
+          localStorage.setItem('expireAt', loginData.expiresAtTimestamp);
 
           const userRole = loginData.maQuyen ;
           if (userRole === 1) {

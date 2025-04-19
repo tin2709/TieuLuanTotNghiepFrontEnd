@@ -9,12 +9,13 @@ import {
     SettingOutlined,
 } from '@ant-design/icons';
 import Swal from 'sweetalert2';
-import { Header } from "antd/es/layout/layout";
+import { Header, Sider } from "antd/es/layout/layout"; // Import Sider from ant design layout
 import * as DarkReader from "darkreader";
 import { SunOutlined, MoonOutlined } from "@ant-design/icons";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLoaderData } from "react-router-dom";
+import SidebarAdmin from '../Sidebar/SidebarAdmin'; // Import SidebarAdmin
 
-const { Content, Sider } = Layout;
+const { Content } = Layout;
 
 const DarkModeToggle = () => {
     const [isDarkMode, setIsDarkMode] = useState(false);
@@ -45,31 +46,17 @@ const DarkModeToggle = () => {
 };
 
 const QuanLyTaiKhoan = () => {
+    const loaderData = useLoaderData();
     const [userData, setUserData] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [collapsed, setCollapsed] = useState(false);
+    const [collapsed, setCollapsed] = useState(false); // State for sidebar collapse
     const navigate = useNavigate();
 
-    const fetchUsers = async () => {
+    useEffect(() => {
         setLoading(true);
-        const token = localStorage.getItem('authToken');
-        try {
-            const response = await fetch(`https://localhost:8080/getAllUser`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to fetch users');
-            }
-
-            const data = await response.json();
-            if (Array.isArray(data.data)) {
-                const processedData = data.data.map((item, index) => ({
+        if (loaderData && !loaderData.error) {
+            if (Array.isArray(loaderData.data)) {
+                const processedData = loaderData.data.map((item, index) => ({
                     ...item,
                     key: item.maTK,
                     stt: index + 1,
@@ -78,27 +65,34 @@ const QuanLyTaiKhoan = () => {
                 }));
                 setUserData(processedData);
             } else {
-                console.error("Received data is not an array:", data);
-                Swal.fire('Error', 'Received data is not in the expected format.', 'error');
+                console.error("Loader Data Error: loaderData.data is not an array", loaderData.data);
+                Swal.fire('Error', 'Dữ liệu tài khoản không đúng định dạng. Vui lòng kiểm tra lại API.', 'error');
                 setUserData([]);
             }
-
-        } catch (err) {
-            console.error("Error fetching users:", err);
-            Swal.fire('Error', err.message, 'error');
+        } else if (loaderData && loaderData.error) {
+            console.error("Loader Error:", loaderData);
+            Swal.fire('Error', loaderData.message || 'Failed to load user data.', 'error');
             setUserData([]);
-        } finally {
-            setLoading(false);
         }
-    };
+        setLoading(false);
+    }, [loaderData]);
 
-    const handleMenuClick = (e) => {
+
+    const handleMenuClickSidebar = (e) => {
         if (e.key === 'dashboard') {
             navigate('/admin');
-        } else if (e.key === 'logout') {
+        } else if (e.key === 'userManagement') {
+            navigate('/quanlitaikhoan');
+        } else if (e.key === 'teacherManagement') {
+            navigate('/quanligiaovien');
+        } else if (e.key === 'employeeManagement') {
+            navigate('/quanlinhanvien');
+        }
+        else if (e.key === 'logout') {
             handleLogout();
         }
     };
+
 
     const handleLogout = () => {
         localStorage.removeItem('authToken');
@@ -113,10 +107,6 @@ const QuanLyTaiKhoan = () => {
         });
     };
 
-
-    useEffect(() => {
-        fetchUsers();
-    }, []);
 
     const banUser = async (maTk) => {
         const token = localStorage.getItem('authToken');
@@ -134,7 +124,7 @@ const QuanLyTaiKhoan = () => {
                 throw new Error(errorData.message || "Failed to ban user");
             }
             Swal.fire('Success', 'User banned successfully!', 'success');
-            fetchUsers();
+            window.location.reload();
         } catch (error) {
             Swal.fire('Error', error.message, 'error');
         }
@@ -155,14 +145,14 @@ const QuanLyTaiKhoan = () => {
                 throw new Error(errorData.message || "Failed to unban user");
             }
             Swal.fire('Success', 'User unbanned successfully!', 'success');
-            fetchUsers();
+            window.location.reload();
         } catch (error) {
             Swal.fire('Error', error.message, 'error');
         }
     };
     const handleBanUnban = (record) => {
-        if (record.tenQuyen === 'Admin') {  // Corrected case to 'Admin'
-            return; // Do nothing if the user is an admin
+        if (record.tenQuyen === 'Admin') {
+            return;
         }
 
 
@@ -233,7 +223,7 @@ const QuanLyTaiKhoan = () => {
             title: 'Hành động',
             key: 'action',
             render: (text, record) => (
-                record.tenQuyen !== 'Admin' && ( // Added condition here
+                record.tenQuyen !== 'Admin' && (
                     <AntButton
                         type="primary"
                         icon={record.is_banned ? <UnlockOutlined /> : <LockOutlined />}
@@ -248,23 +238,7 @@ const QuanLyTaiKhoan = () => {
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
-            <Sider collapsible collapsed={collapsed} onCollapse={(value) => setCollapsed(value)}>
-                <div style={{ height: 32, margin: 16, background: 'rgba(255, 255, 255, 0.2)' }} />
-                <Menu theme="dark" defaultSelectedKeys={['userManagement']} mode="inline" onClick={handleMenuClick}>
-                    <Menu.Item key="dashboard" icon={<DashboardOutlined />}>
-                        Thống kê
-                    </Menu.Item>
-                    <Menu.Item key="userManagement" icon={<UserOutlined />}>
-                        Quản lý tài khoản
-                    </Menu.Item>
-                    <Menu.Item key="teacherManagement" icon={<UserOutlined />}>
-                        Quản lý giáo viên
-                    </Menu.Item>
-                    <Menu.Item key="logout" icon={<LogoutOutlined />}>
-                        Đăng xuất
-                    </Menu.Item>
-                </Menu>
-            </Sider>
+            <SidebarAdmin collapsed={collapsed} onCollapse={setCollapsed} onMenuClick={handleMenuClickSidebar} />
             <Layout>
                 <Header
                     className="lab-management-header"

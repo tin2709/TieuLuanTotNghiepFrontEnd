@@ -1,4 +1,3 @@
-// components/QuanLyGiaoVien.js
 import React, { useState, useEffect, useCallback } from 'react';
 import { Table, Button as AntButton, Layout, Menu, Popover, Input, Select, Row, Col } from 'antd';
 import {
@@ -14,9 +13,9 @@ import { Header } from "antd/es/layout/layout";
 import * as DarkReader from "darkreader";
 import { SunOutlined, MoonOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
-import SidebarAdmin from '../Sidebar/SidebarAdmin'; // Import SidebarAdmin component
+import SidebarAdmin from '../Sidebar/SidebarAdmin'; // Import SidebarAdmin
 
-const { Content, Sider: AntSider } = Layout; // Renamed Sider to AntSider to avoid conflict, but we won't use AntSider anymore
+const { Content } = Layout;
 const { Option } = Select;
 
 const DarkModeToggle = () => {
@@ -47,8 +46,8 @@ const DarkModeToggle = () => {
     );
 };
 
-const QuanLyGiaoVien = () => {
-    const [giaoVienData, setGiaoVienData] = useState([]);
+const QuanLyNhanVien = () => {
+    const [nhanVienData, setNhanVienData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [collapsed, setCollapsed] = useState(false); // State for sidebar collapse
     const navigate = useNavigate();
@@ -61,11 +60,10 @@ const QuanLyGiaoVien = () => {
 
 
     const searchFieldsOptions = [
-        { value: 'hoTen', label: 'Họ Tên' },
-        { value: 'soDienThoai', label: 'Số Điện Thoại' },
+        { value: 'tenNV', label: 'Tên Nhân Viên' },
         { value: 'email', label: 'Email' },
-        { value: 'hocVi', label: 'Học Vị' },
-        { value: 'tenKhoa', label: 'Tên Khoa' },
+        { value: 'sDT', label: 'Số Điện Thoại' },
+        { value: 'tenCV', label: 'Tên Chức Vụ' },
     ];
 
     const searchOperatorsOptions = [
@@ -81,15 +79,15 @@ const QuanLyGiaoVien = () => {
     ];
 
 
-    const fetchGiaoViens = useCallback(async () => {
+    const fetchNhanViens = useCallback(async () => {
         if (!searchKeyword && searchInput) {
             return;
         }
         setLoading(true);
         const token = localStorage.getItem('authToken');
-        let apiUrl = `https://localhost:8080/DSGiaoVien?token=${token}`;
+        let apiUrl = `https://localhost:8080/DSNhanVien?token=${token}`;
         if (searchKeyword) {
-            apiUrl = `https://localhost:8080/searchGiaoVienByAdmin?keyword=${searchKeyword}&token=${token}`;
+            apiUrl = `https://localhost:8080/searchNhanVienByAdmin?keyword=${searchKeyword}&token=${token}`;
         }
 
         try {
@@ -104,7 +102,7 @@ const QuanLyGiaoVien = () => {
             if (!response.ok) {
                 const errorData = await response.text();
                 console.error('Fetch error:', response.status, errorData);
-                setGiaoVienData([]);
+                setNhanVienData([]);
                 return;
             }
 
@@ -112,101 +110,62 @@ const QuanLyGiaoVien = () => {
             if (!contentType || !contentType.includes('application/json')) {
                 const textData = await response.text();
                 console.error('Invalid content type:', contentType, textData);
-                setGiaoVienData([]);
+                setNhanVienData([]);
                 return;
             }
 
 
             try {
                 const data = await response.json();
+                let processedData = [];
                 if (data && Array.isArray(data.results)) {
-                    const processedData = data.results.map((item, index) => {
-                        let tenKhoaValue = 'N/A';
-
-                        if (item.tenKhoa) { // Check if tenKhoa is directly available
-                            tenKhoaValue = item.tenKhoa;
-                        } else if (typeof item.khoa === 'object' && item.khoa.tenKhoa) {
-                            tenKhoaValue = item.khoa.tenKhoa;
-                        } else if (typeof item.khoa === 'string') {
-                            tenKhoaValue = item.khoa;
-                        }
-                        else if (typeof item.khoa === 'number') {
-                            if (item.khoa === 1) {
-                                tenKhoaValue = 'Khoa Công Nghệ Thông Tin';
-                            } else if (item.khoa === 2) {
-                                tenKhoaValue = 'Khoa Công Nghệ Hóa Học';
-                            }
-                        }
-
-
-                        return {
-                            ...item,
-                            key: item.maGiaoVien,
-                            stt: index + 1,
-                            tenKhoa: tenKhoaValue,
-                            maKhoa: typeof item.khoa === 'object' ? item.khoa.maKhoa : item.khoa,
-                            tenTaiKhoan: item.taiKhoan ? item.taiKhoan.tenDangNhap : 'N/A',
-                        };
-                    });
-                    setGiaoVienData(processedData);
+                    processedData = data.results.map((item, index) => ({
+                        ...item,
+                        key: item.maNV,
+                        stt: index + 1,
+                        tenCV: item.tenCV || 'N/A',
+                    }));
                 } else if (Array.isArray(data)) {
-                    const processedData = data.map((item, index) => {
-                        let tenKhoaValue = 'N/A';
-                        if (item.tenKhoa) { // Check if tenKhoa is directly available
-                            tenKhoaValue = item.tenKhoa;
-                        } else if (typeof item.khoa === 'object' && item.khoa.tenKhoa) {
-                            tenKhoaValue = item.khoa.tenKhoa;
-                        } else if (typeof item.khoa === 'string') {
-                            tenKhoaValue = item.khoa;
-                        }
-                        else if (typeof item.khoa === 'number') {
-                            if (item.khoa === 1) {
-                                tenKhoaValue = 'Khoa Công Nghệ Thông Tin';
-                            } else if (item.khoa === 2) {
-                                tenKhoaValue = 'Khoa Công Nghệ Hóa Học';
-                            }
-                        }
-
-
-                        return {
-                            ...item,
-                            key: item.maGiaoVien,
-                            stt: index + 1,
-                            tenKhoa: tenKhoaValue,
-                            maKhoa: typeof item.khoa === 'object' ? item.khoa.maKhoa : item.khoa,
-                            tenTaiKhoan: item.taiKhoan ? item.taiKhoan.tenDangNhap : 'N/A',
-                        };
-                    });
-                    setGiaoVienData(processedData);
+                    processedData = data.map((item, index) => ({
+                        ...item,
+                        key: item.maNV,
+                        stt: index + 1,
+                        tenCV: item.chucVu ? item.chucVu.tenCV : 'N/A',
+                        maNV: item.maNV
+                    }));
                 }
                 else {
                     console.error("Received data is not an array:", data);
-                    setGiaoVienData([]);
+                    setNhanVienData([]);
+                    return;
                 }
+                setNhanVienData(processedData);
+
+
             } catch (jsonError) {
                 console.error("Error parsing JSON:", jsonError);
-                setGiaoVienData([]);
+                setNhanVienData([]);
             }
 
 
         } catch (err) {
             console.error("Error fetching teachers:", err);
-            setGiaoVienData([]);
+            setNhanVienData([]);
         } finally {
             setLoading(false);
         }
     }, [searchKeyword]);
 
 
-    const debouncedFetchGiaoViens = useCallback(
+    const debouncedFetchNhanViens = useCallback(
         debounce(() => {
             if (searchFieldValue && searchOperatorValue && searchInput !== '') {
-                fetchGiaoViens();
+                fetchNhanViens();
             } else if (!searchInput) {
-                fetchGiaoViens();
+                fetchNhanViens();
             }
         }, 1000),
-        [fetchGiaoViens, searchFieldValue, searchOperatorValue, searchInput]
+        [fetchNhanViens, searchFieldValue, searchOperatorValue, searchInput]
     );
 
 
@@ -219,8 +178,8 @@ const QuanLyGiaoVien = () => {
     }, [searchInput, searchFieldValue, searchOperatorValue]);
 
     useEffect(() => {
-        debouncedFetchGiaoViens();
-    }, [debouncedFetchGiaoViens]);
+        debouncedFetchNhanViens();
+    }, [debouncedFetchNhanViens]);
 
 
     const handleClearSearch = () => {
@@ -240,7 +199,7 @@ const QuanLyGiaoVien = () => {
             navigate('/quanlygiaovien');
         }
         else if (e.key === 'employeeManagement') {
-            navigate('/quanlinhanvien');
+            navigate('/quanlynhanvien');
         }
         else if (e.key === 'logout') {
             handleLogout();
@@ -261,7 +220,7 @@ const QuanLyGiaoVien = () => {
     };
 
 
-    const giaoVienColumns = [
+    const nhanVienColumns = [
         {
             title: 'STT',
             dataIndex: 'stt',
@@ -269,22 +228,16 @@ const QuanLyGiaoVien = () => {
             sorter: (a, b) => a.stt - b.stt,
         },
         {
-            title: 'Mã Giáo Viên',
-            dataIndex: 'maGiaoVien',
-            key: 'maGiaoVien',
-            sorter: (a, b) => a.maGiaoVien - b.maGiaoVien,
+            title: 'Mã Nhân Viên',
+            dataIndex: 'maNV',
+            key: 'maNV',
+            sorter: (a, b) => a.maNV - b.maNV,
         },
         {
-            title: 'Họ Tên',
-            dataIndex: 'hoTen',
-            key: 'hoTen',
-            sorter: (a, b) => a.hoTen.localeCompare(b.hoTen),
-        },
-        {
-            title: 'Số Điện Thoại',
-            dataIndex: 'soDienThoai',
-            key: 'soDienThoai',
-            sorter: (a, b) => a.soDienThoai.localeCompare(b.soDienThoai),
+            title: 'Tên Nhân Viên',
+            dataIndex: 'tenNV',
+            key: 'tenNV',
+            sorter: (a, b) => a.tenNV.localeCompare(b.tenNV),
         },
         {
             title: 'Email',
@@ -293,16 +246,16 @@ const QuanLyGiaoVien = () => {
             sorter: (a, b) => a.email.localeCompare(b.email),
         },
         {
-            title: 'Học Vị',
-            dataIndex: 'hocVi',
-            key: 'hocVi',
-            sorter: (a, b) => a.hocVi.localeCompare(b.hocVi),
+            title: 'Số Điện Thoại',
+            dataIndex: 'sDT',
+            key: 'sDT',
+            sorter: (a, b) => a.sDT.localeCompare(b.sDT),
         },
         {
-            title: 'Tên Khoa',
-            dataIndex: 'tenKhoa',
-            key: 'tenKhoa',
-            sorter: (a, b) => a.tenKhoa.localeCompare(b.tenKhoa),
+            title: 'Chức Vụ',
+            dataIndex: 'tenCV',
+            key: 'tenCV',
+            sorter: (a, b) => a.tenCV.localeCompare(b.tenCV),
         },
     ];
 
@@ -335,10 +288,10 @@ const QuanLyGiaoVien = () => {
                     }}
                 >
                     <div style={{ display: "flex", alignItems: "center", fontSize: "1.5rem", fontWeight: "bold", color: "#000" }}>
-                        <Popover content={<div>Quản lí giáo viên</div>} trigger="hover">
+                        <Popover content={<div>Quản lí nhân viên</div>} trigger="hover">
                             <SettingOutlined style={{ marginRight: 8, cursor: 'pointer' }} />
                         </Popover>
-                        Quản Lý Giáo Viên
+                        Quản Lý Nhân Viên
                     </div>
                     <div className="actions" style={{ display: 'flex', alignItems: 'center' }}>
                         <DarkModeToggle />
@@ -399,8 +352,8 @@ const QuanLyGiaoVien = () => {
                         </Row>
 
                         <Table
-                            columns={giaoVienColumns}
-                            dataSource={giaoVienData}
+                            columns={nhanVienColumns}
+                            dataSource={nhanVienData}
                             loading={loading}
                             pagination={{
                                 pageSizeOptions: ['10', '20', '50'],
@@ -415,4 +368,4 @@ const QuanLyGiaoVien = () => {
     );
 };
 
-export default QuanLyGiaoVien;
+export default QuanLyNhanVien;
