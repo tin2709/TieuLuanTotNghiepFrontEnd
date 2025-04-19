@@ -1,3 +1,4 @@
+
 import Swal from 'sweetalert2';
 import { message } from 'antd';
 import { ACTIONS, BROKEN_STATUS, ACTIVE_STATUS, INACTIVE_STATUS } from './action';
@@ -9,6 +10,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     const getToken = () => localStorage.getItem("authToken");
     const getUsername = () => localStorage.getItem("username");
     const getPassword = () => localStorage.getItem("password");
+    const getUserRole = () => localStorage.getItem("userRole"); // Get User Role
 
     /**
      * Helper function to make authenticated API calls.
@@ -124,7 +126,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     };
 
 
-    // --- Delete Handlers ---
+// --- Delete Handlers ---
     const deleteLabRoomApi = async (maPhong) => {
         dispatch({ type: ACTIONS.DELETE_START });
         try {
@@ -173,7 +175,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     };
 
 
-    // --- QR Modal Handlers ---
+// --- QR Modal Handlers ---
     const fetchLabRoomsForQrCode = async () => { // Renamed to indicate it fetches and shows
         dispatch({ type: ACTIONS.SHOW_QR_MODAL_START });
         try {
@@ -205,7 +207,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     const handleCancelQrModal = () => dispatch({ type: ACTIONS.HIDE_QR_MODAL });
 
 
-    // --- Status Modal (Computers & Devices) Handlers ---
+// --- Status Modal (Computers & Devices) Handlers ---
     const fetchComputers = async (maPhong) => {
         dispatch({ type: ACTIONS.LOAD_COMPUTERS_START });
         try {
@@ -247,9 +249,9 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
         }
     };
 
-    const showComputerStatusModal = (maPhong, tenPhong) => {
-        dispatch({ type: ACTIONS.SHOW_STATUS_MODAL, payload: { maPhong, tenPhong } });
-        fetchComputers(maPhong);
+    const showComputerStatusModal = (record) => { // record now contains room details
+        dispatch({ type: ACTIONS.SHOW_STATUS_MODAL, payload: record }); // Pass the whole record
+        fetchComputers(record.maPhong);
         fetchDeviceTypes();
     };
 
@@ -263,7 +265,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
         }
     };
 
-    // --- Computer Detail Modal Handlers ---
+// --- Computer Detail Modal Handlers ---
     const fetchComputerDetail = async (maMay) => {
         dispatch({ type: ACTIONS.SHOW_COMPUTER_DETAIL_MODAL_START });
         try {
@@ -278,34 +280,112 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
 
     const handleComputerDetailModalClose = () => dispatch({ type: ACTIONS.HIDE_COMPUTER_DETAIL_MODAL });
 
-    // --- Computer Update Modal Handlers ---
+// --- Device Detail Modal Handlers ---
+    const fetchDeviceDetail = async (maThietBi) => {
+        dispatch({ type: ACTIONS.SHOW_DEVICE_DETAIL_MODAL_START });
+        try {
+            const url = `https://localhost:8080/ThietBi?maThietBi=${maThietBi}`;
+            const response = await fetchApi(url);
+            const data = await response.json();
+            dispatch({ type: ACTIONS.SHOW_DEVICE_DETAIL_MODAL_SUCCESS, payload: data });
+        } catch (error) {
+            dispatch({ type: ACTIONS.SHOW_DEVICE_DETAIL_MODAL_ERROR, payload: error.message });
+        }
+    };
+
+    const handleDeviceDetailModalClose = () => dispatch({ type: ACTIONS.HIDE_DEVICE_DETAIL_MODAL });
+
+
+// --- Computer Update Modal Handlers ---
     const handleOpenUpdateModal = () => {
         if (!state.statusModal.computers || state.statusModal.computers.length === 0) {
             message.warning("Không có dữ liệu máy tính để cập nhật."); return;
         }
-        dispatch({ type: ACTIONS.SHOW_COMPUTER_UPDATE_MODAL });
-    };
 
+        if (state.statusModal.roomStatus === 'Đang có tiết' && getUserRole() === '3') {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Cảnh báo',
+                text: 'Bạn không thể cập nhật trạng thái thiết bị khi phòng máy đang hoạt động!',
+            });
+            return; // Thêm return ở đây để ngăn modal mở sau khi hiển thị alert
+        }
+
+        const userRole = getUserRole();
+        dispatch({ type: ACTIONS.SHOW_COMPUTER_UPDATE_MODAL, payload: { userRole } }); // Pass userRole when opening modal
+    };
     const handleComputerUpdateModalClose = () => dispatch({ type: ACTIONS.HIDE_COMPUTER_UPDATE_MODAL });
 
-    const toggleComputerUpdateSelection = (maMay) => {
-        dispatch({ type: ACTIONS.TOGGLE_COMPUTER_UPDATE_SELECTION, payload: maMay });
+    const toggleComputerAttendanceSelection = (maMay, computerStatus) => {
+        const userRole = getUserRole();
+        const roomStatusForUpdate = state.computerUpdateModal.roomStatusForUpdate;
+        if (userRole === '3' && roomStatusForUpdate === 'Trống') {
+            if (computerStatus !== BROKEN_STATUS) return; // Role 3 only updates from BROKEN
+        }
+        dispatch({ type: ACTIONS.TOGGLE_COMPUTER_ATTENDANCE_SELECTION, payload: { key: maMay, userRole, roomStatusForUpdate, computerStatus } });
     };
 
+    const toggleComputerReportBrokenSelection = (maMay, computerStatus) => {
+        const userRole = getUserRole();
+        const roomStatusForUpdate = state.computerUpdateModal.roomStatusForUpdate;
+        if (userRole === '3' && roomStatusForUpdate === 'Trống') {
+            return; // Role 3 should not report broken from modal in empty room context
+        }
+        dispatch({ type: ACTIONS.TOGGLE_COMPUTER_REPORT_BROKEN_SELECTION, payload: { key: maMay, userRole, roomStatusForUpdate, computerStatus } });
+    };
+
+    const handleChangeAllBroken = () => {
+        dispatch({ type: ACTIONS.TOGGLE_CHANGE_ALL_BROKEN_ACTIVE });
+    };
+
+
     const handleCompleteComputerUpdate = async () => {
-        const selectedKeys = state.computerUpdateModal.selectedKeys;
-        if (selectedKeys.length === 0) { message.info("Chưa chọn máy tính nào để thay đổi trạng thái."); return; }
+        const attendanceKeys = state.computerUpdateModal.attendanceKeys;
+        const brokenReportKeys = state.computerUpdateModal.brokenReportKeys;
+        const userRole = getUserRole();
+        const roomStatusForUpdate = state.computerUpdateModal.roomStatusForUpdate;
+
+        if (attendanceKeys.length === 0 && brokenReportKeys.length === 0) {
+            message.info("Chưa chọn máy tính nào để thay đổi trạng thái."); return;
+        }
+        if (userRole === '3' && roomStatusForUpdate === 'Đang có tiết' && state.statusModal.roomStatus !== 'Trống') { // Assuming 'Trống' is the status for empty room
+            Swal.fire({
+                icon: 'warning',
+                title: 'Cảnh báo',
+                text: 'Bạn không thể cập nhật trạng thái thiết bị khi phòng máy đang hoạt động!',
+            });
+            dispatch({ type: ACTIONS.UPDATE_COMPUTER_STATUS_COMPLETE, payload: { success: false } });
+            return;
+        }
 
         dispatch({ type: ACTIONS.UPDATE_COMPUTER_STATUS_START });
         const updates = state.statusModal.computers
-            .filter(comp => selectedKeys.includes(comp.maMay) && comp.trangThai !== BROKEN_STATUS)
-            .map(comp => ({
-                maMay: comp.maMay,
-                newStatus: comp.trangThai === ACTIVE_STATUS ? INACTIVE_STATUS : ACTIVE_STATUS
-            }));
+            .filter(comp => {
+                if (userRole === '3' && roomStatusForUpdate === 'Trống') {
+                    if (comp.trangThai !== BROKEN_STATUS) return false; // Role 3 only updates from BROKEN in "Trống" room
+                    return attendanceKeys.includes(comp.maMay); // Role 3 only changes BROKEN to ACTIVE/INACTIVE, using attendanceKeys for toggle
+                }
+                return (attendanceKeys.includes(comp.maMay) || brokenReportKeys.includes(comp.maMay)) && comp.trangThai !== BROKEN_STATUS; // Normal update for other roles/statuses
+            })
+            .map(comp => {
+                let newStatus;
+                if (userRole === '3' && roomStatusForUpdate === 'Trống') {
+                    newStatus = attendanceKeys.includes(comp.maMay) ? ACTIVE_STATUS : INACTIVE_STATUS; // Role 3: attendanceKeys toggles between ACTIVE and INACTIVE from BROKEN
+                } else if (brokenReportKeys.includes(comp.maMay)) {
+                    newStatus = BROKEN_STATUS; // Report Broken takes priority
+                } else if (attendanceKeys.includes(comp.maMay)) {
+                    newStatus = ACTIVE_STATUS; // Attendance selected
+                } else {
+                    newStatus = INACTIVE_STATUS; // Attendance deselected (and not broken)
+                }
+                return {
+                    maMay: comp.maMay,
+                    newStatus: newStatus
+                };
+            });
 
         if (updates.length === 0) {
-            message.warning("Không có thay đổi trạng thái hợp lệ nào (chỉ có thể thay đổi máy đang hoạt động/không hoạt động).");
+            message.warning("Không có thay đổi trạng thái hợp lệ nào.");
             dispatch({ type: ACTIONS.UPDATE_COMPUTER_STATUS_COMPLETE, payload: { success: false } });
             return;
         }
@@ -329,31 +409,88 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     };
 
 
-    // --- Device Update Modal Handlers ---
+// --- Device Update Modal Handlers ---
     const handleOpenDeviceUpdateModal = (maLoai, tenLoai) => {
         if (!state.statusModal.currentDevices || state.statusModal.currentDevices.length === 0) {
             message.warning(`Không có dữ liệu ${tenLoai} để cập nhật.`); return;
+        }
+        if (state.statusModal.roomStatus !== 'Trống' && getUserRole() === '3') {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Cảnh báo',
+                text: 'Bạn không thể cập nhật trạng thái thiết bị khi phòng máy đang hoạt độngs!',
+            });
+            return;
         }
         dispatch({ type: ACTIONS.SHOW_DEVICE_UPDATE_MODAL, payload: { maLoai, tenLoai } });
     };
 
     const handleDeviceUpdateModalClose = () => dispatch({ type: ACTIONS.HIDE_DEVICE_UPDATE_MODAL });
 
-    const toggleDeviceUpdateSelection = (maThietBi) => {
-        dispatch({ type: ACTIONS.TOGGLE_DEVICE_UPDATE_SELECTION, payload: maThietBi });
+    const toggleDeviceUpdateSelection = (maThietBi, deviceStatus) => {
+        const userRole = getUserRole();
+        const roomStatusForUpdate = state.computerUpdateModal.roomStatusForUpdate;
+        if (userRole === '3' && roomStatusForUpdate === 'Trống') {
+            if (deviceStatus !== BROKEN_STATUS) return; // Role 3 only updates from BROKEN
+        }
+        dispatch({ type: ACTIONS.TOGGLE_DEVICE_UPDATE_SELECTION, payload: {key: maThietBi, deviceStatus} });
     };
+
+    const toggleDeviceReportBrokenSelection = (maThietBi, deviceStatus) => {
+        const userRole = getUserRole();
+        const roomStatusForUpdate = state.computerUpdateModal.roomStatusForUpdate;
+        if (userRole === '3' && roomStatusForUpdate === 'Trống') {
+            return; // Role 3 should not report broken from modal in empty room context
+        }
+        dispatch({ type: ACTIONS.TOGGLE_DEVICE_REPORT_BROKEN_SELECTION, payload: {key: maThietBi, deviceStatus} });
+    };
+
 
     const handleCompleteDeviceUpdate = async () => {
         const selectedKeys = state.deviceUpdateModal.selectedKeys;
-        if (selectedKeys.length === 0) { message.info("Chưa chọn thiết bị nào để thay đổi trạng thái."); return; }
+        const brokenReportKeys = state.deviceUpdateModal.brokenReportKeys; // Get broken report keys for devices
+        const userRole = getUserRole();
+        const roomStatusForUpdate = state.computerUpdateModal.roomStatusForUpdate;
+
+
+        if (selectedKeys.length === 0 && brokenReportKeys.length === 0) {
+            message.info("Chưa chọn thiết bị nào để thay đổi trạng thái."); return;
+        }
+        if (state.statusModal.roomStatus === 'Đang có tiết' && getUserRole() === '3') {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Cảnh báo',
+                text: 'Bạn không thể cập nhật trạng thái thiết bị khi phòng máy đang hoạt động!',
+            });
+            dispatch({ type: ACTIONS.UPDATE_DEVICE_STATUS_COMPLETE, payload: { success: false } });
+            return;
+        }
 
         dispatch({ type: ACTIONS.UPDATE_DEVICE_STATUS_START });
         const updates = state.statusModal.currentDevices
-            .filter(dev => selectedKeys.includes(dev.maThietBi) && dev.trangThai !== BROKEN_STATUS)
-            .map(dev => ({
-                maThietBi: dev.maThietBi,
-                newStatus: dev.trangThai === ACTIVE_STATUS ? INACTIVE_STATUS : ACTIVE_STATUS
-            }));
+            .filter(dev => {
+                if (userRole === '3' && roomStatusForUpdate === 'Trống') {
+                    if (dev.trangThai !== BROKEN_STATUS) return false; // Role 3 only updates from BROKEN in "Trống" room
+                    return selectedKeys.includes(dev.maThietBi); // Role 3 only changes BROKEN to ACTIVE/INACTIVE using selectedKeys toggle
+                }
+                return (selectedKeys.includes(dev.maThietBi) || brokenReportKeys.includes(dev.maThietBi)) && dev.trangThai !== BROKEN_STATUS;
+            })
+            .map(dev => {
+                let newStatus;
+                if (userRole === '3' && roomStatusForUpdate === 'Trống') {
+                    newStatus = selectedKeys.includes(dev.maThietBi) ? ACTIVE_STATUS : INACTIVE_STATUS; // Role 3: selectedKeys toggles between ACTIVE and INACTIVE from BROKEN
+                } else if (brokenReportKeys.includes(dev.maThietBi)) {
+                    newStatus = BROKEN_STATUS;
+                } else if (selectedKeys.includes(dev.maThietBi)) {
+                    newStatus = ACTIVE_STATUS;
+                } else {
+                    newStatus = INACTIVE_STATUS;
+                }
+                return {
+                    maThietBi: dev.maThietBi,
+                    newStatus: newStatus
+                };
+            });
 
         if (updates.length === 0) {
             message.warning("Không có thay đổi trạng thái hợp lệ.");
@@ -380,7 +517,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     };
 
 
-    // --- User Profile Handlers ---
+// --- User Profile Handlers ---
     const checkUserAndShowModal = async () => {
         dispatch({ type: ACTIONS.LOAD_USER_PROFILE_START });
         try {
@@ -494,7 +631,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     const handleUserProfileModalCancel = () => dispatch({ type: ACTIONS.HIDE_USER_PROFILE_MODAL });
 
 
-    // --- Logout Handler ---
+// --- Logout Handler ---
     const handleLogout = async () => {
         try {
             const url = `https://localhost:8080/logout`;
@@ -517,16 +654,17 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
         }
     };
 
-    // --- Return all handlers ---
+// --- Return all handlers ---
     return {
         handleSearchChange, handleColumnSelect, performSearch, handleTableChange, onSelectChange,
         handleDelete, confirmDeleteMultiple,
         fetchLabRoomsForQrCode, handleCancelQrModal,
         showComputerStatusModal, handleStatusModalClose, handleTabChange,
-        handleOpenUpdateModal, handleComputerUpdateModalClose, toggleComputerUpdateSelection, handleCompleteComputerUpdate,
-        handleOpenDeviceUpdateModal, handleDeviceUpdateModalClose, toggleDeviceUpdateSelection, handleCompleteDeviceUpdate,
+        handleOpenUpdateModal, handleComputerUpdateModalClose, toggleComputerAttendanceSelection, toggleComputerReportBrokenSelection, handleCompleteComputerUpdate, handleChangeAllBroken, // Include handleChangeAllBroken
+        handleOpenDeviceUpdateModal, handleDeviceUpdateModalClose, toggleDeviceUpdateSelection, toggleDeviceReportBrokenSelection, handleCompleteDeviceUpdate, // Include toggleDeviceReportBrokenSelection
         checkUserAndShowModal, handleUserProfileUpdate, handleUserProfileModalCancel,
         handleLogout,
         fetchComputerDetail, handleComputerDetailModalClose, // Add new handlers
+        fetchDeviceDetail, handleDeviceDetailModalClose, // Add device detail handlers
     };
 };
