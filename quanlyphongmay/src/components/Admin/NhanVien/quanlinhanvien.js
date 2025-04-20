@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Table, Button as AntButton, Layout, Menu, Popover, Input, Select, Row, Col } from 'antd';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Table, Button as AntButton, Layout, Menu, Popover, Input, Select, Row, Col, Modal } from 'antd';
 import {
     UserOutlined,
     DashboardOutlined,
@@ -7,6 +7,7 @@ import {
     SettingOutlined,
     SearchOutlined,
     ClearOutlined,
+    DownOutlined
 } from '@ant-design/icons';
 import Swal from 'sweetalert2';
 import { Header } from "antd/es/layout/layout";
@@ -51,6 +52,11 @@ const QuanLyNhanVien = () => {
     const [loading, setLoading] = useState(false);
     const [collapsed, setCollapsed] = useState(false); // State for sidebar collapse
     const navigate = useNavigate();
+    const [khoaOptions, setKhoaOptions] = useState([]);
+    const [isConversionModalVisible, setIsConversionModalVisible] = useState(false);
+    const [selectedNhanVienForConversion, setSelectedNhanVienForConversion] = useState(null);
+    const [hocVi, setHocVi] = useState('');
+    const [selectedKhoaMaKhoa, setSelectedKhoaMaKhoa] = useState(null);
 
     // Search states
     const [searchFieldValue, setSearchFieldValue] = useState(null);
@@ -77,6 +83,25 @@ const QuanLyNhanVien = () => {
         { value: 'IN', label: 'In' },
         { value: 'NOT_IN', label: 'Not In' },
     ];
+
+    const fetchKhoaOptions = useCallback(async () => {
+        const token = localStorage.getItem('authToken');
+        try {
+            const response = await fetch(`https://localhost:8080/DSKhoa?token=${token}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+            if (!response.ok) {
+                console.error('Failed to fetch khoa options:', response);
+                return;
+            }
+            const data = await response.json();
+            setKhoaOptions(data.map(khoa => ({ value: khoa.maKhoa, label: khoa.tenKhoa })));
+        } catch (error) {
+            console.error('Error fetching khoa options:', error);
+        }
+    }, []);
 
 
     const fetchNhanViens = useCallback(async () => {
@@ -121,17 +146,26 @@ const QuanLyNhanVien = () => {
                 if (data && Array.isArray(data.results)) {
                     processedData = data.results.map((item, index) => ({
                         ...item,
-                        key: item.maNV,
+                        key: item.maNhanVien,
                         stt: index + 1,
                         tenCV: item.tenCV || 'N/A',
+                        maNV: item.maNhanVien, // Changed to maNhanVien
+                        taiKhoanMaTK: item.taiKhoan ? item.taiKhoan.maTK : null,
+                        email: item.email,
+                        hoTen: item.tenNV,
+                        soDienThoai: item.sDT
                     }));
                 } else if (Array.isArray(data)) {
                     processedData = data.map((item, index) => ({
                         ...item,
-                        key: item.maNV,
+                        key: item.maNhanVien,
                         stt: index + 1,
                         tenCV: item.chucVu ? item.chucVu.tenCV : 'N/A',
-                        maNV: item.maNV
+                        maNV: item.maNhanVien, // Changed to maNhanVien
+                        taiKhoanMaTK: item.taiKhoan ? item.taiKhoan.maTK : null,
+                        email: item.email,
+                        hoTen: item.tenNV,
+                        soDienThoai: item.sDT
                     }));
                 }
                 else {
@@ -179,7 +213,8 @@ const QuanLyNhanVien = () => {
 
     useEffect(() => {
         debouncedFetchNhanViens();
-    }, [debouncedFetchNhanViens]);
+        fetchKhoaOptions();
+    }, [debouncedFetchNhanViens, fetchKhoaOptions]);
 
 
     const handleClearSearch = () => {
@@ -216,6 +251,105 @@ const QuanLyNhanVien = () => {
             timer: 1500,
         }).then(() => {
             navigate('/login');
+        });
+    };
+
+    const showConversionModal = (record) => {
+        setSelectedNhanVienForConversion(record);
+        setIsConversionModalVisible(true);
+    };
+
+    const handleCancelConversionModal = () => {
+        setIsConversionModalVisible(false);
+        setHocVi('');
+        setSelectedKhoaMaKhoa(null);
+        setSelectedNhanVienForConversion(null);
+    };
+
+    const handleConvertNhanVien = async () => {
+        if (!hocVi || !selectedKhoaMaKhoa || !selectedNhanVienForConversion) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Lỗi',
+                text: 'Vui lòng nhập đầy đủ thông tin học vị và khoa.',
+            });
+            return;
+        }
+
+        Swal.fire({
+            title: 'Bạn có chắc chắn muốn chuyển đổi nhân viên này thành giáo viên?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Có, chuyển đổi!',
+            cancelButtonText: 'Không, hủy bỏ!'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                setLoading(true);
+                const token = localStorage.getItem('authToken');
+
+                const params = {
+                    token: token,
+                    maNV: selectedNhanVienForConversion.maNV.toString(),
+                    hoTen: selectedNhanVienForConversion.hoTen,
+                    soDienThoai: selectedNhanVienForConversion.soDienThoai,
+                    email: selectedNhanVienForConversion.email,
+                    hocVi: hocVi,
+                    taiKhoanMaTK: selectedNhanVienForConversion.taiKhoanMaTK,
+                    khoaMaKhoa: selectedKhoaMaKhoa,
+                };
+
+                // Construct URL with parameters
+                let url = new URL('https://localhost:8080/chuyendoinhanvien');
+                Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
+
+
+                console.log("URL being sent to /chuyendoinhanvien API:", url.toString()); // Log URL
+
+                try {
+                    const response = await fetch(url.toString(), {
+                        method: 'POST', // Keep POST method as in AddLabRoom example
+                        headers: {
+                            'Content-Type': 'application/json', // Keep Content-Type header
+                            'Authorization': `Bearer ${token}`,
+                        },
+                        body: JSON.stringify(params), // Keep body as in AddLabRoom example, might be needed by backend
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.text();
+                        console.error('Conversion error:', response.status, errorData);
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Lỗi chuyển đổi',
+                            text: 'Chuyển đổi nhân viên thành giáo viên thất bại.',
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Thành công!',
+                            text: 'Nhân viên đã được chuyển đổi thành giáo viên.',
+                            timer: 1500,
+                            showConfirmButton: false,
+                        });
+                        fetchNhanViens(); // Refresh data after conversion
+                    }
+                } catch (error) {
+                    console.error('Error during conversion:', error);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Lỗi',
+                        text: 'Đã có lỗi xảy ra trong quá trình chuyển đổi.',
+                    });
+                } finally {
+                    setLoading(false);
+                    setIsConversionModalVisible(false);
+                    setHocVi('');
+                    setSelectedKhoaMaKhoa(null);
+                    setSelectedNhanVienForConversion(null);
+                }
+            }
         });
     };
 
@@ -256,6 +390,18 @@ const QuanLyNhanVien = () => {
             dataIndex: 'tenCV',
             key: 'tenCV',
             sorter: (a, b) => a.tenCV.localeCompare(b.tenCV),
+            render: (text, record) => (
+                <div
+                    className="editable-cell"
+                    onContextMenu={(e) => {
+                        e.preventDefault();
+                        showConversionModal(record);
+                    }}
+                    style={{ cursor: 'context-menu' }}
+                >
+                    {text}
+                </div>
+            ),
         },
     ];
 
@@ -364,6 +510,48 @@ const QuanLyNhanVien = () => {
                     </div>
                 </Content>
             </Layout>
+            <Modal
+                title="Chuyển đổi nhân viên thành giáo viên"
+                visible={isConversionModalVisible}
+                onOk={handleConvertNhanVien}
+                onCancel={handleCancelConversionModal}
+                loading={loading}
+            >
+                {selectedNhanVienForConversion && (
+                    <div>
+                        <p>Bạn đang chuyển đổi nhân viên: <b>{selectedNhanVienForConversion.tenNV}</b></p>
+                        <Row gutter={16}>
+                            <Col span={12}>
+                                <label htmlFor="hocVi">Học vị:</label>
+                                <Select
+                                    id="hocVi"
+                                    placeholder="Chọn học vị"
+                                    style={{ width: '100%' }}
+                                    onChange={setHocVi}
+                                    value={hocVi}
+                                >
+                                    <Option value="Thạc sĩ">Thạc sĩ</Option>
+                                    <Option value="Tiến sĩ">Tiến sĩ</Option>
+                                </Select>
+                            </Col>
+                            <Col span={12}>
+                                <label htmlFor="khoa">Khoa:</label>
+                                <Select
+                                    id="khoa"
+                                    placeholder="Chọn khoa"
+                                    style={{ width: '100%' }}
+                                    onChange={setSelectedKhoaMaKhoa}
+                                    value={selectedKhoaMaKhoa}
+                                >
+                                    {khoaOptions.map(khoa => (
+                                        <Option key={khoa.value} value={khoa.value}>{khoa.label}</Option>
+                                    ))}
+                                </Select>
+                            </Col>
+                        </Row>
+                    </div>
+                )}
+            </Modal>
         </Layout>
     );
 };
