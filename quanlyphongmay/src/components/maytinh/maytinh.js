@@ -18,6 +18,8 @@ import {
     Dropdown,
     Menu,
     Layout,
+    Spin, // Added for loading state
+    Alert, // Added for error display
 } from "antd";
 import Swal from "sweetalert2";
 import * as DarkReader from "darkreader";
@@ -26,13 +28,14 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 import * as XLSX from "xlsx";
 import font from "../../font/font";
-import { useLoaderData, useNavigate, useNavigation } from "react-router-dom";
+import { useLoaderData, useNavigate } from "react-router-dom"; // Removed useNavigation as it wasn't used
 import introJs from 'intro.js'; // Import intro.js library
 import 'intro.js/introjs.css'; // Import intro.js CSS
 
 const { Option } = Select;
 const { Header, Content } = Layout;
 
+// DarkModeToggle component remains the same...
 const DarkModeToggle = () => {
     const [isDarkMode, setIsDarkMode] = useState(false);
 
@@ -50,14 +53,14 @@ const DarkModeToggle = () => {
     };
 
     useEffect(() => {
-        DarkReader.auto({
-            brightness: 100,
-            contrast: 90,
-            sepia: 10,
-        });
+        // Auto applies dark mode based on system preference or previous state
+        // You might want to use localStorage to persist the user's choice
+        const dm = DarkReader.auto({ brightness: 100, contrast: 90, sepia: 10 });
+        // Update state if DarkReader is enabled initially
+        setIsDarkMode(DarkReader.isEnabled());
 
         return () => {
-            DarkReader.disable();
+            DarkReader.disable(); // Clean up on component unmount
         };
     }, []);
 
@@ -81,85 +84,46 @@ const DarkModeToggle = () => {
     );
 };
 
+
 export default function MayTinhManagement() {
     const loaderResult = useLoaderData();
     const [search, setSearch] = useState("");
+    // State now holds MayTinhDTO objects
     const [mayTinhs, setMayTinhs] = useState([]);
-    const [filteredMayTinhs, setFilteredMayTinhs] = useState(null);
-    const [selectedColumn, setSelectedColumn] = useState(null);
+    const [filteredMayTinhs, setFilteredMayTinhs] = useState(null); // Keep this logic if needed for client-side filtering
+    const [selectedColumn, setSelectedColumn] = useState('all'); // Default to all columns
+    // State now holds MayTinhDTO objects
     const [initialMayTinhs, setInitialMayTinhs] = useState([]);
     const navigate = useNavigate();
     const [selectedRowKeys, setSelectedRowKeys] = useState([]);
     const [isModalVisible, setIsModalVisible] = useState(false);
-    const [importLoading, setImportLoading] = useState(false);
+    // const [importLoading, setImportLoading] = useState(false); // If using import feature
     const [loadError, setLoadError] = useState(null);
-    const [internalLoading, setInternalLoading] = useState(false);
+    const [internalLoading, setInternalLoading] = useState(false); // Loading state for table/search
     const [pagination, setPagination] = useState({
         current: 1,
         pageSize: 10,
+        total: 0 // Initialize total count
     });
     const [sortInfo, setSortInfo] = useState({});
     const [hasSelected, setHasSelected] = useState(false);
-    const [notification, setNotification] = useState(null);
+    const [notification, setNotification] = useState(null); // For SSE messages
 
     // --- Intro.js Tour ---
     const startIntroTour = () => {
         const steps = [
-            {
-                element: '#search-input-maytinh',
-                intro: 'Nhập tên máy tính hoặc thông tin liên quan để tìm kiếm.',
-                position: 'bottom-start'
-            },
-            {
-                element: '#column-select-maytinh',
-                intro: 'Chọn cột bạn muốn tìm kiếm (Tên máy tính, Trạng thái, Mô tả, Ngày lắp đặt).',
-                position: 'bottom-start',
-            },
-            {
-                element: '#status-select-maytinh',
-                intro: 'Lọc danh sách máy tính theo trạng thái hoạt động.',
-                position: 'bottom-start'
-            },
-            {
-                element: '#export-pdf-button-maytinh',
-                intro: 'Xuất danh sách máy tính ra file PDF.',
-                position: 'bottom-start'
-            },
-            {
-                element: '#export-excel-button-maytinh',
-                intro: 'Xuất danh sách máy tính ra file Excel.',
-                position: 'bottom-start'
-            },
-            {
-                element: '#create-new-dropdown-maytinh',
-                intro: 'Tạo máy tính mới bằng form hoặc import từ file.',
-                position: 'bottom-start'
-            },
-            {
-                element: '.ant-table-thead > tr > th:nth-child(3)', // Tên máy tính column
-                intro: 'Click vào đây để sắp xếp danh sách máy tính theo tên.',
-                position: 'bottom'
-            },
-            {
-                element: '.ant-table-thead > tr > th:nth-child(6)', // Trạng thái column
-                intro: 'Click vào đây để sắp xếp danh sách máy tính theo trạng thái.',
-                position: 'bottom'
-            },
-            {
-                element: '.ant-table-thead > tr > th:last-child', // Hành động column
-                intro: 'Tại cột này, bạn có thể chỉnh sửa, xóa máy tính hoặc gửi tin nhắn.',
-                position: 'left'
-            },
-            {
-                element: '#delete-selected-button-maytinh',
-                intro: 'Xóa các máy tính đã được chọn (tick vào checkbox).',
-                position: 'top-end',
-            },
-            {
-                element: '#logout-button-maytinh',
-                intro: 'Đăng xuất khỏi ứng dụng quản lý máy tính.',
-                position: 'bottom-end'
-            },
+            { element: '#search-input-maytinh', intro: 'Nhập tên máy tính hoặc thông tin liên quan để tìm kiếm.', position: 'bottom-start' },
+            { element: '#column-select-maytinh', intro: 'Chọn cột bạn muốn tìm kiếm (Tên máy tính, Trạng thái, Mô tả, Tên Phòng).', position: 'bottom-start' }, // Updated intro text
+            { element: '#status-select-maytinh', intro: 'Lọc danh sách máy tính theo trạng thái hoạt động.', position: 'bottom-start' },
+            { element: '#export-pdf-button-maytinh', intro: 'Xuất danh sách máy tính ra file PDF.', position: 'bottom-start' },
+            { element: '#export-excel-button-maytinh', intro: 'Xuất danh sách máy tính ra file Excel.', position: 'bottom-start' },
+            { element: '#create-new-dropdown-maytinh', intro: 'Tạo máy tính mới bằng form hoặc import từ file.', position: 'bottom-start' },
+            { element: '.ant-table-thead > tr > th:nth-child(3)', intro: 'Click vào đây để sắp xếp danh sách máy tính theo tên.', position: 'bottom' },
+            { element: '.ant-table-thead > tr > th:nth-child(6)', intro: 'Click vào đây để sắp xếp danh sách máy tính theo trạng thái.', position: 'bottom' },
+            { element: '.ant-table-thead > tr > th:nth-child(7)', intro: 'Click vào đây để sắp xếp danh sách máy tính theo tên phòng.', position: 'bottom' }, // Added step for Room sorting
+            { element: '.ant-table-thead > tr > th:last-child', intro: 'Tại cột này, bạn có thể chỉnh sửa, xóa máy tính hoặc gửi tin nhắn.', position: 'left' },
+            { element: '#delete-selected-button-maytinh', intro: 'Xóa các máy tính đã được chọn (tick vào checkbox).', position: 'top-end' },
+            { element: '#logout-button-maytinh', intro: 'Đăng xuất khỏi ứng dụng quản lý máy tính.', position: 'bottom-end' },
         ];
 
         introJs().setOptions({
@@ -172,43 +136,45 @@ export default function MayTinhManagement() {
         }).start();
     };
 
+    // --- Effects ---
     useEffect(() => {
         console.log("[Component MayTinh] Loader Result Received:", loaderResult);
         if (loaderResult?.error) {
             console.error("Loader Error Handled in Component MayTinh:", loaderResult);
             setLoadError(loaderResult);
+            setMayTinhs([]); // Clear data on error
+            setInitialMayTinhs([]);
+            setPagination(prev => ({ ...prev, current: 1, total: 0 }));
 
             if (loaderResult.type === 'auth') {
-                Swal.fire({
-                    title: "Lỗi Xác thực",
-                    text: loaderResult.message || "Phiên đăng nhập hết hạn.",
-                    icon: "error",
-                    timer: 2500,
-                    showConfirmButton: false,
-                    willClose: () => {
-                        localStorage.removeItem('authToken');
-                        localStorage.removeItem('username');
-                        localStorage.removeItem('userRole');
-                        navigate('/login', { replace: true });
-                    }
-                });
+                // Handle auth error (redirect handled by loader now, maybe show message)
+                Swal.fire("Lỗi Xác thực", loaderResult.message || "Phiên đăng nhập hết hạn.", "error");
+            } else {
+                // Handle other types of load errors
+                Swal.fire("Lỗi Tải Dữ Liệu", loaderResult.message || "Không thể tải danh sách máy tính.", "error");
             }
         } else if (loaderResult?.data) {
+            // Data is now List<MayTinhDTO>
             const data = loaderResult.data || [];
-            console.log("[Component MayTinh] Setting initial data:", data);
-            setInitialMayTinhs(data);
-            setMayTinhs(data.slice(0, pagination.pageSize));
+            console.log("[Component MayTinh] Setting initial DTO data:", data);
+            setInitialMayTinhs(data); // Store the full list of DTOs
+            // Apply initial pagination - No need to slice here, Table handles it
+            setMayTinhs(data); // Set the full data, Table component will paginate
             setLoadError(null);
-            setPagination(prev => ({ ...prev, current: 1 }));
-            setFilteredMayTinhs(null);
+            setPagination(prev => ({ ...prev, current: 1, total: data.length })); // Update total count
+            // setFilteredMayTinhs(null); // Reset filter state if needed
         } else {
-            console.error("Unexpected loader result:", loaderResult);
+            console.warn("Unexpected loader result:", loaderResult);
             setLoadError({ error: true, type: 'unknown', message: "Dữ liệu tải trang không hợp lệ." });
+            setMayTinhs([]);
+            setInitialMayTinhs([]);
+            setPagination(prev => ({ ...prev, current: 1, total: 0 }));
         }
-    }, [loaderResult, navigate]);
+    }, [loaderResult]); // Removed navigate dependency here
 
     useEffect(() => {
-        const eventSource = new EventSource("https://localhost:8080/subscribe");
+        // SSE Effect remains the same...
+        const eventSource = new EventSource("https://localhost:8080/subscribe"); // Use your actual backend URL
         eventSource.onopen = () => console.log("SSE connection opened for MayTinh");
         eventSource.onmessage = (event) => {
             const messageText = event.data;
@@ -217,20 +183,19 @@ export default function MayTinhManagement() {
             if (messageText !== "subscribed") {
                 setNotification(messageText);
 
-                if ((messageText.toLowerCase().includes("xóa") || messageText.toLowerCase().includes("thêm"))
+                // Reload if the message indicates a relevant change
+                if ((messageText.toLowerCase().includes("xóa") || messageText.toLowerCase().includes("thêm") || messageText.toLowerCase().includes("cập nhật"))
                     && messageText.toLowerCase().includes("máy tính")) {
-                    console.log("SSE indicates MayTinh change, reloading...");
+                    console.log("SSE indicates MayTinh change, preparing reload...");
                     Swal.fire({
                         title: "Thông báo",
-                        text: "Dữ liệu máy tính đã được cập nhật. Trang sẽ được tải lại.",
+                        text: "Dữ liệu máy tính đã được cập nhật. Danh sách sẽ được tải lại.",
                         icon: "info",
-                        timer: 3000,
+                        timer: 2500, // Shorter timer maybe
                         timerProgressBar: true,
                         showConfirmButton: false,
-                        willClose: () => navigate(0)
+                        willClose: () => navigate(0) // Force reload
                     });
-                } else {
-                    // Swal.fire({  }); // Removed for brevity, add back if needed
                 }
             }
         };
@@ -238,17 +203,7 @@ export default function MayTinhManagement() {
         return () => { eventSource.close(); };
     }, [navigate]);
 
-    const showImportModal = () => {
-        setIsModalVisible(true);
-    };
-
-    const hideImportModal = () => {
-        setIsModalVisible(false);
-    };
-
-    const handleImport = async (file) => {
-        console.log("File imported:", file);
-    };
+    // Botpress useEffect remains the same...
     useEffect(() => {
         const script1 = document.createElement("script");
         script1.src = "https://cdn.botpress.cloud/webchat/v2.2/inject.js";
@@ -256,22 +211,28 @@ export default function MayTinhManagement() {
         document.body.appendChild(script1);
 
         const script2 = document.createElement("script");
-        script2.src = "https://files.bpcontent.cloud/2025/03/03/16/20250303163810-YF2W2K0X.js";
+        script2.src = "https://files.bpcontent.cloud/2025/03/03/16/20250303163810-YF2W2K0X.js"; // Check if this URL is still valid/needed
         script2.async = true;
         document.body.appendChild(script2);
 
         return () => {
             document.body.removeChild(script1);
-            document.body.removeChild(script2);
+            if (document.body.contains(script2)) { // Check if script2 exists before removing
+                document.body.removeChild(script2);
+            }
         };
     }, []);
 
+    // --- Handlers ---
 
+    const showImportModal = () => setIsModalVisible(true);
+    const hideImportModal = () => setIsModalVisible(false);
+    const handleImport = async (file) => { console.log("File imported:", file); /* Implement import logic */};
 
     const handleDelete = (record) => {
         Swal.fire({
-            title: "Bạn có chắc chắn muốn xóa máy tính này?",
-            text: `Máy tính: ${record.tenMay}`,
+            title: "Bạn có chắc chắn muốn xóa?",
+            text: `Máy tính: ${record.tenMay} (Phòng: ${record.tenPhong || 'N/A'})`, // Use DTO fields
             icon: "warning",
             showCancelButton: true,
             confirmButtonText: "Xóa",
@@ -284,145 +245,151 @@ export default function MayTinhManagement() {
     };
 
     const deleteMayTinh = async (maMay) => {
+        // Delete logic remains mostly the same, adjust URL if needed
         const token = localStorage.getItem("authToken");
-
-        if (!token) {
-            Swal.fire("Error", "Bạn chưa đăng nhập", "error");
-            return;
-        }
-
+        if (!token) { Swal.fire("Lỗi", "Bạn chưa đăng nhập", "error"); return; }
+        setInternalLoading(true); // Indicate loading during delete
         try {
-            const url = `https://localhost:8080/XoaMayTinh?maMay=${maMay}&token=${token}`;
-            const response = await fetch(url, {
-                method: "DELETE",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-
+            const url = `https://localhost:8080/api/maytinh/XoaMayTinh?maMay=${maMay}&token=${token}`; // Use correct API path
+            const response = await fetch(url, { method: "DELETE" });
+            if (!response.ok) { throw new Error(`Lỗi HTTP: ${response.status}`); }
+            // No need to reload via navigate(0) if SSE handles it
+            // Swal.fire("Đã xóa!", "Máy tính đã được xóa thành công.", "success");
+            // Optionally remove from local state immediately for faster UI update
+            // setInitialMayTinhs(prev => prev.filter(m => m.maMay !== maMay));
+            // setMayTinhs(prev => prev.filter(m => m.maMay !== maMay));
         } catch (error) {
-            console.error("Error deleting MayTinh:", error);
-            Swal.fire("Error", "Có lỗi xảy ra khi xóa máy tính: " + error.message, "error");
+            console.error("Lỗi xóa máy tính:", error);
+            Swal.fire("Lỗi", `Có lỗi xảy ra khi xóa máy tính: ${error.message}`, "error");
+        } finally {
+            setInternalLoading(false);
         }
     };
 
+    // Client-side sorting function (for when Table's sorter is used)
     const sortData = (data, sortKey, sortOrder) => {
-        if (!sortKey) return data;
+        // ... (sortData function remains the same, it works on the DTO properties) ...
+        if (!sortKey || !sortOrder) return data;
 
         const sortedData = [...data].sort((a, b) => {
-            const valueA = a[sortKey];
-            const valueB = b[sortKey];
+            // Handle potential null or undefined values gracefully
+            const valueA = a[sortKey] ?? (typeof a[sortKey] === 'number' ? 0 : '');
+            const valueB = b[sortKey] ?? (typeof b[sortKey] === 'number' ? 0 : '');
 
-            if (typeof valueA === "string" && typeof valueB === "string") {
+            if (sortKey === 'ngayLapDat' || sortKey === 'ngayCapNhat') {
+                // Date comparison
+                const dateA = valueA ? new Date(valueA).getTime() : 0;
+                const dateB = valueB ? new Date(valueB).getTime() : 0;
+                return sortOrder === "ascend" ? dateA - dateB : dateB - dateA;
+            } else if (typeof valueA === "string" && typeof valueB === "string") {
+                // String comparison
                 return sortOrder === "ascend"
                     ? valueA.localeCompare(valueB)
                     : valueB.localeCompare(valueA);
             } else if (typeof valueA === "number" && typeof valueB === "number") {
+                // Number comparison
                 return sortOrder === "ascend" ? valueA - valueB : valueB - valueA;
             } else {
-                return 0;
+                // Fallback for mixed types or other types
+                const stringA = String(valueA);
+                const stringB = String(valueB);
+                return sortOrder === "ascend"
+                    ? stringA.localeCompare(stringB)
+                    : stringB.localeCompare(stringA);
             }
         });
-
         return sortedData;
     };
 
-    const handleSearch = async (value) => {
+    // Client-side search/filter function
+    const performClientSearch = (searchValue, searchColumn) => {
+        setInternalLoading(true);
+        let filteredData = initialMayTinhs; // Start with the full initial list
+
+        if (searchValue && searchColumn !== 'all') {
+            filteredData = initialMayTinhs.filter(item => {
+                const itemValue = item[searchColumn];
+                // Handle cases where the value might be null or not a string
+                return itemValue != null &&
+                    typeof itemValue === 'string' &&
+                    itemValue.toLowerCase().includes(searchValue.toLowerCase());
+            });
+        } else if (searchValue && searchColumn === 'all') {
+            // Search across multiple relevant columns if 'all' is selected
+            filteredData = initialMayTinhs.filter(item =>
+                Object.values(item).some(val =>
+                    val != null && typeof val === 'string' && val.toLowerCase().includes(searchValue.toLowerCase())
+                )
+            );
+        }
+        // Apply sorting after filtering
+        filteredData = sortData(filteredData, sortInfo.field, sortInfo.order);
+        setFilteredMayTinhs(filteredData); // Store filtered result if needed separately
+        // Update displayed data (Table component will handle pagination)
+        setMayTinhs(filteredData);
+        setPagination(prev => ({ ...prev, current: 1, total: filteredData.length })); // Reset to page 1, update total
+        setInternalLoading(false);
+    };
+
+
+    const handleSearch = (value) => {
         setSearch(value);
-        performSearch(value, selectedColumn);
+        performClientSearch(value, selectedColumn); // Use client-side search
     };
 
     const handleColumnSelect = (column) => {
         setSelectedColumn(column);
-        performSearch(search, column);
+        performClientSearch(search, column); // Use client-side search
     };
 
-    const performSearch = async (searchValue, searchColumn) => {
-        if (searchValue && searchColumn) {
-            const token = localStorage.getItem("authToken");
-            if (!token) {
-                Swal.fire("Error", "Bạn chưa đăng nhập", "error");
-                return;
-            }
-            setInternalLoading(true);
-
-            try {
-                const url = `https://localhost:8080/DSMayTinh?token=${token}`;
-                const response = await fetch(url, {
-                    method: "GET",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                });
-
-                if (!response.ok) {
-                    console.error("Search Error:", response.status, response.statusText);
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                if (response.status === 204) {
-                    setMayTinhs([]);
-                    return;
-                }
-
-                try {
-                    const text = await response.text();
-                    console.log("Response Body:", text);
-                    const data = JSON.parse(text);
-                    let filteredData = data;
-                    if (searchValue && searchColumn) {
-                        filteredData = data.filter(item =>
-                            item[searchColumn]?.toLowerCase().includes(searchValue.toLowerCase())
-                        );
-                    }
-                    setMayTinhs(filteredData);
-                } catch (parseError) {
-                    console.error("Error parsing JSON:", parseError);
-                    Swal.fire("Error", "Lỗi xử lý dữ liệu từ máy chủ: " + parseError.message, "error");
-                    setMayTinhs([]);
-                }
-            } catch (error) {
-                console.error("Error searching MayTinhs:", error);
-                Swal.fire("Error", "Có lỗi xảy ra khi tìm kiếm dữ liệu: " + error.message, "error");
-            } finally {
-                setInternalLoading(false);
-            }
+    const handleStatusFilter = (value) => {
+        setInternalLoading(true);
+        let filteredData;
+        if (value === "all") {
+            filteredData = initialMayTinhs;
         } else {
-            setMayTinhs(initialMayTinhs);
+            filteredData = initialMayTinhs.filter(item => item.trangThai === value);
         }
-    };
-    const updateTableData = (page, pageSize, sortField, sortOrder) => {
-        let sortedData = sortData(initialMayTinhs, sortField, sortOrder);
-        const startIndex = (page - 1) * pageSize;
-        const endIndex = startIndex + pageSize;
-        const paginatedData = sortedData.slice(startIndex, endIndex);
-        setMayTinhs(paginatedData);
+        // Apply search and sorting on top of status filter
+        if (search && selectedColumn !== 'all') {
+            filteredData = filteredData.filter(item => {
+                const itemValue = item[selectedColumn];
+                return itemValue != null && typeof itemValue === 'string' && itemValue.toLowerCase().includes(search.toLowerCase());
+            });
+        } else if (search && selectedColumn === 'all') {
+            filteredData = filteredData.filter(item =>
+                Object.values(item).some(val =>
+                    val != null && typeof val === 'string' && val.toLowerCase().includes(search.toLowerCase())
+                )
+            );
+        }
+        filteredData = sortData(filteredData, sortInfo.field, sortInfo.order);
+        setMayTinhs(filteredData);
+        setPagination(prev => ({ ...prev, current: 1, total: filteredData.length }));
+        setInternalLoading(false);
     };
 
+
+    // Update to handle client-side sorting if backend doesn't support it directly
     const handleTableChange = (newPagination, filters, sorter) => {
         const { current, pageSize } = newPagination;
+        let currentData = filteredMayTinhs ?? initialMayTinhs; // Use filtered data if available, otherwise initial
+        let sortField = sortInfo.field;
+        let sortOrder = sortInfo.order;
 
-        let sortField = null;
-        let sortOrder = null;
-
-        if (sorter && sorter.field && sorter.order) {
+        if (sorter && sorter.field !== sortInfo.field || sorter.order !== sortInfo.order) {
             sortField = sorter.field;
             sortOrder = sorter.order;
             setSortInfo({ field: sortField, order: sortOrder });
-        } else {
-            setSortInfo({});
+            currentData = sortData(currentData, sortField, sortOrder); // Sort the current dataset
+            setMayTinhs(currentData); // Update the displayed data
         }
 
-        updateTableData(current, pageSize, sortField, sortOrder);
-        setPagination(newPagination);
+        // Update pagination state - Table handles actual display slicing
+        setPagination({ ...pagination, current, pageSize });
     };
+
     const onSelectChange = (newSelectedRowKeys) => {
-        console.log("Selected Row Keys changed: ", newSelectedRowKeys);
         setSelectedRowKeys(newSelectedRowKeys);
         setHasSelected(newSelectedRowKeys.length > 0);
     };
@@ -430,46 +397,63 @@ export default function MayTinhManagement() {
     const rowSelection = {
         selectedRowKeys,
         onChange: onSelectChange,
-        getCheckboxProps: (record) => ({
-            disabled: false,
-            name: record.maMay,
-        }),
     };
 
+    // No need for startIndex calculation if Table handles pagination internally
 
-    const startIndex = (pagination.current - 1) * pagination.pageSize;
-
+    // --- Export Functions ---
     const exportToPDF = () => {
         const doc = new jsPDF();
+        doc.addFileToVFS("Arial.ttf", font); // Ensure font is loaded correctly
+        doc.setFont("Arial", "normal"); // Set font to normal
 
-        doc.addFileToVFS("Arial.ttf", font);
-        doc.setFont("Arial");
+        const tableData = (filteredMayTinhs ?? mayTinhs).map((mayTinh, index) => [ // Use filtered or current data
+            index + 1,
+            mayTinh.tenMay || '',         // Use DTO fields, provide fallback for null
+            mayTinh.trangThai || '',
+            mayTinh.moTa || '',
+            mayTinh.ngayLapDat ? new Date(mayTinh.ngayLapDat).toLocaleDateString() : '', // Format date
+            mayTinh.tenPhong || ''          // Use DTO field tenPhong directly
+        ]);
 
         doc.autoTable({
             head: [["STT", "Tên Máy Tính", "Trạng Thái", "Mô Tả", "Ngày Lắp Đặt", "Phòng"]],
-            body: mayTinhs.map((mayTinh, index) => [
-                index + 1,
-                mayTinh.tenMay,
-                mayTinh.trangThai,
-                mayTinh.moTa,
-                mayTinh.ngayLapDat,
-                mayTinh.phongMay.tenPhong
-            ]),
+            body: tableData,
+            styles: { font: "Arial", fontSize: 10 }, // Apply font style
+            headStyles: { fontStyle: "bold", fillColor: [22, 160, 133] }, // Example header style
+            didDrawPage: function (data) {
+                // Optional: Add header/footer
+                doc.setFontSize(18);
+                doc.text("Danh Sách Máy Tính", data.settings.margin.left, 15);
+            },
         });
 
         doc.save("DanhSachMayTinh.pdf");
     };
 
+
     const exportToExcel = () => {
+        // Map data to ensure correct headers and format if needed
+        const excelData = (filteredMayTinhs ?? mayTinhs).map((item, index) => ({
+            "STT": index + 1,
+            "Tên Máy Tính": item.tenMay,
+            "Trạng Thái": item.trangThai,
+            "Mô Tả": item.moTa,
+            "Ngày Lắp Đặt": item.ngayLapDat ? new Date(item.ngayLapDat).toLocaleDateString() : '', // Format date
+            "Phòng": item.tenPhong, // Use DTO field
+            // Add 'Ngày Cập Nhật' if needed: new Date(item.ngayCapNhat).toLocaleDateString()
+        }));
         const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.json_to_sheet(mayTinhs);
+        const ws = XLSX.utils.json_to_sheet(excelData);
         XLSX.utils.book_append_sheet(wb, ws, "DanhSachMayTinh");
         XLSX.writeFile(wb, "DanhSachMayTinh.xlsx");
     };
+
     const confirmDeleteMultiple = () => {
+        // Confirmation logic remains the same
         Swal.fire({
-            title: "Bạn có chắc chắn muốn xóa các máy tính đã chọn?",
-            text: `Bạn đang cố gắng xóa ${selectedRowKeys.length} máy tính.`,
+            title: `Xóa ${selectedRowKeys.length} máy tính?`,
+            text: "Hành động này không thể hoàn tác!",
             icon: "warning",
             showCancelButton: true,
             confirmButtonText: "Xóa",
@@ -482,39 +466,34 @@ export default function MayTinhManagement() {
     };
 
     const deleteMultipleMayTinhs = async () => {
+        // Delete multiple logic remains mostly the same, adjust URL if needed
         const token = localStorage.getItem("authToken");
-
-        if (!token) {
-            Swal.fire("Error", "Bạn chưa đăng nhập", "error");
-            return;
-        }
-
+        if (!token) { Swal.fire("Lỗi", "Bạn chưa đăng nhập", "error"); return; }
+        setInternalLoading(true);
         try {
             const maMayListString = selectedRowKeys.join(",");
-            const url = `https://localhost:8080/XoaNhieuMayTinh?maMayTinhList=${maMayListString}&token=${token}`;
+            const url = `https://localhost:8080/api/maytinh/XoaNhieuMayTinh?maMayTinhList=${maMayListString}&token=${token}`; // Use correct API path
 
-            const response = await fetch(url, {
-                method: "DELETE",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-            });
+            const response = await fetch(url, { method: "DELETE" });
+            if (!response.ok) { throw new Error(`Lỗi HTTP: ${response.status}`); }
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-
-            setSelectedRowKeys([]);
+            // Swal.fire("Đã xóa!", "Các máy tính đã chọn đã được xóa.", "success");
+            setSelectedRowKeys([]); // Clear selection
+            setHasSelected(false);
+            // Reload data or wait for SSE to trigger reload
+            // navigate(0); // Or remove items from local state
 
         } catch (error) {
-            console.error("Error deleting MayTinhs:", error);
-            Swal.fire("Error", "Có lỗi xảy ra khi xóa máy tính: " + error.message, "error");
+            console.error("Lỗi xóa nhiều máy tính:", error);
+            Swal.fire("Lỗi", `Có lỗi xảy ra khi xóa máy tính: ${error.message}`, "error");
+        } finally {
+            setInternalLoading(false);
         }
     };
 
+
     const menu = (
-        <Menu id="create-new-dropdown-maytinh"> {/* Added ID for intro.js */}
+        <Menu id="create-new-dropdown-maytinh"> {/* Keep ID for intro.js */}
             <Menu.Item key="1" icon={<PlusOutlined />} onClick={() => navigate(`/addMayTinh`)}>
                 Tạo mới bằng form
             </Menu.Item>
@@ -525,121 +504,97 @@ export default function MayTinhManagement() {
     );
 
     const handleLogout = async () => {
+        // Logout logic remains the same
         const token = localStorage.getItem("authToken");
-
-        if (!token) {
-            Swal.fire("Error", "Bạn chưa đăng nhập", "error");
-            return;
-        }
-
+        if (!token) { Swal.fire("Lỗi", "Bạn chưa đăng nhập.", "error"); return; }
         try {
-            const url = `https://localhost:8080/logout?token=${token}`;
-            const response = await fetch(url, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-            });
-
+            const url = `https://localhost:8080/logout?token=${token}`; // Check API path
+            const response = await fetch(url, { method: "POST" });
             if (!response.ok) {
-                const errorData = await response.json();
-                const errorMessage =
-                    errorData?.message || `HTTP error! status: ${response.status}`;
-                throw new Error(errorMessage);
+                const errorText = await response.text(); // Try to get error text
+                throw new Error(errorText || `Lỗi HTTP: ${response.status}`);
             }
-
             localStorage.removeItem("authToken");
-
+            localStorage.removeItem('username');
+            localStorage.removeItem('userRole');
             Swal.fire("Thành công!", "Đăng xuất thành công!", "success").then(() => {
-                navigate("/login");
+                navigate("/login", { replace: true }); // Use replace to prevent going back
             });
         } catch (error) {
-            console.error("Logout error:", error);
-            Swal.fire("Error", "Đăng xuất thất bại: " + error.message, "error");
+            console.error("Lỗi đăng xuất:", error);
+            Swal.fire("Lỗi", `Đăng xuất thất bại: ${error.message}`, "error");
         }
     };
 
+    // --- Define Table Columns ---
     const columns = [
-        {
-            title: (
-                <Checkbox
-                    onChange={(e) => {
-                        const allKeys = mayTinhs.map((record) => record.maMay);
-                        setSelectedRowKeys(e.target.checked ? allKeys : []);
-                        setHasSelected(e.target.checked);
-                    }}
-                    checked={mayTinhs.length > 0 && selectedRowKeys.length === mayTinhs.length}
-                    indeterminate={
-                        selectedRowKeys.length > 0 && selectedRowKeys.length < mayTinhs.length
-                    }
-                />
-            ),
-            key: "checkbox",
-            width: "5%",
-            fixed: "left",
-            render: (text, record) => null,
-        },
+        // Checkbox column removed as rowSelection prop handles it
         {
             title: "STT",
             key: "stt",
             width: "5%",
-            render: (text, record, index) => startIndex + index + 1,
+            render: (text, record, index) => ((pagination.current - 1) * pagination.pageSize) + index + 1, // Correct STT based on pagination
         },
         {
             title: "Tên máy tính",
             dataIndex: "tenMay",
-            width: "10%",
-            sorter: (a, b) => a.tenMay.localeCompare(b.tenMay),
+            key: "tenMay", // Add key for sorter/filter
+            width: "15%", // Adjust width as needed
+            sorter: (a, b) => (a.tenMay || '').localeCompare(b.tenMay || ''),
         },
-
         {
             title: "Mô tả",
             dataIndex: "moTa",
+            key: "moTa",
             width: "20%",
-            sorter: (a, b) => a.moTa.localeCompare(b.moTa),
+            sorter: (a, b) => (a.moTa || '').localeCompare(b.moTa || ''),
         },
         {
             title: "Ngày lắp đặt",
-            dataIndex: "ngayLapDat",
+            dataIndex: "ngayLapDat", // Correct dataIndex for DTO
+            key: "ngayLapDat",
             width: "15%",
-            sorter: (a, b) => new Date(a.ngayLapDat) - new Date(b.ngayLapDat),
+            sorter: (a, b) => (a.ngayLapDat ? new Date(a.ngayLapDat).getTime() : 0) - (b.ngayLapDat ? new Date(b.ngayLapDat).getTime() : 0),
+            render: (text) => text ? new Date(text).toLocaleDateString('vi-VN') : 'N/A', // Format date display
         },
-
-
         {
             title: "Trạng thái",
             dataIndex: "trangThai",
+            key: "trangThai",
             width: "15%",
-            sorter: (a, b) => a.trangThai.localeCompare(b.trangThai),
+            sorter: (a, b) => (a.trangThai || '').localeCompare(b.trangThai || ''),
         },
         {
             title: "Phòng",
-            dataIndex: ["phongMay", "tenPhong"],
+            dataIndex: "tenPhong", // *** CHANGED: Use the direct tenPhong field from DTO ***
+            key: "tenPhong", // Add key
             width: "15%",
-            sorter: (a, b) => a.phongMay.tenPhong.localeCompare(b.phongMay.tenPhong),
+            sorter: (a, b) => (a.tenPhong || '').localeCompare(b.tenPhong || ''), // Sort by tenPhong directly
         },
         {
             title: "Hành động",
-            render: (text, record) => (
+            key: "action", // Add key
+            render: (text, record) => ( // record is now MayTinhDTO
                 <div className="flex justify-center gap-2">
                     <Button
                         icon={<EditOutlined />}
                         size="small"
                         type="link"
-                        onClick={() => navigate(`/editMayTinh/${record.maMay}`)}
+                        onClick={() => navigate(`/editMayTinh/${record.maMay}`)} // Use maMay from DTO
                     />
                     <Button
                         icon={<DeleteOutlined />}
                         size="small"
                         type="link"
-                        onClick={() => handleDelete(record)}
+                        danger // Make delete button red
+                        onClick={() => handleDelete(record)} // Pass the DTO record
                     />
                     <Button
                         icon={<MessageOutlined />}
                         size="small"
                         type="link"
                         onClick={() =>
-                            Swal.fire("Message", `Message to computer ${record.tenMay}`, "question")
+                            Swal.fire("Thông báo", `Gửi tin nhắn đến máy ${record.tenMay}?`, "question") // Use tenMay from DTO
                         }
                     />
                 </div>
@@ -647,150 +602,149 @@ export default function MayTinhManagement() {
         },
     ];
 
+    // --- Render Component ---
     return (
         <Layout className="lab-management-layout">
-            <Header
+            <Header /* Header remains the same */
                 className="lab-management-header"
                 style={{
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    backgroundColor: "#fff",
+                    backgroundColor: "#fff", // Example background
                     padding: "0 24px",
+                    borderBottom: "1px solid #f0f0f0" // Example border
                 }}
             >
-                <div style={{ fontSize: "1.5rem", fontWeight: "bold", color: "#000" }}>
+                <div style={{ fontSize: "1.5rem", fontWeight: "bold" }}> {/* Removed color #000 for theme compatibility */}
                     Danh sách máy tính
                 </div>
-                <div className="actions" style={{ display: "flex", alignItems: "center" }}>
+                <div className="actions" style={{ display: "flex", alignItems: "center", gap: '10px' }}> {/* Added gap */}
                     <DarkModeToggle />
-                    <Button id="logout-button-maytinh" icon={<LogoutOutlined />} type="text" onClick={handleLogout}> {/* Added ID for intro.js */}
+                    <Button icon={<QuestionCircleOutlined />} type="primary" onClick={startIntroTour}>Hướng dẫn</Button>
+                    <Button id="logout-button-maytinh" icon={<LogoutOutlined />} type="text" onClick={handleLogout}>
                         Đăng xuất
                     </Button>
-                    <Button icon={<QuestionCircleOutlined />} type="primary" onClick={startIntroTour}>Hướng dẫn</Button> {/* Add Hướng dẫn button */}
                 </div>
             </Header>
-            <Content className="lab-management-content" style={{ padding: "24px" }}>
-                <nav className="flex items-center space-x-1 text-sm text-muted-foreground mb-6">
+            <Content className="lab-management-content" style={{ padding: "24px", margin: "0 16px" }}> {/* Added margin */}
+                <nav className="flex items-center space-x-1 text-sm text-muted-foreground mb-4"> {/* Adjusted margin */}
                     <a href="/" className="flex items-center hover:text-primary">
                         <HomeOutlined className="h-4 w-4" />
                         <span className="ml-1">Trang chủ</span>
                     </a>
+                    {/* Add breadcrumbs if needed */}
                 </nav>
 
-                <div className="flex items-center justify-between mb-6">
-                    <h1 className="text-2xl font-semibold">Danh sách máy tính</h1>
-                </div>
+                {loadError && (
+                    <Alert
+                        message={`Lỗi: ${loadError.message || 'Không thể tải dữ liệu.'}`}
+                        type="error"
+                        showIcon
+                        closable
+                        onClose={() => setLoadError(null)}
+                        style={{ marginBottom: '16px' }}
+                    />
+                )}
+                {notification && (
+                    <Alert
+                        message={notification}
+                        type="info"
+                        showIcon
+                        closable
+                        onClose={() => setNotification(null)}
+                        style={{ marginBottom: '16px' }}
+                    />
+                )}
 
-                <div className="flex items-center gap-4 mb-6">
-                    {/* Status Select */}
-                    <Select
-                        id="status-select-maytinh" // Added ID for intro.js
-                        defaultValue="all"
-                        style={{ width: 180 }}
-                        onChange={(value) => {
-                            if (value === "all") {
-                                setMayTinhs(initialMayTinhs);
-                            } else {
-                                const filtered = initialMayTinhs.filter(item => item.trangThai === value);
-                                setMayTinhs(filtered);
+                <div className="flex flex-wrap items-center justify-between gap-4 mb-4"> {/* Adjusted margin, wrap items */}
+                    <div className="flex flex-wrap items-center gap-4"> {/* Wrap filters */}
+                        {/* Status Select */}
+                        <Select
+                            id="status-select-maytinh"
+                            defaultValue="all"
+                            style={{ width: 180 }}
+                            onChange={handleStatusFilter} // Changed handler
+                        >
+                            <Option value="all">Tất cả trạng thái</Option>
+                            <Option value="Đang hoạt động">Đang hoạt động</Option>
+                            <Option value="Đã hỏng">Đã hỏng</Option>
+                            <Option value="Không hoạt động">Không hoạt động</Option>
+                            {/* Add other relevant statuses */}
+                        </Select>
 
-                            }
-                        }}
-                    >
-                        <Option value="all">Tất cả trạng thái</Option>
-                        <Option value="Hoạt động">Hoạt động</Option>
-                        <Option value="Hỏng">Hỏng</Option>
-                        <Option value="Bảo trì">Bảo trì</Option>
-                    </Select>
+                        {/* Column Select */}
+                        <Select
+                            id="column-select-maytinh"
+                            value={selectedColumn} // Control the selected value
+                            style={{ width: 180 }}
+                            onChange={handleColumnSelect}
+                        >
+                            <Option value="all">Tìm trong tất cả</Option>
+                            <Option value="tenMay">Tên Máy Tính</Option>
+                            <Option value="trangThai">Trạng Thái</Option>
+                            <Option value="moTa">Mô Tả</Option>
+                            <Option value="tenPhong">Phòng</Option> {/* Added option to search by Room Name */}
+                        </Select>
 
-                    {/* Column Select */}
-                    <Select
-                        id="column-select-maytinh" // Added ID for intro.js
-                        defaultValue="all"
-                        style={{ width: 180 }}
-                        onChange={(value) => handleColumnSelect(value)}
-                    >
-                        <Option value="all">Tất cả cột</Option>
-                        <Option value="tenMay">Tên Máy Tính</Option>
-                        <Option value="trangThai">Trạng Thái</Option>
-                        <Option value="moTa">Mô Tả</Option>
-                        <Option value="ngayLapDat">Ngày Lắp Đặt</Option>
-                    </Select>
-
-                    {/* Search Input */}
-                    <div className="flex items-center flex-1 gap-2">
+                        {/* Search Input */}
                         <Input
-                            id="search-input-maytinh" // Added ID for intro.js
+                            id="search-input-maytinh"
                             placeholder="Tìm kiếm..."
                             value={search}
                             onChange={(e) => handleSearch(e.target.value)}
-                            style={{ maxWidth: 200 }}
+                            style={{ width: 240 }} // Increased width slightly
+                            allowClear // Allow clearing search
                         />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2"> {/* Wrap buttons */}
+                        <Button id="export-pdf-button-maytinh" onClick={exportToPDF} type="default"> {/* Default style */}
+                            Xuất PDF
+                        </Button>
+                        <Button id="export-excel-button-maytinh" onClick={exportToExcel} type="default"> {/* Default style */}
+                            Xuất Excel
+                        </Button>
+                        <Dropdown overlay={menu} placement="bottomRight" arrow>
+                            <Button
+                                id="create-new-dropdown-button-maytinh"
+                                type="primary"
+                                icon={<PlusOutlined />}
+                            >
+                                Tạo mới
+                            </Button>
+                        </Dropdown>
                     </div>
                 </div>
 
-                <Button id="export-pdf-button-maytinh" onClick={exportToPDF} className="bg-blue-600 hover:bg-blue-700" type="primary"> {/* Added ID for intro.js */}
-                    Xuất PDF
-                </Button>
-                <Button id="export-excel-button-maytinh" onClick={exportToExcel} className="bg-green-600 hover:bg-green-700" type="primary"> {/* Added ID for intro.js */}
-                    Xuất Excel
-                </Button>
-                <div className="flex items-center justify-between mb-6">
-                    <h1 className="text-2xl font-semibold">Danh sách máy tính</h1>
-                    <Dropdown overlay={menu} placement="bottomRight" arrow>
-                        <Button
-                            id="create-new-dropdown-button-maytinh" // Added ID for intro.js - redundant ID, menu has id already
-                            type="primary"
-                            icon={<PlusOutlined />}
-                            className="bg-blue-600 hover:bg-blue-700"
-                        >
-                            Tạo mới
-                        </Button>
-                    </Dropdown>
-                </div>
-                <div className="border rounded-lg">
+                <div className="border rounded-lg overflow-x-auto"> {/* Added overflow */}
                     <Table
-                        rowSelection={{
-                            type: "checkbox",
-                            selectedRowKeys: selectedRowKeys,
-                            onChange: onSelectChange,
-                        }}
+                        rowSelection={rowSelection} // Use the defined rowSelection object
                         columns={columns}
-                        dataSource={mayTinhs}
-                        rowKey="maMay"
-                        loading={internalLoading}
-                        pagination={{
-                            current: pagination.current,
-                            pageSize: pagination.pageSize,
-                            total: initialMayTinhs.length,
-                            onChange: handleTableChange,
-                            showSizeChanger: true,
-                            onShowSizeChange: (current, size) => {
-                                setPagination({
-                                    current: current,
-                                    pageSize: size,
-                                });
-                            },
-                        }}
-                        onChange={handleTableChange}
+                        dataSource={mayTinhs} // Use the state holding DTOs
+                        rowKey="maMay" // Use the unique key from DTO
+                        loading={internalLoading} // Show loading indicator
+                        pagination={pagination} // Pass pagination state
+                        onChange={handleTableChange} // Handle table changes (pagination, sorting)
+                        scroll={{ x: 'max-content' }} // Allow horizontal scroll on small screens
                     />
                 </div>
                 {hasSelected && (
                     <Button
-                        id="delete-selected-button-maytinh" // Added ID for intro.js
+                        id="delete-selected-button-maytinh"
                         type="primary"
                         danger
                         onClick={confirmDeleteMultiple}
-                        className="mt-4"
-                        disabled={internalLoading}
+                        className="mt-4" // Margin top
+                        disabled={internalLoading || selectedRowKeys.length === 0} // Disable if loading or no selection
+                        style={{ float: 'right' }} // Align button
                     >
-                        Xóa nhiều máy tính
+                        Xóa ({selectedRowKeys.length}) mục đã chọn
                     </Button>
                 )}
 
             </Content>
-
+            {/* Modal for import if needed */}
+            {/* <Modal title="Import File" visible={isModalVisible} onCancel={hideImportModal} footer={null}> ... </Modal> */}
         </Layout>
     );
 }
