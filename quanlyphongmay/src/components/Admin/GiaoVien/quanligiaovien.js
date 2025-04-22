@@ -1,6 +1,6 @@
 // components/QuanLyGiaoVien.js
 import React, { useState, useEffect, useCallback } from 'react';
-import { Table, Button as AntButton, Layout, Menu, Popover, Input, Select, Row, Col } from 'antd';
+import { Table, Button as AntButton, Layout, Menu, Popover, Input, Select, Row, Col, Modal } from 'antd';
 import {
     UserOutlined,
     DashboardOutlined,
@@ -16,7 +16,7 @@ import { SunOutlined, MoonOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import SidebarAdmin from '../Sidebar/SidebarAdmin'; // Import SidebarAdmin component
 
-const { Content, Sider: AntSider } = Layout; // Renamed Sider to AntSider to avoid conflict, but we won't use AntSider anymore
+const { Content } = Layout;
 const { Option } = Select;
 
 const DarkModeToggle = () => {
@@ -50,8 +50,13 @@ const DarkModeToggle = () => {
 const QuanLyGiaoVien = () => {
     const [giaoVienData, setGiaoVienData] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [collapsed, setCollapsed] = useState(false); // State for sidebar collapse
+    const [collapsed, setCollapsed] = useState(false);
     const navigate = useNavigate();
+    const [chucVuOptions, setChucVuOptions] = useState([]);
+    const [isConversionModalVisible, setIsConversionModalVisible] = useState(false);
+    const [selectedGiaoVienForConversion, setSelectedGiaoVienForConversion] = useState(null);
+    const [selectedChucVu, setSelectedChucVu] = useState(null);
+
 
     // Search states
     const [searchFieldValue, setSearchFieldValue] = useState(null);
@@ -79,6 +84,26 @@ const QuanLyGiaoVien = () => {
         { value: 'IN', label: 'In' },
         { value: 'NOT_IN', label: 'Not In' },
     ];
+
+    const fetchChucVuOptions = useCallback(async () => {
+        const token = localStorage.getItem('authToken');
+        try {
+            const response = await fetch(`https://localhost:8080/DSChucVu?token=${token}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+            if (!response.ok) {
+                console.error('Failed to fetch chuc vu options:', response);
+                return;
+            }
+            const data = await response.json();
+            setChucVuOptions(data.map(chucVu => ({ value: chucVu.maCV, label: chucVu.tenCV })));
+        } catch (error) {
+            console.error('Error fetching chuc vu options:', error);
+        }
+    }, []);
+
 
 
     const fetchGiaoViens = useCallback(async () => {
@@ -146,6 +171,12 @@ const QuanLyGiaoVien = () => {
                             tenKhoa: tenKhoaValue,
                             maKhoa: typeof item.khoa === 'object' ? item.khoa.maKhoa : item.khoa,
                             tenTaiKhoan: item.taiKhoan ? item.taiKhoan.tenDangNhap : 'N/A',
+                            taiKhoanMaTK: item.taiKhoan ? item.taiKhoan.maTK : null,
+                            email: item.email,
+                            soDienThoai: item.soDienThoai,
+                            hoTen: item.hoTen,
+                            maGiaoVienItem: item.maGiaoVien,
+                            hocViItem: item.hocVi
                         };
                     });
                     setGiaoVienData(processedData);
@@ -175,6 +206,12 @@ const QuanLyGiaoVien = () => {
                             tenKhoa: tenKhoaValue,
                             maKhoa: typeof item.khoa === 'object' ? item.khoa.maKhoa : item.khoa,
                             tenTaiKhoan: item.taiKhoan ? item.taiKhoan.tenDangNhap : 'N/A',
+                            taiKhoanMaTK: item.taiKhoan ? item.taiKhoan.maTK : null,
+                            email: item.email,
+                            soDienThoai: item.soDienThoai,
+                            hoTen: item.hoTen,
+                            maGiaoVienItem: item.maGiaoVien,
+                            hocViItem: item.hocVi
                         };
                     });
                     setGiaoVienData(processedData);
@@ -220,7 +257,8 @@ const QuanLyGiaoVien = () => {
 
     useEffect(() => {
         debouncedFetchGiaoViens();
-    }, [debouncedFetchGiaoViens]);
+        fetchChucVuOptions();
+    }, [debouncedFetchGiaoViens, fetchChucVuOptions]);
 
 
     const handleClearSearch = () => {
@@ -257,6 +295,86 @@ const QuanLyGiaoVien = () => {
             timer: 1500,
         }).then(() => {
             navigate('/login');
+        });
+    };
+
+    const showConversionModal = (record) => {
+        setSelectedGiaoVienForConversion(record);
+        setIsConversionModalVisible(true);
+    };
+
+    const handleCancelConversionModal = () => {
+        setIsConversionModalVisible(false);
+        setSelectedChucVu(null);
+        setSelectedGiaoVienForConversion(null);
+    };
+
+    const handleConvertGiaoVien = async () => {
+        if (!selectedGiaoVienForConversion || !selectedChucVu) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Lỗi',
+                text: 'Vui lòng chọn chức vụ.',
+            });
+            return;
+        }
+
+        Swal.fire({
+            title: 'Bạn có chắc chắn muốn chuyển đổi giáo viên này?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Có, chuyển đổi!',
+            cancelButtonText: 'Không, hủy bỏ!'
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                setLoading(true);
+                const token = localStorage.getItem('authToken');
+
+                try {
+                    const response = await fetch(`https://localhost:8080/chuyendoigiaovien?token=${token}&maGV=${selectedGiaoVienForConversion.maGiaoVienItem}&tenNV=${selectedGiaoVienForConversion.hoTen}&email=${selectedGiaoVienForConversion.email}&sDT=${selectedGiaoVienForConversion.soDienThoai}&maCV=${selectedChucVu}&taiKhoanMaTK=${selectedGiaoVienForConversion.taiKhoanMaTK}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`,
+                        },
+                    });
+
+
+
+                    if (!response.ok) {
+                        const errorData = await response.text();
+                        console.error('Conversion error:', response.status, errorData);
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Lỗi chuyển đổi',
+                            text: 'Chuyển đổi giáo viên thất bại.',
+                        });
+                    } else {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Thành công!',
+                            text: 'Giáo viên đã được chuyển đổi thành công.',
+                            timer: 1500,
+                            showConfirmButton: false,
+                        });
+                        fetchGiaoViens(); // Refresh data after conversion
+                    }
+                } catch (error) {
+                    console.error('Error during conversion:', error);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Lỗi',
+                        text: 'Đã có lỗi xảy ra trong quá trình chuyển đổi.',
+                    });
+                } finally {
+                    setLoading(false);
+                    setIsConversionModalVisible(false);
+                    setSelectedChucVu(null);
+                    setSelectedGiaoVienForConversion(null);
+                }
+            }
         });
     };
 
@@ -297,6 +415,18 @@ const QuanLyGiaoVien = () => {
             dataIndex: 'hocVi',
             key: 'hocVi',
             sorter: (a, b) => a.hocVi.localeCompare(b.hocVi),
+            render: (text, record) => (
+                <div
+                    className="editable-cell"
+                    onContextMenu={(e) => {
+                        e.preventDefault();
+                        showConversionModal(record);
+                    }}
+                    style={{ cursor: 'context-menu' }}
+                >
+                    {text}
+                </div>
+            ),
         },
         {
             title: 'Tên Khoa',
@@ -411,6 +541,35 @@ const QuanLyGiaoVien = () => {
                     </div>
                 </Content>
             </Layout>
+            <Modal
+                title="Chuyển đổi giáo viên"
+                visible={isConversionModalVisible}
+                onOk={handleConvertGiaoVien}
+                onCancel={handleCancelConversionModal}
+                loading={loading}
+            >
+                {selectedGiaoVienForConversion && (
+                    <div>
+                        <p>Bạn đang chuyển đổi giáo viên: <b>{selectedGiaoVienForConversion.hoTen}</b></p>
+                        <Row gutter={16}>
+                            <Col span={24}>
+                                <label htmlFor="chucVu">Chức vụ:</label>
+                                <Select
+                                    id="chucVu"
+                                    placeholder="Chọn chức vụ"
+                                    style={{ width: '100%' }}
+                                    onChange={setSelectedChucVu}
+                                    value={selectedChucVu}
+                                >
+                                    {chucVuOptions.map(chucVu => (
+                                        <Option key={chucVu.value} value={chucVu.value}>{chucVu.label}</Option>
+                                    ))}
+                                </Select>
+                            </Col>
+                        </Row>
+                    </div>
+                )}
+            </Modal>
         </Layout>
     );
 };
