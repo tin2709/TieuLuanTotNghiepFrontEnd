@@ -1,0 +1,54 @@
+/* style.css */
+.disabled-explanation-text {
+    color: rgba(0, 0, 0, 0.45);
+    font-size: 12px;
+    margin-top: 4px;
+    margin-bottom: 0;
+}
+.loading-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 300px;
+}
+.lab-management-container {
+    padding: 20px;
+    max-width: 800px;
+    margin: 20px auto;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+.lab-header h1 {
+    margin-bottom: 5px;
+    color: #333;
+}
+.lab-header p {
+    margin-bottom: 20px;
+    color: #555;
+}
+.edit-form {
+    background-color: #fff;
+    padding: 25px;
+    border-radius: 6px;
+    border: 1px solid #e8e8e8;
+}
+.form-title h2 {
+    margin-bottom: 20px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+    color: #444;
+}
+.required {
+    color: red;
+    margin-left: 4px;
+}
+.action-buttons {
+    margin-top: 20px;
+    text-align: right;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+}
+.save-button {
+    /* Add specific styles if needed */
+}
