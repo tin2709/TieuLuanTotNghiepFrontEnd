@@ -1,90 +1,97 @@
 import Swal from 'sweetalert2';
 import { message } from 'antd';
-import { ACTIONS, BROKEN_STATUS, ACTIVE_STATUS, INACTIVE_STATUS } from './action';
-import { useNavigate } from 'react-router-dom'; // Import useNavigate if not already imported
+import { ACTIONS, BROKEN_STATUS, ACTIVE_STATUS, INACTIVE_STATUS } from './action'; // Adjust path if needed
+// REMOVE useNavigate from here, it's passed in the factory function
 
 // --- Hàm Factory tạo Handlers ---
-export const createLabManagementHandlers = ({ dispatch, state, navigate, form, setAvatarImage }) => {
-    // --- Helpers ---
+export const createLabManagementHandlers = ({ dispatch, state, navigate, form, setAvatarImage }) => { // Add navigate here
+    // ... (keep getToken, getRefreshToken, etc., isTokenExpired, refreshTokenApi) ...
     const getToken = () => localStorage.getItem("authToken");
-    const getRefreshToken = () => localStorage.getItem("refreshToken"); // Get Refresh Token
-    const getExpiresAtTimestamp = () => localStorage.getItem("expireAt"); // Get ExpiresAtTimestamp
+    const getRefreshToken = () => localStorage.getItem("refreshToken");
+    const getExpiresAtTimestamp = () => localStorage.getItem("expireAt");
     const getUsername = () => localStorage.getItem("username");
-    const getPassword = () => localStorage.getItem("password");
-    const getUserRole = () => localStorage.getItem("userRole"); // Get User Role
+    // const getPassword = () => localStorage.getItem("password"); // Consider removing if not strictly needed
+    const getUserRole = () => localStorage.getItem("userRole");
+    const getMaTK = () => localStorage.getItem("maTK"); // Helper to get user ID
 
     const isTokenExpired = () => {
         const expiresAtTimestamp = getExpiresAtTimestamp();
-        if (!expiresAtTimestamp) return true; // Consider expired if no timestamp
-        return Number(expiresAtTimestamp) <= Date.now(); // Compare timestamp with current time
+        if (!expiresAtTimestamp) return true; // No timestamp means expired/not logged in
+        // Check if timestamp is valid number before comparing
+        const expiresAt = Number(expiresAtTimestamp);
+        if (isNaN(expiresAt)) return true;
+        return expiresAt <= Date.now();
     };
 
+    // --- Refresh Token API ---
     const refreshTokenApi = async () => {
-        dispatch({ type: ACTIONS.REFRESH_TOKEN_START });
+        // dispatch({ type: ACTIONS.REFRESH_TOKEN_START }); // Optional: track refresh attempts in state
         const refreshTokenValue = getRefreshToken();
-        const maTK = localStorage.getItem("maTK"); // Assuming maTK is stored in localStorage after login
+        const maTK = getMaTK();
         if (!refreshTokenValue || !maTK) {
             console.error("Không có refresh token hoặc maTK.");
-            dispatch({ type: ACTIONS.REFRESH_TOKEN_ERROR, payload: "Không có refresh token." });
-            return false; // Indicate refresh failure
+            // dispatch({ type: ACTIONS.REFRESH_TOKEN_ERROR, payload: "Không có refresh token." });
+            return false;
         }
 
         try {
+            // Use standard fetch for token refresh, no need for the wrapper here initially
             const response = await fetch('https://localhost:8080/refreshtoken?' + new URLSearchParams({
                 refreshTokenValue: refreshTokenValue,
                 maTK: maTK,
             }), { method: 'POST' });
 
             if (!response.ok) {
-                console.error("Lỗi làm mới token:", response.status, response.statusText);
-                dispatch({ type: ACTIONS.REFRESH_TOKEN_ERROR, payload: "Lỗi làm mới token." });
-                return false; // Indicate refresh failure
+                if (response.status === 401 || response.status === 400) { // 400 might mean invalid refresh token
+                    console.error("Lỗi làm mới token (401/400): Refresh token không hợp lệ hoặc đã hết hạn.", response.statusText);
+                } else {
+                    console.error("Lỗi làm mới token:", response.status, response.statusText);
+                }
+                // dispatch({ type: ACTIONS.REFRESH_TOKEN_ERROR, payload: `Lỗi làm mới token (${response.status})` });
+                return false;
             }
 
             const data = await response.json();
-            localStorage.setItem('authToken', data.token);
-            localStorage.setItem('refreshToken', data.refreshToken);
-            localStorage.setItem('expireAt', data.expiresAtTimestamp);
-            dispatch({ type: ACTIONS.REFRESH_TOKEN_SUCCESS });
-            return true; // Indicate refresh success
+            if (data.token && data.refreshToken && data.expiresAtTimestamp) {
+                localStorage.setItem('authToken', data.token);
+                localStorage.setItem('refreshToken', data.refreshToken);
+                localStorage.setItem('expireAt', data.expiresAtTimestamp); // Ensure correct key
+                // dispatch({ type: ACTIONS.REFRESH_TOKEN_SUCCESS }); // Optional
+                console.log("Token làm mới thành công.");
+                return true;
+            } else {
+                console.error("Dữ liệu phản hồi làm mới token không hợp lệ:", data);
+                // dispatch({ type: ACTIONS.REFRESH_TOKEN_ERROR, payload: "Dữ liệu phản hồi làm mới token không hợp lệ." });
+                return false;
+            }
 
         } catch (error) {
-            console.error("Lỗi refresh token:", error);
-            dispatch({ type: ACTIONS.REFRESH_TOKEN_ERROR, payload: error.message });
-            return false; // Indicate refresh failure
+            console.error("Lỗi network khi refresh token:", error);
+            // dispatch({ type: ACTIONS.REFRESH_TOKEN_ERROR, payload: error.message }); // Optional
+            return false;
         }
     };
 
-
-    /**
-     * Helper function to make authenticated API calls.
-     * Automatically adds token and handles 401 errors.
-     * Throws errors for other non-OK statuses.
-     * @param {string} url API endpoint URL
-     * @param {object} options Fetch options (method, headers, body, etc.)
-     * @param {boolean} options.isPublic Set true for non-authenticated endpoints
-     */
+    // --- fetchApi Wrapper ---
     const fetchApi = async (url, options = {}, isPublic = false) => {
         let currentToken = getToken();
+        let isRefreshed = false;
 
-        if (!isPublic && isTokenExpired()) {
-            console.log("Token hết hạn, làm mới token...");
+        if (!isPublic && currentToken && isTokenExpired()) {
+            console.log("Token hết hạn, thử làm mới...");
             const refreshSuccessful = await refreshTokenApi();
             if (refreshSuccessful) {
                 console.log("Token làm mới thành công, tiếp tục request.");
                 currentToken = getToken(); // Get the new token
+                isRefreshed = true;
             } else {
                 console.error("Không thể làm mới token, đăng xuất người dùng.");
-                localStorage.removeItem('authToken');
-                localStorage.removeItem('refreshToken');
-                localStorage.removeItem('expiresAtTimestamp');
-                localStorage.removeItem('username');
-                localStorage.removeItem('userRole');
-                localStorage.removeItem('password');
+                // Clear local storage and navigate
+                localStorage.clear(); // Clear all items
                 navigate('/login', { replace: true });
                 Swal.fire({
                     title: "Phiên đăng nhập hết hạn",
-                    text: "Vui lòng đăng nhập lại.",
+                    text: "Không thể làm mới phiên. Vui lòng đăng nhập lại.",
                     icon: "warning",
                     timer: 3000,
                     showConfirmButton: false,
@@ -93,22 +100,26 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
             }
         }
 
-
         if (!currentToken && !isPublic) {
-            console.error("Authentication token not found for protected route:", url);
-            // Dispatch an error or handle globally? For now, throw.
-            throw new Error("Unauthorized"); // Throw specific error for handlers to catch
+            console.error("Không có token xác thực hoặc refresh thất bại:", url);
+            // Navigate to login if no token for protected route (unless already navigated by refresh failure)
+            if (!isRefreshed) { // Avoid double navigation if refresh failed
+                localStorage.clear();
+                navigate('/login', { replace: true });
+                Swal.fire("Lỗi Xác thực", "Vui lòng đăng nhập.", "error");
+            }
+            throw new Error("Unauthorized");
         }
 
         const defaultHeaders = {
-            'Content-Type': 'application/json',
-            // Example: 'Authorization': `Bearer ${token}` // If using Bearer token
+            ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+            // Authorization header is preferred but sticking to query param for consistency
         };
 
-        // Add token to URL if API expects it (adjust based on your backend)
         let urlWithToken = url;
         if (currentToken && !isPublic) {
-            urlWithToken = url.includes('?') ? `${url}&token=${currentToken}` : `${url}?token=${currentToken}`;
+            const separator = url.includes('?') ? '&' : '?';
+            urlWithToken = `${url}${separator}token=${currentToken}`;
         }
 
         try {
@@ -117,73 +128,81 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
                 headers: { ...defaultHeaders, ...options.headers },
             });
 
+            // Handle 401 Unauthorized specifically - might indicate token became invalid *after* initial check/refresh
             if (response.status === 401 && !isPublic) {
-                console.error("API returned 401 Unauthorized:", url);
-                Swal.fire({ // Show Swal notification for 401
+                console.error("API trả về 401 Unauthorized (có thể token vừa hết hạn):", url);
+                localStorage.clear();
+                navigate('/login', { replace: true });
+                Swal.fire({
                     title: "Lỗi Xác thực",
-                    text: "Phiên đăng nhập hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.",
+                    text: "Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.",
                     icon: "error",
                     timer: 3000,
                     showConfirmButton: false,
-                    willClose: () => {
-                        localStorage.removeItem('authToken');
-                        localStorage.removeItem('refreshToken');
-                        localStorage.removeItem('expireAt');
-                        localStorage.removeItem('username');
-                        localStorage.removeItem('userRole');
-                        localStorage.removeItem('password'); // Clear sensitive data
-                        navigate('/login', { replace: true });
-                    }
                 });
-                throw new Error("Unauthorized"); // Throw to stop further processing in the handler
+                throw new Error("Unauthorized - Invalid Token");
             }
 
-            if (!response.ok && response.status !== 204) { // Handle other HTTP errors (excluding 204 No Content)
+            if (!response.ok && response.status !== 204) {
                 let errorMsg = `Lỗi HTTP ${response.status}`;
+                let errorData = null;
                 try {
-                    const errorData = await response.json();
-                    errorMsg = errorData.message || errorData.error || errorMsg; // Try common error fields
+                    errorData = await response.json();
+                    errorMsg = errorData.message || errorData.error || errorMsg;
                 } catch (e) { /* Ignore JSON parsing error */ }
-                console.error(`API Error (${response.status}) on ${url}: ${errorMsg}`);
+                console.error(`API Error (${response.status}) on ${url}: ${errorMsg}`, errorData);
+                if (errorData && errorData.message) {
+                    Swal.fire("Lỗi Máy Chủ", errorData.message, "error");
+                } else {
+                    Swal.fire("Lỗi", `Đã xảy ra lỗi phía máy chủ (HTTP ${response.status}).`, "error");
+                }
                 throw new Error(errorMsg);
             }
 
-            return response; // Return the response object for successful calls or 204
+            return response.status === 204 ? null : response;
 
         } catch (networkError) {
-            // Catch network errors (fetch failed) or errors thrown above
             console.error(`Network or Fetch API Error on ${url}:`, networkError);
-            // Re-throw the error (could be "Unauthorized" or other error message)
-            // Avoid showing Swal for "Unauthorized" again as it's handled above
-            if (networkError.message !== "Unauthorized" && networkError.message !== "Unauthorized - Refresh Failed") {
-                Swal.fire("Lỗi Mạng", `Không thể kết nối đến máy chủ hoặc đã xảy ra lỗi: ${networkError.message}`, "error");
+            // Avoid showing Swal for "Unauthorized" variations again
+            const isAuthError = networkError.message.includes("Unauthorized");
+            if (!isAuthError) {
+                // Avoid double Swal if error was already thrown with a specific message
+                if (!(networkError instanceof Error && networkError.message.startsWith('Lỗi HTTP'))) {
+                    Swal.fire("Lỗi Mạng", `Không thể kết nối đến máy chủ hoặc đã xảy ra lỗi: ${networkError.message}`, "error");
+                }
             }
-            throw networkError; // Ensure the calling handler knows about the failure
+            throw networkError; // Re-throw
         }
     };
-
 
     // --- Table & Search Handlers ---
     const handleSearchChange = (value) => {
         dispatch({ type: ACTIONS.SET_SEARCH, payload: value });
-        if (!value) dispatch({ type: ACTIONS.CLEAR_SEARCH }); // useEffect handles UPDATE_DISPLAYED_DATA
+        if (!value) {
+            dispatch({ type: ACTIONS.CLEAR_SEARCH });
+        }
     };
 
     const handleColumnSelect = (column) => {
         dispatch({ type: ACTIONS.SET_SEARCH_COLUMN, payload: column });
-        if (state.search && column) performSearch(state.search, column);
+        if (state.search && column) {
+            performSearch(state.search, column);
+        }
     };
 
     const performSearch = async (searchValue, searchColumn) => {
+        if (!searchValue || !searchColumn) return;
         dispatch({ type: ACTIONS.SEARCH_START });
         try {
-            const url = `https://localhost:8080/searchPhongMay?keyword=${searchColumn}:${searchValue}`;
+            const url = `https://localhost:8080/searchPhongMay?keyword=${searchColumn}:${encodeURIComponent(searchValue)}`;
             const response = await fetchApi(url);
             let results = [];
-            if (response.status !== 204) results = (await response.json()).results || [];
+            if (response && response.status !== 204) {
+                const data = await response.json();
+                results = data.results || [];
+            }
             dispatch({ type: ACTIONS.SEARCH_COMPLETE, payload: { results } });
         } catch (error) {
-            // fetchApi handles Swal for network/HTTP errors (except 401)
             dispatch({ type: ACTIONS.SEARCH_COMPLETE, payload: { error: error.message } });
         }
     };
@@ -191,13 +210,11 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     const handleTableChange = (newPagination, filters, sorter) => {
         dispatch({ type: ACTIONS.SET_PAGINATION, payload: { current: newPagination.current, pageSize: newPagination.pageSize } });
         dispatch({ type: ACTIONS.SET_SORT, payload: (sorter.field && sorter.order ? { field: sorter.field, order: sorter.order } : {}) });
-        // useEffect handles UPDATE_DISPLAYED_DATA
     };
 
     const onSelectChange = (newSelectedRowKeys) => {
         dispatch({ type: ACTIONS.SET_SELECTION, payload: newSelectedRowKeys });
     };
-
 
 // --- Delete Handlers ---
     const deleteLabRoomApi = async (maPhong) => {
@@ -205,21 +222,22 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
         try {
             const url = `https://localhost:8080/XoaPhongMay?maPhong=${maPhong}`;
             await fetchApi(url, { method: 'DELETE' });
-            message.success(`Đã xóa phòng có mã ${maPhong}!`); // Use message for quick feedback
+            message.success(`Đã xóa phòng có mã ${maPhong}!`);
             dispatch({ type: ACTIONS.DELETE_COMPLETE, payload: { deletedIds: [maPhong] } });
         } catch (error) {
-            // fetchApi handles Swal for errors (except 401)
-            dispatch({ type: ACTIONS.DELETE_COMPLETE, payload: { error: error.message } });
+            dispatch({ type: ACTIONS.DELETE_COMPLETE, payload: { error: error.message, deletedIds: [] } });
         }
     };
 
     const handleDelete = (record) => {
         Swal.fire({
-            title: "Xác nhận xóa", text: `Bạn có chắc muốn xóa phòng "${record.tenPhong}"? Thao tác này không thể hoàn tác.`, icon: "warning",
+            title: "Xác nhận xóa", text: `Bạn có chắc muốn xóa phòng "${record.tenPhong}" (ID: ${record.maPhong})? Thao tác này không thể hoàn tác.`, icon: "warning",
             showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6',
             confirmButtonText: "Xóa", cancelButtonText: "Hủy",
         }).then((result) => {
-            if (result.isConfirmed) deleteLabRoomApi(record.maPhong);
+            if (result.isConfirmed) {
+                deleteLabRoomApi(record.maPhong);
+            }
         });
     };
 
@@ -232,66 +250,65 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
             message.success(`Đã xóa ${maPhongList.length} phòng đã chọn!`);
             dispatch({ type: ACTIONS.DELETE_COMPLETE, payload: { deletedIds: maPhongList } });
         } catch (error) {
-            dispatch({ type: ACTIONS.DELETE_COMPLETE, payload: { error: error.message } });
+            dispatch({ type: ACTIONS.DELETE_COMPLETE, payload: { error: error.message, deletedIds: [] } });
         }
     };
 
     const confirmDeleteMultiple = () => {
-        if (!state.selectedRowKeys || state.selectedRowKeys.length === 0) return;
+        const selectedKeys = state.selectedRowKeys;
+        if (!selectedKeys || selectedKeys.length === 0) {
+            message.warning("Vui lòng chọn ít nhất một phòng để xóa.");
+            return;
+        }
         Swal.fire({
-            title: "Xác nhận xóa", text: `Bạn có chắc muốn xóa ${state.selectedRowKeys.length} phòng đã chọn? Thao tác này không thể hoàn tác.`, icon: "warning",
+            title: "Xác nhận xóa", text: `Bạn có chắc muốn xóa ${selectedKeys.length} phòng đã chọn? Thao tác này không thể hoàn tác.`, icon: "warning",
             showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6',
             confirmButtonText: "Xóa", cancelButtonText: "Hủy",
         }).then((result) => {
-            if (result.isConfirmed) deleteMultipleLabRoomsApi(state.selectedRowKeys);
+            if (result.isConfirmed) {
+                deleteMultipleLabRoomsApi(selectedKeys);
+            }
         });
     };
 
-
 // --- QR Modal Handlers ---
-    const fetchLabRoomsForQrCode = async () => { // Renamed to indicate it fetches and shows
+    const fetchLabRoomsForQrCode = async () => {
         dispatch({ type: ACTIONS.SHOW_QR_MODAL_START });
         try {
-            const url = `https://localhost:8080/phong-may-thong-ke`; // Use the endpoint for QR data
-            const response = await fetchApi(url); // Token added automatically
+            const url = `https://localhost:8080/phong-may-thong-ke`;
+            const response = await fetchApi(url);
+            if (!response) throw new Error("Không nhận được phản hồi từ API QR.");
+
             const data = await response.json();
+            const qrDataString = JSON.stringify(data, null, 2);
 
-            // **Data for QR Code - START**
-            // The API now returns the data in the desired format, so we use it directly.
-            const qrDataString = JSON.stringify(data, null, 2); // Stringify the array of lab room stats
-            // **Data for QR Code - END**
-
-            try {
+            // Approximate check (UTF-8 encoded)
+            const byteLength = new Blob([qrDataString]).size;
+            if (byteLength > 2953) { // QR Code max capacity for Binary/Byte mode is 2953 bytes
+                dispatch({ type: ACTIONS.SHOW_QR_MODAL_DATA_TOO_LONG_ERROR });
+            } else {
                 dispatch({ type: ACTIONS.SHOW_QR_MODAL_SUCCESS, payload: qrDataString });
-            } catch (qrError) {
-                if (qrError instanceof RangeError && qrError.message === "Data too long") {
-                    dispatch({ type: ACTIONS.SHOW_QR_MODAL_DATA_TOO_LONG_ERROR });
-                } else {
-                    dispatch({ type: ACTIONS.SHOW_QR_MODAL_ERROR, payload: qrError.message }); // Generic QR error
-                }
             }
         } catch (error) {
-            // fetchApi shows Swal for errors (except 401)
-            dispatch({ type: ACTIONS.SHOW_QR_MODAL_ERROR, payload: error.message }); // API fetch error
+            dispatch({ type: ACTIONS.SHOW_QR_MODAL_ERROR, payload: error.message });
         }
     };
-
 
     const handleCancelQrModal = () => dispatch({ type: ACTIONS.HIDE_QR_MODAL });
 
 
 // --- Status Modal (Computers & Devices) Handlers ---
     const fetchComputers = async (maPhong) => {
+        if (!maPhong) return;
         dispatch({ type: ACTIONS.LOAD_COMPUTERS_START });
         try {
             const url = `https://localhost:8080/DSMayTinhTheoPhong?maPhong=${maPhong}`;
             const response = await fetchApi(url);
             let data = [];
-            if (response.status !== 204) data = await response.json();
+            if (response && response.status !== 204) data = await response.json();
             dispatch({ type: ACTIONS.LOAD_COMPUTERS_SUCCESS, payload: data || [] });
         } catch (error) {
             dispatch({ type: ACTIONS.LOAD_COMPUTERS_ERROR, payload: error.message });
-            // Don't show Swal here, let the UI reflect the loading error
         }
     };
 
@@ -300,6 +317,8 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
         try {
             const url = `https://localhost:8080/DSLoaiThietBi`;
             const response = await fetchApi(url);
+            if (!response) throw new Error("Không nhận được phản hồi từ API loại thiết bị.");
+
             const data = await response.json();
             dispatch({ type: ACTIONS.LOAD_DEVICE_TYPES_SUCCESS, payload: data || [] });
         } catch (error) {
@@ -315,15 +334,15 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
             const url = `https://localhost:8080/DSThietBiTheoPhong?maPhong=${maPhong}&maLoai=${maLoai}`;
             const response = await fetchApi(url);
             let data = [];
-            if (response.status !== 204) data = await response.json();
+            if (response && response.status !== 204) data = await response.json();
             dispatch({ type: ACTIONS.LOAD_DEVICES_BY_TYPE_SUCCESS, payload: data || [] });
         } catch (error) {
             dispatch({ type: ACTIONS.LOAD_DEVICES_BY_TYPE_ERROR, payload: error.message });
         }
     };
 
-    const showComputerStatusModal = (record) => { // record now contains room details
-        dispatch({ type: ACTIONS.SHOW_STATUS_MODAL, payload: record }); // Pass the whole record
+    const showComputerStatusModal = (record) => {
+        dispatch({ type: ACTIONS.SHOW_STATUS_MODAL, payload: record });
         fetchComputers(record.maPhong);
         fetchDeviceTypes();
     };
@@ -334,16 +353,20 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
         dispatch({ type: ACTIONS.SET_STATUS_MODAL_TAB, payload: key });
         if (key !== 'computers') {
             const maLoai = parseInt(key, 10);
-            if (!isNaN(maLoai)) fetchDevicesByType(maLoai);
+            if (!isNaN(maLoai)) {
+                fetchDevicesByType(maLoai);
+            }
         }
     };
 
 // --- Computer Detail Modal Handlers ---
     const fetchComputerDetail = async (maMay) => {
+        if (!maMay) return;
         dispatch({ type: ACTIONS.SHOW_COMPUTER_DETAIL_MODAL_START });
         try {
             const url = `https://localhost:8080/MayTinh?maMay=${maMay}`;
             const response = await fetchApi(url);
+            if (!response) throw new Error("Không nhận được phản hồi từ API chi tiết máy tính.");
             const data = await response.json();
             dispatch({ type: ACTIONS.SHOW_COMPUTER_DETAIL_MODAL_SUCCESS, payload: data });
         } catch (error) {
@@ -355,10 +378,12 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
 
 // --- Device Detail Modal Handlers ---
     const fetchDeviceDetail = async (maThietBi) => {
+        if (!maThietBi) return;
         dispatch({ type: ACTIONS.SHOW_DEVICE_DETAIL_MODAL_START });
         try {
             const url = `https://localhost:8080/ThietBi?maThietBi=${maThietBi}`;
             const response = await fetchApi(url);
+            if (!response) throw new Error("Không nhận được phản hồi từ API chi tiết thiết bị.");
             const data = await response.json();
             dispatch({ type: ACTIONS.SHOW_DEVICE_DETAIL_MODAL_SUCCESS, payload: data });
         } catch (error) {
@@ -374,110 +399,200 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
         if (!state.statusModal.computers || state.statusModal.computers.length === 0) {
             message.warning("Không có dữ liệu máy tính để cập nhật."); return;
         }
-
-        if (state.statusModal.roomStatus === 'Đang có tiết' && getUserRole() === '3') {
-            Swal.fire({
-                icon: 'warning',
-                title: 'Cảnh báo',
-                text: 'Bạn không thể cập nhật trạng thái thiết bị khi phòng máy đang hoạt động!',
-            });
-            return; // Thêm return ở đây để ngăn modal mở sau khi hiển thị alert
-        }
-
         const userRole = getUserRole();
-        dispatch({ type: ACTIONS.SHOW_COMPUTER_UPDATE_MODAL, payload: { userRole } }); // Pass userRole when opening modal
+        if (state.statusModal.roomStatus === 'Đang có tiết' && userRole === '3') {
+            Swal.fire('Cảnh báo', 'Bạn không thể cập nhật trạng thái khi phòng máy đang có tiết!', 'warning');
+            return;
+        }
+        dispatch({ type: ACTIONS.SHOW_COMPUTER_UPDATE_MODAL, payload: { userRole } });
     };
+
     const handleComputerUpdateModalClose = () => dispatch({ type: ACTIONS.HIDE_COMPUTER_UPDATE_MODAL });
 
     const toggleComputerAttendanceSelection = (maMay, computerStatus) => {
         const userRole = getUserRole();
-        const roomStatusForUpdate = state.computerUpdateModal.roomStatusForUpdate;
-        if (userRole === '3' && roomStatusForUpdate === 'Trống') {
-            if (computerStatus !== BROKEN_STATUS) return; // Role 3 only updates from BROKEN
-        }
+        const roomStatusForUpdate = state.statusModal.roomStatus;
         dispatch({ type: ACTIONS.TOGGLE_COMPUTER_ATTENDANCE_SELECTION, payload: { key: maMay, userRole, roomStatusForUpdate, computerStatus } });
     };
 
     const toggleComputerReportBrokenSelection = (maMay, computerStatus) => {
         const userRole = getUserRole();
-        const roomStatusForUpdate = state.computerUpdateModal.roomStatusForUpdate;
-        if (userRole === '3' && roomStatusForUpdate === 'Trống') {
-            return; // Role 3 should not report broken from modal in empty room context
-        }
+        const roomStatusForUpdate = state.statusModal.roomStatus;
         dispatch({ type: ACTIONS.TOGGLE_COMPUTER_REPORT_BROKEN_SELECTION, payload: { key: maMay, userRole, roomStatusForUpdate, computerStatus } });
     };
 
     const handleChangeAllBroken = () => {
+        const userRole = getUserRole();
+        const roomStatusForUpdate = state.statusModal.roomStatus;
+        if (userRole === '3' && roomStatusForUpdate === 'Trống') {
+            message.warning("Vai trò của bạn không thể dùng chức năng này trong phòng trống.");
+            return;
+        }
         dispatch({ type: ACTIONS.TOGGLE_CHANGE_ALL_BROKEN_ACTIVE });
     };
 
-
-    const handleCompleteComputerUpdate = async () => {
-        const attendanceKeys = state.computerUpdateModal.attendanceKeys;
-        const brokenReportKeys = state.computerUpdateModal.brokenReportKeys;
-        const userRole = getUserRole();
-        const roomStatusForUpdate = state.computerUpdateModal.roomStatusForUpdate;
-
-        if (attendanceKeys.length === 0 && brokenReportKeys.length === 0) {
-            message.info("Chưa chọn máy tính nào để thay đổi trạng thái."); return;
-        }
-        if (userRole === '3' && state.statusModal.roomStatus === 'Đang có tiết') { // Assuming 'Trống' is the status for empty room
-            Swal.fire({
-                icon: 'warning',
-                title: 'Cảnh báo',
-                text: 'Bạn không thể cập nhật trạng thái thiết bị khi phòng máy đang hoạt động!',
-            });
-            dispatch({ type: ACTIONS.UPDATE_COMPUTER_STATUS_COMPLETE, payload: { success: false } });
-            return;
+// --- Helper for actual status update API call (can be called from handler or notes page) ---
+// NOTE: This function now requires the necessary context passed as arguments
+// if called from the ReportBrokenNotes page.
+    const performComputerStatusUpdate = async (
+        computersToUpdateFrom, // The list of computers to base the update on (original list)
+        attendanceKeys,
+        brokenReportKeys,
+        userRole,
+        roomStatusForUpdate
+    ) => {
+        // Validate input if called externally
+        if (!Array.isArray(computersToUpdateFrom) || !Array.isArray(attendanceKeys) || !Array.isArray(brokenReportKeys)) {
+            console.error("Invalid input to performComputerStatusUpdate");
+            message.error("Lỗi nội bộ: Dữ liệu cập nhật trạng thái không hợp lệ.");
+            throw new Error("Lỗi nội bộ: Dữ liệu cập nhật trạng thái không hợp lệ."); // Throw to signal failure
         }
 
-        dispatch({ type: ACTIONS.UPDATE_COMPUTER_STATUS_START });
-        const updates = state.statusModal.computers
-            .filter(comp => {
-                if (userRole === '3' && roomStatusForUpdate === 'Trống') {
-                    if (comp.trangThai !== BROKEN_STATUS) return false; // Role 3 only updates from BROKEN in "Trống" room
-                    return attendanceKeys.includes(comp.maMay); // Role 3 only changes BROKEN to ACTIVE/INACTIVE, using attendanceKeys for toggle
-                }
-                return (attendanceKeys.includes(comp.maMay) || brokenReportKeys.includes(comp.maMay)) && comp.trangThai !== BROKEN_STATUS; // Normal update for other roles/statuses
-            })
+        const updates = computersToUpdateFrom
+            .filter(comp => comp && (attendanceKeys.includes(comp.maMay) || brokenReportKeys.includes(comp.maMay))) // Added comp null check
             .map(comp => {
                 let newStatus;
-                if (userRole === '3' && roomStatusForUpdate === 'Trống') {
-                    newStatus = attendanceKeys.includes(comp.maMay) ? ACTIVE_STATUS : INACTIVE_STATUS; // Role 3: attendanceKeys toggles between ACTIVE and INACTIVE from BROKEN
-                } else if (brokenReportKeys.includes(comp.maMay)) {
-                    newStatus = BROKEN_STATUS; // Report Broken takes priority
-                } else if (attendanceKeys.includes(comp.maMay)) {
-                    newStatus = ACTIVE_STATUS; // Attendance selected
+                if (brokenReportKeys.includes(comp.maMay)) {
+                    newStatus = BROKEN_STATUS;
+                } else if (userRole === '3' && roomStatusForUpdate === 'Trống' && comp.trangThai === BROKEN_STATUS && attendanceKeys.includes(comp.maMay)) {
+                    newStatus = ACTIVE_STATUS;
+                } else if (attendanceKeys.includes(comp.maMay) && comp.trangThai !== BROKEN_STATUS) {
+                    newStatus = comp.trangThai === ACTIVE_STATUS ? INACTIVE_STATUS : ACTIVE_STATUS;
                 } else {
-                    newStatus = INACTIVE_STATUS; // Attendance deselected (and not broken)
+                    newStatus = comp.trangThai;
                 }
-                return {
-                    maMay: comp.maMay,
-                    newStatus: newStatus
-                };
+
+                // Final check
+                if (comp.trangThai === BROKEN_STATUS && !(userRole === '3' && roomStatusForUpdate === 'Trống' && attendanceKeys.includes(comp.maMay))) {
+                    newStatus = BROKEN_STATUS;
+                }
+
+                return { maMay: comp.maMay, newStatus: newStatus };
+            })
+            .filter(upd => {
+                const originalComp = computersToUpdateFrom.find(c => c && c.maMay === upd.maMay); // Added c null check
+                return originalComp && originalComp.trangThai !== upd.newStatus;
             });
 
         if (updates.length === 0) {
-            message.warning("Không có thay đổi trạng thái hợp lệ nào.");
-            dispatch({ type: ACTIONS.UPDATE_COMPUTER_STATUS_COMPLETE, payload: { success: false } });
-            return;
+            console.log("Không có thay đổi trạng thái thực tế nào được phát hiện.");
+            return { success: true, message: "Không có thay đổi trạng thái nào cần áp dụng." }; // Indicate success but no action
         }
+
+        // Note: The START/COMPLETE actions are dispatched by the *caller* (handleCompleteComputerUpdate or ReportBrokenNotes)
+        // to manage the spinner state correctly in the originating UI context.
 
         try {
             const params = new URLSearchParams();
             updates.forEach(upd => {
-                params.append('maMayTinhList', upd.maMay);
-                params.append('trangThaiList', upd.newStatus);
+                // Add checks for undefined values before appending
+                if (upd.maMay !== undefined && upd.newStatus !== undefined) {
+                    params.append('maMayTinhList', upd.maMay);
+                    params.append('trangThaiList', upd.newStatus);
+                } else {
+                    console.warn("Skipping invalid update entry:", upd);
+                }
             });
-            const url = `https://localhost:8080/CapNhatTrangThaiNhieuMay`; // Token added by fetchApi via query param
-            await fetchApi(`${url}?${params.toString()}`, { method: "PUT" }); // Send as PUT
 
-            message.success(`Đã cập nhật trạng thái ${updates.length} máy tính!`);
-            dispatch({ type: ACTIONS.UPDATE_COMPUTER_STATUS_COMPLETE, payload: { success: true } }); // Closes modal via reducer
-            if (state.statusModal.roomId) fetchComputers(state.statusModal.roomId); // Refresh list in background
+            // Ensure params has entries
+            if (!params.toString()) {
+                console.log("Không có dữ liệu cập nhật trạng thái hợp lệ sau khi lọc.");
+                return { success: true, message: "Không có thay đổi trạng thái hợp lệ." };
+            }
+
+            const url = `https://localhost:8080/CapNhatTrangThaiNhieuMay`;
+            await fetchApi(`${url}?${params.toString()}`, { method: "PUT" });
+
+            // Return success status, let the caller handle UI updates (message, dispatch, refresh)
+            return { success: true, count: updates.length };
+
         } catch (error) {
-            // fetchApi shows Swal for errors (except 401)
-            dispatch({ type: ACTIONS.UPDATE_COMPUTER_STATUS_COMPLETE, payload: { error: error.message } }); // Still closes modal
+            // fetchApi shows Swal/error message
+            // Re-throw the error so the caller knows the update failed
+            throw error;
+        }
+    };
+
+// --- *** MODIFIED: Handle completion trigger from Computer Update Modal *** ---
+    const handleCompleteComputerUpdate = async () => {
+        const { attendanceKeys, brokenReportKeys } = state.computerUpdateModal;
+        const userRole = getUserRole();
+        const { computers: originalComputerList, roomId, roomName, roomStatus } = state.statusModal; // Get necessary context
+
+        if (attendanceKeys.length === 0 && brokenReportKeys.length === 0) {
+            message.info("Chưa chọn máy tính nào để thay đổi trạng thái."); return;
+        }
+        if (userRole === '3' && roomStatus === 'Đang có tiết') {
+            Swal.fire('Cảnh báo', 'Bạn không thể cập nhật trạng thái khi phòng máy đang có tiết!', 'warning');
+            return;
+        }
+
+        // Set loading state for the modal
+        dispatch({ type: ACTIONS.UPDATE_COMPUTER_STATUS_START });
+
+        try {
+            // --- Role 2 Check for Broken Reports ---
+            if (userRole === '2' && brokenReportKeys.length > 0) {
+                const computersToReportDetails = originalComputerList
+                    .filter(comp => comp && brokenReportKeys.includes(comp.maMay)) // Added comp null check
+                    .map(comp => ({ maMay: comp.maMay, tenMay: comp.tenMay, moTa: comp.moTa })); // Pass necessary info
+
+                if (computersToReportDetails.length > 0) {
+                    console.log("Vai trò 2 báo hỏng. Điều hướng sang trang ghi chú.");
+
+                    // Prepare state for navigation
+                    const navigationState = {
+                        computersToReport: computersToReportDetails,
+                        roomId: roomId,
+                        roomName: roomName,
+                        // Pass the keys and context needed for the *final* status update on the notes page
+                        attendanceKeys: attendanceKeys,
+                        brokenReportKeys: brokenReportKeys,
+                        userRole: userRole,
+                        roomStatusForUpdate: roomStatus,
+                        originalComputerList: originalComputerList // Pass the original list
+                    };
+
+                    // Navigate to the new notes page
+                    navigate(`/report-notes/${roomId}`, { state: navigationState, replace: false }); // Don't replace history yet
+
+                    // Important: Don't dispatch COMPLETE here, the modal closes implicitly on navigation.
+                    // The loading state will reset if the user navigates back or when the component unmounts.
+                    // Alternatively, explicitly close the modal *before* navigation if preferred.
+                    dispatch({ type: ACTIONS.HIDE_COMPUTER_UPDATE_MODAL }); // Close modal before navigating
+                    return; // Stop further execution in this handler
+                } else {
+                    console.warn("Có mã máy báo hỏng nhưng không tìm thấy chi tiết máy tính tương ứng.");
+                    // Fall through to normal update if details are missing (unlikely)
+                }
+            }
+
+            // --- Normal Update (Not Role 2 reporting broken, or no broken items) ---
+            console.log("Cập nhật trạng thái trực tiếp.");
+            const updateResult = await performComputerStatusUpdate(
+                originalComputerList,
+                attendanceKeys,
+                brokenReportKeys,
+                userRole,
+                roomStatus
+            );
+
+            if (updateResult.success) {
+                if (updateResult.count > 0) {
+                    message.success(`Đã cập nhật trạng thái ${updateResult.count} máy tính!`);
+                } else {
+                    message.info(updateResult.message || "Không có thay đổi trạng thái nào được áp dụng.");
+                }
+                // Refresh the computer list in the (now hidden) status modal state for consistency
+                if (roomId) fetchComputers(roomId);
+            }
+            // Always dispatch COMPLETE on success or no-op to close modal/reset spinner
+            dispatch({ type: ACTIONS.UPDATE_COMPUTER_STATUS_COMPLETE });
+
+        } catch (error) {
+            // Error handled by performComputerStatusUpdate (Swal)
+            // Dispatch COMPLETE to reset spinner, modal stays open showing the error implicitly via Swal
+            dispatch({ type: ACTIONS.UPDATE_COMPUTER_STATUS_COMPLETE });
         }
     };
 
@@ -487,12 +602,9 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
         if (!state.statusModal.currentDevices || state.statusModal.currentDevices.length === 0) {
             message.warning(`Không có dữ liệu ${tenLoai} để cập nhật.`); return;
         }
-        if (state.statusModal.roomStatus !== 'Trống' && getUserRole() === '3') {
-            Swal.fire({
-                icon: 'warning',
-                title: 'Cảnh báo',
-                text: 'Bạn không thể cập nhật trạng thái thiết bị khi phòng máy đang hoạt độngs!',
-            });
+        const userRole = getUserRole();
+        if (state.statusModal.roomStatus !== 'Trống' && userRole === '3') {
+            Swal.fire('Cảnh báo', 'Bạn không thể cập nhật trạng thái thiết bị khi phòng máy đang có tiết!', 'warning');
             return;
         }
         dispatch({ type: ACTIONS.SHOW_DEVICE_UPDATE_MODAL, payload: { maLoai, tenLoai } });
@@ -501,91 +613,84 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     const handleDeviceUpdateModalClose = () => dispatch({ type: ACTIONS.HIDE_DEVICE_UPDATE_MODAL });
 
     const toggleDeviceUpdateSelection = (maThietBi, deviceStatus) => {
-        const userRole = getUserRole();
-        const roomStatusForUpdate = state.computerUpdateModal.roomStatusForUpdate;
-        if (userRole === '3' && roomStatusForUpdate === 'Trống') {
-            if (deviceStatus !== BROKEN_STATUS) return; // Role 3 only updates from BROKEN
-        }
-        dispatch({ type: ACTIONS.TOGGLE_DEVICE_UPDATE_SELECTION, payload: {key: maThietBi, deviceStatus} });
+        dispatch({ type: ACTIONS.TOGGLE_DEVICE_UPDATE_SELECTION, payload: { key: maThietBi, deviceStatus } });
     };
 
     const toggleDeviceReportBrokenSelection = (maThietBi, deviceStatus) => {
-        const userRole = getUserRole();
-        const roomStatusForUpdate = state.computerUpdateModal.roomStatusForUpdate;
-        if (userRole === '3' && roomStatusForUpdate === 'Trống') {
-            return; // Role 3 should not report broken from modal in empty room context
-        }
-        dispatch({ type: ACTIONS.TOGGLE_DEVICE_REPORT_BROKEN_SELECTION, payload: {key: maThietBi, deviceStatus} });
+        dispatch({ type: ACTIONS.TOGGLE_DEVICE_REPORT_BROKEN_SELECTION, payload: { key: maThietBi, deviceStatus } });
     };
 
-
     const handleCompleteDeviceUpdate = async () => {
-        const selectedKeys = state.deviceUpdateModal.selectedKeys;
-        const brokenReportKeys = state.deviceUpdateModal.brokenReportKeys; // Get broken report keys for devices
+        const { selectedKeys, brokenReportKeys } = state.deviceUpdateModal;
         const userRole = getUserRole();
-        const roomStatusForUpdate = state.computerUpdateModal.roomStatusForUpdate;
-
+        const { currentDevices, roomStatus } = state.statusModal; // Get context
 
         if (selectedKeys.length === 0 && brokenReportKeys.length === 0) {
             message.info("Chưa chọn thiết bị nào để thay đổi trạng thái."); return;
         }
-        if (state.statusModal.roomStatus === 'Đang có tiết' && getUserRole() === '3') {
-            Swal.fire({
-                icon: 'warning',
-                title: 'Cảnh báo',
-                text: 'Bạn không thể cập nhật trạng thái thiết bị khi phòng máy đang hoạt động!',
-            });
-            dispatch({ type: ACTIONS.UPDATE_DEVICE_STATUS_COMPLETE, payload: { success: false } });
+        if (roomStatus === 'Đang có tiết' && userRole === '3') {
+            Swal.fire('Cảnh báo', 'Bạn không thể cập nhật trạng thái thiết bị khi phòng máy đang có tiết!', 'warning');
             return;
         }
 
         dispatch({ type: ACTIONS.UPDATE_DEVICE_STATUS_START });
-        const updates = state.statusModal.currentDevices
-            .filter(dev => {
-                if (userRole === '3' && roomStatusForUpdate === 'Trống') {
-                    if (dev.trangThai !== BROKEN_STATUS) return false; // Role 3 only updates from BROKEN in "Trống" room
-                    return selectedKeys.includes(dev.maThietBi); // Role 3 only changes BROKEN to ACTIVE/INACTIVE using selectedKeys toggle
-                }
-                return (selectedKeys.includes(dev.maThietBi) || brokenReportKeys.includes(dev.maThietBi)) && dev.trangThai !== BROKEN_STATUS;
-            })
-            .map(dev => {
-                let newStatus;
-                if (userRole === '3' && roomStatusForUpdate === 'Trống') {
-                    newStatus = selectedKeys.includes(dev.maThietBi) ? ACTIVE_STATUS : INACTIVE_STATUS; // Role 3: selectedKeys toggles between ACTIVE and INACTIVE from BROKEN
-                } else if (brokenReportKeys.includes(dev.maThietBi)) {
-                    newStatus = BROKEN_STATUS;
-                } else if (selectedKeys.includes(dev.maThietBi)) {
-                    newStatus = ACTIVE_STATUS;
-                } else {
-                    newStatus = INACTIVE_STATUS;
-                }
-                return {
-                    maThietBi: dev.maThietBi,
-                    newStatus: newStatus
-                };
-            });
-
-        if (updates.length === 0) {
-            message.warning("Không có thay đổi trạng thái hợp lệ.");
-            dispatch({ type: ACTIONS.UPDATE_DEVICE_STATUS_COMPLETE, payload: { success: false } });
-            return;
-        }
 
         try {
+            const updates = currentDevices
+                .filter(dev => dev && (selectedKeys.includes(dev.maThietBi) || brokenReportKeys.includes(dev.maThietBi))) // Added dev null check
+                .map(dev => {
+                    let newStatus;
+                    if (brokenReportKeys.includes(dev.maThietBi)) {
+                        newStatus = BROKEN_STATUS;
+                    } else if (userRole === '3' && roomStatus === 'Trống' && dev.trangThai === BROKEN_STATUS && selectedKeys.includes(dev.maThietBi)) {
+                        newStatus = ACTIVE_STATUS;
+                    } else if (selectedKeys.includes(dev.maThietBi) && dev.trangThai !== BROKEN_STATUS) {
+                        newStatus = dev.trangThai === ACTIVE_STATUS ? INACTIVE_STATUS : ACTIVE_STATUS;
+                    } else {
+                        newStatus = dev.trangThai;
+                    }
+
+                    if (dev.trangThai === BROKEN_STATUS && !(userRole === '3' && roomStatus === 'Trống' && selectedKeys.includes(dev.maThietBi))) {
+                        newStatus = BROKEN_STATUS;
+                    }
+
+                    return { maThietBi: dev.maThietBi, newStatus: newStatus };
+                })
+                .filter(upd => {
+                    const originalDev = currentDevices.find(d => d && d.maThietBi === upd.maThietBi); // Added d null check
+                    return originalDev && originalDev.trangThai !== upd.newStatus;
+                });
+
+            if (updates.length === 0) {
+                message.info("Không có thay đổi trạng thái thiết bị nào được áp dụng.");
+                dispatch({ type: ACTIONS.UPDATE_DEVICE_STATUS_COMPLETE }); // Close modal
+                return;
+            }
+
             const params = new URLSearchParams();
             updates.forEach(upd => {
-                params.append('maThietBiList', upd.maThietBi);
-                params.append('trangThaiList', upd.newStatus);
+                if (upd.maThietBi !== undefined && upd.newStatus !== undefined) {
+                    params.append('maThietBiList', upd.maThietBi);
+                    params.append('trangThaiList', upd.newStatus);
+                }
             });
+
+            if (!params.toString()) {
+                message.info("Không có dữ liệu cập nhật hợp lệ.");
+                dispatch({ type: ACTIONS.UPDATE_DEVICE_STATUS_COMPLETE });
+                return;
+            }
+
             const url = `https://localhost:8080/CapNhatTrangThaiNhieuThietBi`;
             await fetchApi(`${url}?${params.toString()}`, { method: "PUT" });
 
             message.success(`Đã cập nhật trạng thái ${updates.length} thiết bị!`);
-            dispatch({ type: ACTIONS.UPDATE_DEVICE_STATUS_COMPLETE, payload: { success: true } }); // Closes modal
-            const maLoaiToRefresh = state.deviceUpdateModal.currentType.maLoai; // Get type before modal state resets
+            dispatch({ type: ACTIONS.UPDATE_DEVICE_STATUS_COMPLETE }); // Closes modal
+            const maLoaiToRefresh = state.deviceUpdateModal.currentType.maLoai;
             if (maLoaiToRefresh) fetchDevicesByType(maLoaiToRefresh); // Refresh list
+
         } catch (error) {
-            dispatch({ type: ACTIONS.UPDATE_DEVICE_STATUS_COMPLETE, payload: { error: error.message } }); // Closes modal
+            dispatch({ type: ACTIONS.UPDATE_DEVICE_STATUS_COMPLETE }); // Close modal on error
         }
     };
 
@@ -594,107 +699,139 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     const checkUserAndShowModal = async () => {
         dispatch({ type: ACTIONS.LOAD_USER_PROFILE_START });
         try {
-            // Assuming an API endpoint to get profile using the token
             const username = getUsername();
+            if (!username) throw new Error("Không tìm thấy tên đăng nhập.");
 
-
-
-            const params = new URLSearchParams();
-            params.append('username', username);
-
-
+            const params = new URLSearchParams({ username });
             const url = `https://localhost:8080/checkUser?${params.toString()}`;
-            const response = await fetchApi(url, {}, true); // Mark as public
+            // checkUser often doesn't need auth if it's just checking existence/basic info
+            const response = await fetchApi(url, {}, true); // Assuming public or adjust isPublic
+            if (!response) throw new Error("Không nhận được phản hồi từ API kiểm tra người dùng.");
+
             const responseData = await response.json();
 
-            if (responseData.status === "success") {
+            if (responseData.status === "success" && responseData.data) {
                 const profileData = responseData.data;
                 dispatch({ type: ACTIONS.LOAD_USER_PROFILE_SUCCESS, payload: profileData });
-                // Set form values AFTER dispatch updates the state
-                form.setFieldsValue({
-                    tenDangNhap: profileData.tenDangNhap,
-                    email: profileData.email,
-                });
-                // Update avatar state (reducer handles image URL processing)
-                // Need to access the updated state *after* dispatch
-                // This might require accessing state directly or using a separate effect
-                // For simplicity, let's assume reducer updates image correctly and maybe LabManagement uses state.userProfileModal.image directly
-                if (setAvatarImage && profileData.image) {
-                    const urls = profileData.image.split(' ').filter(url => url && url.startsWith('http'));
-                    const imageUrl = urls.length > 0 ? urls[urls.length - 1] : null;
-                    setAvatarImage(imageUrl); // Update the separate avatar state
-                } else {
-                    setAvatarImage(null);
+
+                if (form) {
+                    form.setFieldsValue({
+                        tenDangNhap: profileData.tenDangNhap,
+                        email: profileData.email,
+                        image: profileData.image ? [{ // Format for Antd Upload
+                            uid: '-1', // Static UID for existing image
+                            name: 'avatar.png', // Placeholder name
+                            status: 'done',
+                            url: profileData.image.split(' ').filter(url => url && url.startsWith('http')).pop(), // Get last valid URL
+                        }] : [], // Empty array if no image
+                    });
+                }
+                if (setAvatarImage) { // Update header avatar too
+                    setAvatarImage(profileData.image ? profileData.image.split(' ').filter(url => url && url.startsWith('http')).pop() : null);
                 }
 
             } else {
                 throw new Error(responseData.message || "Lỗi khi tải dữ liệu hồ sơ");
             }
         } catch (error) {
-            // fetchApi shows Swal for network/HTTP errors (except 401)
-            if (error.message !== "Unauthorized" && error.message !== "Unauthorized - Refresh Failed") { // Prevent duplicate error for unauthorized
-                Swal.fire("Lỗi", `Không thể tải hồ sơ người dùng: ${error.message}`, "error");
-            }
             dispatch({ type: ACTIONS.LOAD_USER_PROFILE_ERROR, payload: error.message });
+            // Close modal on load error? Or keep open to show error? Let's keep it open.
+            message.error(`Lỗi tải hồ sơ: ${error.message}`); // Show direct message
         }
     };
 
     const handleUserProfileUpdate = async () => {
+        if (!form) return;
+
         try {
             const values = await form.validateFields();
-            const token = getToken(); // Needed for FormData fetch
-            if (!token) throw new Error("Unauthorized");
+            const currentToken = getToken();
+            // No need to check token here, fetchApi inside this function will handle it if needed for other calls,
+            // but the main update call below uses standard fetch with manual token. Check manually.
+            if (!currentToken && !isTokenExpired()) { // Check if token exists and is not expired
+                console.log("Token hết hạn trước khi cập nhật hồ sơ, thử làm mới...");
+                const refreshed = await refreshTokenApi();
+                if (!refreshed) throw new Error("Unauthorized - Refresh Failed");
+                // currentToken = getToken(); // Get the new token if needed below (it is for the fetch URL)
+            }
+            // Re-check after potential refresh
+            const finalToken = getToken();
+            if (!finalToken) throw new Error("Unauthorized - No Token");
+
 
             dispatch({ type: ACTIONS.UPDATE_USER_PROFILE_START });
 
             const formData = new FormData();
-            // Use profile data from current state
             formData.append("maTK", state.userProfileModal.profile.maTK);
             formData.append("tenDangNhap", values.tenDangNhap);
             formData.append("email", values.email);
-            // Only include imageFile if a new file was selected
-            if (values.image && values.image.length > 0 && values.image[0].originFileObj) {
-                formData.append("imageFile", values.image[0].originFileObj);
-            }
-            formData.append("maQuyen", state.userProfileModal.profile.quyen);
-            // Password handling: Avoid sending password if possible.
-            // If required, get it securely, not from localStorage ideally.
-            // const matKhau = localStorage.getItem("password"); // Avoid if possible
-            // if (matKhau) formData.append("matKhau", matKhau);
 
-            // Use standard fetch for FormData
-            const response = await fetch(`https://localhost:8080/CapNhatTaiKhoan?token=${token}`, {
-                method: "PUT", body: formData,
-                // No 'Content-Type' header needed for FormData
+            // Handle file upload: Antd Form stores file info in values.image
+            if (values.image && values.image.length > 0 && values.image[0].originFileObj) {
+                // New file uploaded
+                formData.append("imageFile", values.image[0].originFileObj);
+            } else if (!values.image || values.image.length === 0) {
+                // Image was removed in the form, signal backend to potentially clear it
+                // Option 1: Send a specific flag (if backend supports it)
+                // formData.append("clearImage", "true");
+                // Option 2: Send an empty value for the file (might not work reliably)
+                // formData.append("imageFile", ""); // Or just don't append imageFile
+                // Option 3: Explicitly send the existing URL to keep it (if backend defaults to clearing if no file)
+                // if (state.userProfileModal.profile.image) { formData.append("existingImageUrl", state.userProfileModal.profile.image); }
+                // *** Let's assume backend keeps image if `imageFile` is not sent ***
+            } // Else: Existing image file is shown but not changed, do nothing for imageFile
+
+
+            formData.append("maQuyen", state.userProfileModal.profile.quyen);
+
+            // Use standard fetch for FormData, add token MANUALLY to URL
+            const response = await fetch(`https://localhost:8080/CapNhatTaiKhoan?token=${finalToken}`, {
+                method: "PUT",
+                body: formData,
             });
 
-            // Manual error handling similar to fetchApi for non-JSON responses or FormData cases
-            if (response.status === 401) throw new Error("Unauthorized"); // Handle 401 specifically
+            // Manual error handling
+            if (response.status === 401) throw new Error("Unauthorized");
             if (!response.ok) {
                 let errorMsg = `Lỗi HTTP ${response.status}`;
-                try { errorMsg = (await response.json()).message || errorMsg } catch(e){}
+                try { errorMsg = (await response.json()).message || errorMsg; } catch (e) {}
                 throw new Error(errorMsg);
             }
 
             const updatedUser = await response.json();
             message.success("Cập nhật hồ sơ thành công!");
-            dispatch({ type: ACTIONS.UPDATE_USER_PROFILE_SUCCESS, payload: updatedUser }); // Closes modal via reducer
+            dispatch({ type: ACTIONS.UPDATE_USER_PROFILE_SUCCESS, payload: updatedUser });
 
-            // Update separate avatar state based on the new profile data in the reducer state
-            let updatedImageUrl = null;
-            if (updatedUser.image) {
-                const urls = updatedUser.image.split(' ').filter(url => url && url.startsWith('http'));
-                updatedImageUrl = urls.length > 0 ? urls[urls.length - 1] : null;
+            if (setAvatarImage) {
+                let updatedImageUrl = null;
+                if (updatedUser.image) {
+                    const urls = updatedUser.image.split(' ').filter(url => url && url.startsWith('http'));
+                    updatedImageUrl = urls.length > 0 ? urls[urls.length - 1] : null;
+                }
+                // If image was removed, updatedUser.image should be null/empty from backend
+                else if (!values.image || values.image.length === 0) {
+                    updatedImageUrl = null; // Explicitly clear avatar if removed
+                }
+                // If existing image kept, updatedUser.image should still have the old URL
+                else {
+                    updatedImageUrl = state.userProfileModal.image; // Keep old image if no change
+                }
+                setAvatarImage(updatedImageUrl);
             }
-            if(setAvatarImage) setAvatarImage(updatedImageUrl);
 
-
-        } catch (error) {
-            if (error.message !== "Unauthorized" && error.message !== "Unauthorized - Refresh Failed") { // Avoid duplicate Swal for 401
-                Swal.fire("Lỗi", `Cập nhật hồ sơ thất bại: ${error.message}`, "error");
+        } catch (errorInfo) {
+            if (errorInfo.errorFields) {
+                console.log("Lỗi xác thực form:", errorInfo);
+                message.error("Vui lòng kiểm tra lại thông tin đã nhập.");
+                dispatch({ type: ACTIONS.UPDATE_USER_PROFILE_ERROR, payload: "Lỗi xác thực form." });
+            } else {
+                console.error("Lỗi cập nhật hồ sơ:", errorInfo);
+                // Avoid duplicate Swal for Unauthorized variations
+                if (!errorInfo.message.includes("Unauthorized")) {
+                    Swal.fire("Lỗi", `Cập nhật hồ sơ thất bại: ${errorInfo.message}`, "error");
+                }
+                dispatch({ type: ACTIONS.UPDATE_USER_PROFILE_ERROR, payload: errorInfo.message });
             }
-            dispatch({ type: ACTIONS.UPDATE_USER_PROFILE_ERROR, payload: error.message }); // Still closes modal? No, keep open on error.
-            // Adjust reducer: UPDATE_USER_PROFILE_ERROR should only set updating=false, not close modal.
         }
     };
 
@@ -705,39 +842,53 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     const handleLogout = async () => {
         try {
             const url = `https://localhost:8080/logout`;
-            await fetchApi(url, { method: 'POST' }); // fetchApi handles token & 401
-            // Proceed with client-side logout regardless of server response (unless 401 handled navigation)
-            message.success("Đăng xuất thành công!");
+            await fetchApi(url, { method: 'POST' });
+            // message.success("Đã gửi yêu cầu đăng xuất!"); // Optional feedback
         } catch (error) {
-            // Log error but proceed with client logout if not already navigated by 401 handler
-            if (error.message !== "Unauthorized" && error.message !== "Unauthorized - Refresh Failed") {
-                console.error("Logout API error:", error);
-                message.warning("Đã xảy ra lỗi khi liên hệ máy chủ đăng xuất, nhưng bạn sẽ được đăng xuất khỏi trình duyệt.");
+            // Log non-auth errors, but proceed with client logout
+            if (!error.message.includes("Unauthorized")) {
+                console.error("Lỗi API đăng xuất (không nghiêm trọng):", error);
+                message.warning("Lỗi liên hệ máy chủ đăng xuất, bạn sẽ được đăng xuất khỏi trình duyệt.", 3);
             }
+            // If error was auth-related, fetchApi already handled navigation/Swal
         } finally {
-            // Always clear local storage and navigate on logout attempt
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('refreshToken');
-            localStorage.removeItem('expireAt');
-            localStorage.removeItem('username');
-            localStorage.removeItem('userRole');
-            localStorage.removeItem('password');
+            // Always clear local storage and navigate
+            localStorage.clear();
             navigate("/login", { replace: true });
+            message.success("Đăng xuất thành công!", 2);
         }
     };
 
 // --- Return all handlers ---
     return {
+        // Search & Table
         handleSearchChange, handleColumnSelect, performSearch, handleTableChange, onSelectChange,
+        // Delete
         handleDelete, confirmDeleteMultiple,
+        // QR
         fetchLabRoomsForQrCode, handleCancelQrModal,
+        // Status Modal
         showComputerStatusModal, handleStatusModalClose, handleTabChange,
-        handleOpenUpdateModal, handleComputerUpdateModalClose, toggleComputerAttendanceSelection, toggleComputerReportBrokenSelection, handleCompleteComputerUpdate, handleChangeAllBroken, // Include handleChangeAllBroken
-        handleOpenDeviceUpdateModal, handleDeviceUpdateModalClose, toggleDeviceUpdateSelection, toggleDeviceReportBrokenSelection, handleCompleteDeviceUpdate, // Include toggleDeviceReportBrokenSelection
+        fetchComputers, fetchDeviceTypes, fetchDevicesByType,
+        // Computer Update Modal
+        handleOpenUpdateModal, handleComputerUpdateModalClose,
+        toggleComputerAttendanceSelection, toggleComputerReportBrokenSelection,
+        handleChangeAllBroken, handleCompleteComputerUpdate, // Modified trigger
+        // Device Update Modal
+        handleOpenDeviceUpdateModal, handleDeviceUpdateModalClose,
+        toggleDeviceUpdateSelection, toggleDeviceReportBrokenSelection,
+        handleCompleteDeviceUpdate,
+        // *** NO Report Notes Modal Handlers needed here ***
+        // Detail Modals
+        fetchComputerDetail, handleComputerDetailModalClose,
+        fetchDeviceDetail, handleDeviceDetailModalClose,
+        // User Profile
         checkUserAndShowModal, handleUserProfileUpdate, handleUserProfileModalCancel,
+        // Auth
         handleLogout,
-        fetchComputerDetail, handleComputerDetailModalClose, // Add new handlers
-        fetchDeviceDetail, handleDeviceDetailModalClose, // Add device detail handlers
-        isTokenExpired, // Export for component use
+        isTokenExpired,
+        // Expose fetchApi and performComputerStatusUpdate if needed by ReportBrokenNotes
+        fetchApi,
+        performComputerStatusUpdate,
     };
 };
