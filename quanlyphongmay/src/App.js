@@ -59,6 +59,7 @@ const QuanLiNhanVien = lazy(() => import('./components/Admin/NhanVien/quanlinhan
 const Maytinh = lazy(() => import('./components/maytinh/maytinh'));
 const EditMayTinh = lazy(() => import('./components/maytinh/editmaytinh'));
 const AddMayTinh = lazy(() => import('./components/maytinh/addmaytinh'));
+const ReportBrokenNotes = lazy(() => import('./components/PhongMay/ReportBrokenNotes'))
 const Register = lazy(() => import('./components/Register'));
 const ForgotPass = lazy(() => import('./components/Login/forgotpassword'));
 const VerifyOtp = lazy(() => import('./components/Login/verifyotp'));
@@ -109,6 +110,12 @@ const router = createBrowserRouter([
         element: <ProtectedRoute component={Tang} />,
          loader: tangLoader, // Loader cho trang quản lý tầng nếu cần
       },
+      {
+        path: "report-notes/:roomId",
+        element: <ProtectedRoute component={ReportBrokenNotes} />,
+        // loader: editPhongMayLoader, // Có thể thêm loader nếu cần fetch data phòng cụ thể
+      },
+
       {
         path: "edittang/:maTang",
         element: <ProtectedRoute component={EditTang} />,
