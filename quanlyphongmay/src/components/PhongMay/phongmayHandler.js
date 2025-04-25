@@ -621,49 +621,129 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
     };
 
     const handleCompleteDeviceUpdate = async () => {
-        const { selectedKeys, brokenReportKeys } = state.deviceUpdateModal;
-        const userRole = getUserRole();
-        const { currentDevices, roomStatus } = state.statusModal; // Get context
+        // --- Get State and User Info ---
+        const { selectedKeys, brokenReportKeys, currentType } = state.deviceUpdateModal; // Include currentType
+        const userRole = getUserRole(); // Assuming this function correctly returns '1', '2', or '3'
+        // Get context from statusModal: full list of devices for the current type, room details
+        const { currentDevices: originalDeviceList, roomId, roomName, roomStatus } = state.statusModal;
 
+        // --- Initial Checks ---
         if (selectedKeys.length === 0 && brokenReportKeys.length === 0) {
-            message.info("Chưa chọn thiết bị nào để thay đổi trạng thái."); return;
+            message.info("Chưa chọn thiết bị nào để thay đổi trạng thái.");
+            return;
         }
+        // Role 3 cannot update devices during class (adjust if needed)
         if (roomStatus === 'Đang có tiết' && userRole === '3') {
-            Swal.fire('Cảnh báo', 'Bạn không thể cập nhật trạng thái thiết bị khi phòng máy đang có tiết!', 'warning');
+            Swal.fire('Cảnh báo', `Bạn không thể cập nhật trạng thái ${currentType.tenLoai || 'thiết bị'} khi phòng máy đang có tiết!`, 'warning');
             return;
         }
 
-        dispatch({ type: ACTIONS.UPDATE_DEVICE_STATUS_START });
+        // --- Set Loading State ---
+        dispatch({ type: ACTIONS.UPDATE_DEVICE_STATUS_START }); // Use specific action for devices
 
         try {
-            const updates = currentDevices
-                .filter(dev => dev && (selectedKeys.includes(dev.maThietBi) || brokenReportKeys.includes(dev.maThietBi))) // Added dev null check
+            // --- Role 2 Reporting Broken Devices: Navigate to Report Notes ---
+            if (userRole === '2' && brokenReportKeys.length > 0) {
+
+                // Filter and map the details of devices marked as broken
+                const devicesToReportDetails = originalDeviceList
+                    .filter(dev => dev && brokenReportKeys.includes(dev.maThietBi))
+                    .map(dev => ({
+                        maThietBi: dev.maThietBi,
+                        tenThietBi: dev.tenThietBi,
+                        moTa: dev.moTa, // Include any other relevant info needed by ReportBrokenNotes
+                        // You might not need the full loaiThietBi object, deviceTypeName is passed separately
+                    }));
+
+                if (devicesToReportDetails.length > 0) {
+                    console.log("Vai trò 2 báo hỏng thiết bị. Điều hướng sang trang ghi chú.");
+
+                    // --- Construct Navigation State ---
+                    // This state object passes all necessary info to the ReportBrokenNotes component
+                    const navigationState = {
+                        reportType: 'device', // Crucial: Identify the type of report
+                        itemsToReport: devicesToReportDetails, // The list of broken devices with their details
+                        originalItemsFullList: originalDeviceList, // The complete original list of devices *of this type*
+                        roomId: roomId,
+                        roomName: roomName,
+                        deviceTypeName: currentType.tenLoai, // Name of the device type (e.g., "Máy chiếu")
+                        deviceTypeId: currentType.maLoai,     // ID of the device type
+                        // Pass the initial selections made in this modal:
+                        initialSelectedKeys: selectedKeys,        // For non-broken toggles/fixes
+                        initialBrokenReportKeys: brokenReportKeys,// For broken items
+                        // Pass context needed for final update logic on the notes page:
+                        userRole: userRole,
+                        roomStatusForUpdate: roomStatus,
+                    };
+
+                    // --- Navigate ---
+                    // Ensure '/phongmay/report-broken-notes' is the correct route for your unified notes component
+                    navigate(`/reportdevice-notes/${roomId}`, { state: navigationState, replace: false }); // Don't replace history yet
+
+
+                    // --- Close Current Modal ---
+                    // Close the device update modal *before* navigating away
+                    dispatch({ type: ACTIONS.HIDE_DEVICE_UPDATE_MODAL }); // Use the correct action type for hiding this specific modal
+                    return; // Stop execution in this handler, as navigation will occur
+                } else {
+                    // Edge case: brokenReportKeys had IDs, but no matching devices found in the list
+                    console.warn("Có mã thiết bị báo hỏng nhưng không tìm thấy chi tiết thiết bị tương ứng.");
+                    // Decide whether to fall through to direct update or show an error. Falling through might be okay.
+                }
+            }
+
+            // --- Direct Update Path (Not Role 2 reporting broken, or no broken items reported) ---
+            console.log("Cập nhật trạng thái thiết bị trực tiếp.");
+
+            // Calculate updates based on selectedKeys and brokenReportKeys (if any, for non-Role 2)
+            // This logic should correctly determine the final status based on role, room status, and selections
+            const updates = originalDeviceList // Use originalDeviceList for accurate comparison
+                .filter(dev => dev) // Ensure device object exists
                 .map(dev => {
-                    let newStatus;
+                    let newStatus = dev.trangThai; // Start with the original status
+
+                    // Priority 1: Marked as broken (by any role *except* Role 2 who navigates away)
+                    // Or if already broken and not being fixed.
                     if (brokenReportKeys.includes(dev.maThietBi)) {
+                        // If Role 2, this block wouldn't be reached for broken items.
+                        // For other roles, marking broken takes precedence.
                         newStatus = BROKEN_STATUS;
-                    } else if (userRole === '3' && roomStatus === 'Trống' && dev.trangThai === BROKEN_STATUS && selectedKeys.includes(dev.maThietBi)) {
+                    }
+                    // Priority 2: Role 3 fixing a BROKEN device in an empty room
+                    else if (userRole === '3' && roomStatus === 'Trống' && dev.trangThai === BROKEN_STATUS && selectedKeys.includes(dev.maThietBi)) {
                         newStatus = ACTIVE_STATUS;
-                    } else if (selectedKeys.includes(dev.maThietBi) && dev.trangThai !== BROKEN_STATUS) {
+                    }
+                    // Priority 3: Toggling ACTIVE <-> INACTIVE (if selected and not currently broken)
+                    else if (selectedKeys.includes(dev.maThietBi) && dev.trangThai !== BROKEN_STATUS) {
                         newStatus = dev.trangThai === ACTIVE_STATUS ? INACTIVE_STATUS : ACTIVE_STATUS;
-                    } else {
-                        newStatus = dev.trangThai;
+                    }
+                    // Else: status remains unchanged (newStatus = dev.trangThai)
+
+                    // Final safeguard: If a device was originally broken, it cannot become INACTIVE directly here.
+                    // It must either stay BROKEN or be explicitly fixed to ACTIVE by Role 3.
+                    if (dev.trangThai === BROKEN_STATUS && newStatus === INACTIVE_STATUS) {
+                        newStatus = BROKEN_STATUS; // Revert unintended change
+                    }
+                    // Also ensure BROKEN status persists if marked broken and not fixed
+                    if (dev.trangThai === BROKEN_STATUS && !(userRole === '3' && roomStatus === 'Trống' && selectedKeys.includes(dev.maThietBi)) ) {
+                        // If it started broken and wasn't explicitly fixed by Role 3, it stays broken,
+                        // regardless of whether it was in `selectedKeys` or `brokenReportKeys` this time.
+                        newStatus = BROKEN_STATUS;
                     }
 
-                    if (dev.trangThai === BROKEN_STATUS && !(userRole === '3' && roomStatus === 'Trống' && selectedKeys.includes(dev.maThietBi))) {
-                        newStatus = BROKEN_STATUS;
-                    }
 
                     return { maThietBi: dev.maThietBi, newStatus: newStatus };
                 })
                 .filter(upd => {
-                    const originalDev = currentDevices.find(d => d && d.maThietBi === upd.maThietBi); // Added d null check
+                    // Only include updates where the status actually changes
+                    const originalDev = originalDeviceList.find(d => d && d.maThietBi === upd.maThietBi);
                     return originalDev && originalDev.trangThai !== upd.newStatus;
                 });
 
+            // --- Perform API Call if Updates Exist ---
             if (updates.length === 0) {
-                message.info("Không có thay đổi trạng thái thiết bị nào được áp dụng.");
-                dispatch({ type: ACTIONS.UPDATE_DEVICE_STATUS_COMPLETE }); // Close modal
+                message.info(`Không có thay đổi trạng thái ${currentType.tenLoai || 'thiết bị'} nào được áp dụng.`);
+                dispatch({ type: ACTIONS.UPDATE_DEVICE_STATUS_COMPLETE }); // Close modal, reset state
                 return;
             }
 
@@ -681,19 +761,30 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
                 return;
             }
 
+            // Assuming fetchApi handles auth, errors, and Swal messages
+            // Ensure the URL is correct for updating multiple devices
             const url = `https://localhost:8080/CapNhatTrangThaiNhieuThietBi`;
-            await fetchApi(`${url}?${params.toString()}`, { method: "PUT" });
+            await fetchApi(`${url}?${params.toString()}`, { method: "PUT" }, false, navigate); // Pass navigate
 
-            message.success(`Đã cập nhật trạng thái ${updates.length} thiết bị!`);
-            dispatch({ type: ACTIONS.UPDATE_DEVICE_STATUS_COMPLETE }); // Closes modal
-            const maLoaiToRefresh = state.deviceUpdateModal.currentType.maLoai;
-            if (maLoaiToRefresh) fetchDevicesByType(maLoaiToRefresh); // Refresh list
+            // --- Success Handling ---
+            message.success(`Đã cập nhật trạng thái ${updates.length} ${currentType.tenLoai || 'thiết bị'}!`);
+            dispatch({ type: ACTIONS.UPDATE_DEVICE_STATUS_COMPLETE }); // Close modal, reset state
+
+            // --- Refresh Data ---
+            // Refresh the list of devices for the specific type that was just updated
+            const maLoaiToRefresh = currentType.maLoai;
+            if (maLoaiToRefresh && roomId) { // Check if we have the type ID and room ID
+                fetchDevicesByType(roomId, maLoaiToRefresh); // Call your function to refresh the list
+            }
 
         } catch (error) {
-            dispatch({ type: ACTIONS.UPDATE_DEVICE_STATUS_COMPLETE }); // Close modal on error
+            // Error messages are likely shown by fetchApi via Swal
+            console.error(`Lỗi khi cập nhật trạng thái ${currentType.tenLoai || 'thiết bị'}:`, error);
+            // Ensure loading state is reset even on error
+            dispatch({ type: ACTIONS.UPDATE_DEVICE_STATUS_COMPLETE });
+            // Modal might stay open if fetchApi error occurred, allowing user to retry or cancel
         }
     };
-
 
 // --- User Profile Handlers ---
     const checkUserAndShowModal = async () => {
