@@ -1,25 +1,29 @@
 // src/PhongMay/ReportBrokenNotes.js
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react'; // Added useMemo
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
-    Layout, Button, Input, Form, Spin, Alert, message, Typography, Card
+    Layout, Button, Input, Form, Spin, Alert, message, Typography, Card,
+    Modal, List // Added Modal, List
 } from 'antd';
-import { SaveOutlined, ArrowLeftOutlined, ToolOutlined } from '@ant-design/icons'; // Added ToolOutlined
+import { SaveOutlined, ArrowLeftOutlined, ToolOutlined, SearchOutlined, UnorderedListOutlined } from '@ant-design/icons'; // Added icons
 import Swal from 'sweetalert2';
+
+// --- Import common errors ---
+import { allErrorCategories } from './commonErrors'; // Adjust path if needed
 
 // Assuming action.js defines these correctly relative to this file's usage
 // If not, define them directly or adjust import path
 const BROKEN_STATUS = 'Đã hỏng';
-const ACTIVE_STATUS = 'Đang hoạt động';
-const INACTIVE_STATUS = 'Không hoạt động';
+// ... (other constants if needed)
 
 const { Content, Header } = Layout;
 const { TextArea } = Input;
 const { Title, Paragraph, Text } = Typography; // Use Typography components
 
-// --- Reusable fetchApi (Keep as is from previous version - handles auth) ---
+// --- Reusable fetchApi (Keep as is) ---
 const fetchApi = async (url, options = {}, isPublic = false, navigateHook) => {
+    // ... (Keep the existing fetchApi function unchanged) ...
     const getToken = () => localStorage.getItem("authToken");
     const getRefreshToken = () => localStorage.getItem("refreshToken");
     const getExpiresAtTimestamp = () => localStorage.getItem("expireAt");
@@ -124,15 +128,17 @@ const fetchApi = async (url, options = {}, isPublic = false, navigateHook) => {
     }
 };
 
-// --- Reusable performComputerStatusUpdate (Keep as is from previous version - logic is correct for this context) ---
+
+// --- Reusable performComputerStatusUpdate (Keep as is) ---
 const performComputerStatusUpdate = async (
     computersToUpdateFrom,
-    attendanceKeys, // These are less relevant here but passed for consistency
-    brokenReportKeys, // This is the key list driving the update on this page
+    attendanceKeys,
+    brokenReportKeys,
     userRole,
     roomStatusForUpdate,
     navigateHook
 ) => {
+    // ... (Keep the existing performComputerStatusUpdate function unchanged) ...
     if (!Array.isArray(computersToUpdateFrom) || !Array.isArray(brokenReportKeys)) {
         console.error("Invalid input to performComputerStatusUpdate");
         throw new Error("Lỗi nội bộ: Dữ liệu cập nhật trạng thái không hợp lệ.");
@@ -186,15 +192,13 @@ const performComputerStatusUpdate = async (
 function ReportBrokenNotes() {
     const navigate = useNavigate();
     const location = useLocation();
-    const { roomId } = useParams(); // Room ID from URL
+    const { roomId } = useParams();
     const [form] = Form.useForm();
 
-    // --- Safely access state passed from LabManagement ---
     const passedState = location.state || {};
     const {
-        computersToReport = [], // Should contain ONLY computers marked for broken report
+        computersToReport = [],
         roomName = 'Phòng không xác định',
-        // Full context needed for the final status update API call
         originalComputerList = [],
         attendanceKeys = [],
         brokenReportKeys = [],
@@ -202,19 +206,20 @@ function ReportBrokenNotes() {
         roomStatusForUpdate = null,
     } = passedState;
 
-    // --- Component State ---
-    // No need for separate 'notes' state if using Form's state management
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null); // For displaying API/process errors
+    const [error, setError] = useState(null);
+    // --- State for Error Selection Modal ---
+    const [isModalVisible, setIsModalVisible] = useState(false);
+    const [selectedComputerForModal, setSelectedComputerForModal] = useState(null); // Store maMay
+    const [searchTerm, setSearchTerm] = useState('');
+    // --- End State for Modal ---
 
-    // --- Effects ---
     useEffect(() => {
-        // Initialize form fields with empty strings when component loads
         if (Array.isArray(computersToReport) && computersToReport.length > 0) {
             const initialFormValues = {};
             computersToReport.forEach(comp => {
                 if (comp && comp.maMay !== undefined && comp.maMay !== null) {
-                    initialFormValues[String(comp.maMay)] = ''; // Ensure key is string for form
+                    initialFormValues[String(comp.maMay)] = '';
                 }
             });
             form.setFieldsValue(initialFormValues);
@@ -225,16 +230,60 @@ function ReportBrokenNotes() {
             setError("Không có máy tính nào được chọn để báo hỏng.");
             console.error("computersToReport is empty or invalid:", computersToReport);
         }
-    }, [computersToReport, form, location.state]); // Rerun if computersToReport changes
+    }, [computersToReport, form, location.state]);
 
-    // --- Input Validation Check ---
     const isValidInput = roomId && Array.isArray(computersToReport) && computersToReport.length > 0;
 
-    // --- Early Return for Invalid State ---
+    // --- Filter errors based on search term ---
+    const filteredErrorCategories = useMemo(() => {
+        if (!searchTerm) {
+            return allErrorCategories;
+        }
+        const lowerCaseSearchTerm = searchTerm.toLowerCase();
+        return allErrorCategories
+            .map(category => ({
+                ...category,
+                errors: category.errors.filter(err =>
+                    err.description.toLowerCase().includes(lowerCaseSearchTerm)
+                ),
+            }))
+            .filter(category => category.errors.length > 0); // Only show categories with matching errors
+    }, [searchTerm]);
+
+    // --- Modal Handlers ---
+    const showModal = (maMay) => {
+        setSelectedComputerForModal(maMay);
+        setSearchTerm(''); // Reset search on open
+        setIsModalVisible(true);
+    };
+
+    const handleCancel = () => {
+        setIsModalVisible(false);
+        setSelectedComputerForModal(null);
+    };
+
+    const handleSearchChange = (e) => {
+        setSearchTerm(e.target.value);
+    };
+
+    const handleErrorSelect = (errorDescription) => {
+        if (selectedComputerForModal !== null) {
+            // Update the specific form field value
+            form.setFieldsValue({
+                [String(selectedComputerForModal)]: errorDescription
+            });
+            message.success(`Đã chọn lỗi: "${errorDescription}"`, 1.5);
+        }
+        handleCancel(); // Close modal after selection
+    };
+    // --- End Modal Handlers ---
+
+    // --- Early Return (Keep as is) ---
     if (!isValidInput || error) {
         return (
             <Layout style={{ minHeight: '100vh', background: '#f0f2f5' }}>
                 <Header style={{ background: '#fff', padding: '0 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center' }}>
+                    {/* Use path '/' or '/phongmay' depending on your routing */}
                     <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/phongmay')} style={{ marginRight: '16px' }} type="text" aria-label="Quay lại" />
                     <Title level={4} style={{ margin: 0 }}>Lỗi Dữ Liệu</Title>
                 </Header>
@@ -255,8 +304,8 @@ function ReportBrokenNotes() {
         );
     }
 
-    // --- Form Submission Handler ---
-    const handleSubmit = async (values) => { // 'values' object contains { 'maMay': 'note_text' }
+    // --- Form Submission Handler (Keep as is) ---
+    const handleSubmit = async (values) => {
         setError(null); // Clear previous errors
         setLoading(true);
         console.log("Form values submitted:", values);
@@ -320,7 +369,8 @@ function ReportBrokenNotes() {
             // --- 3. Navigate Back on Full Success ---
             message.success("Hoàn tất báo hỏng!", 3);
             message.loading("Đang điều hướng trở lại...", 1.5); // Use loading indicator
-            setTimeout(() => navigate('/phongmay', { replace: true }), 1500); // Navigate back to main list
+            // Use path '/' or '/phongmay' depending on your routing
+            setTimeout(() => navigate('/phongmay', { replace: true }), 1500); // Navigate back
 
         } catch (apiError) {
             console.error("Lỗi trong quá trình xử lý báo hỏng:", apiError);
@@ -335,37 +385,32 @@ function ReportBrokenNotes() {
     // --- Render Component ---
     return (
         <Layout style={{ minHeight: '100vh', background: '#f0f2f5' }}>
-            {/* Improved Header */}
             <Header style={{
                 background: '#fff', padding: '0 24px', borderBottom: '1px solid #f0f0f0',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', // Align items
-                position: 'sticky', top: 0, zIndex: 10 // Sticky header
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                position: 'sticky', top: 0, zIndex: 10
             }}>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                     <Button
                         icon={<ArrowLeftOutlined />}
-                        onClick={() => navigate('/')}
-                        style={{ marginRight: '20px' }} // Increased margin
+                        // Use path '/' or '/phongmay' depending on your routing
+                        onClick={() => navigate('/phongmay')}
+                        style={{ marginRight: '20px' }}
                         type="text"
                         aria-label="Quay lại Trang Quản Lý"
                         disabled={loading}
                     />
-                    {/* Prominent Title */}
                     <Title level={3} style={{ margin: 0, color: '#1890ff' }}>
-                        <ToolOutlined style={{ marginRight: '10px' }} /> {/* Icon */}
+                        <ToolOutlined style={{ marginRight: '10px' }} />
                         Nhập Ghi Chú Báo Hỏng
                     </Title>
                 </div>
-                {/* Room Name Display (Subtle) */}
                 <Text type="secondary" style={{ fontSize: '1rem' }}>Phòng: {roomName}</Text>
             </Header>
 
-            {/* Content Area */}
             <Content style={{ padding: '24px', margin: '24px auto', maxWidth: '800px', width: '100%' }}>
-                {/* Use Card for better grouping */}
                 <Card bordered={false} style={{ boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)' }}>
                     <Spin spinning={loading} tip="Đang lưu và cập nhật...">
-                        {/* Display errors prominently */}
                         {error && (
                             <Alert
                                 message="Đã xảy ra lỗi"
@@ -373,16 +418,15 @@ function ReportBrokenNotes() {
                                 type="error"
                                 showIcon
                                 closable
-                                className="mb-6" // Margin bottom
+                                style={{ marginBottom: '24px' }} // Use style directly
                                 onClose={() => setError(null)}
                             />
                         )}
 
                         <Paragraph style={{ marginBottom: '24px', fontSize: '1rem', color: '#555', borderBottom: '1px solid #eee', paddingBottom: '15px' }}>
-                            Cung cấp mô tả chi tiết về lỗi cho các máy tính sau đã được chọn để báo hỏng:
+                            Cung cấp mô tả chi tiết về lỗi cho các máy tính sau (hoặc chọn lỗi phổ biến):
                         </Paragraph>
 
-                        {/* Form Section */}
                         <Form
                             form={form}
                             layout="vertical"
@@ -396,31 +440,44 @@ function ReportBrokenNotes() {
                                 return (
                                     <Form.Item
                                         key={computer.maMay}
-                                        // Label with computer name
-                                        label={<Text strong style={{ fontSize: '1.05rem', color: '#333' }}>{displayName}</Text>}
-                                        // Name MUST match the key in 'values' object from onFinish
-                                        name={String(computer.maMay)} // Use string key
+                                        label={
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                                                <Text strong style={{ fontSize: '1.05rem', color: '#333' }}>{displayName}</Text>
+                                                {/* Icon Button to open modal */}
+                                                <Button
+                                                    type="dashed"
+                                                    icon={<UnorderedListOutlined />}
+                                                    onClick={() => showModal(computer.maMay)}
+                                                    size="small"
+                                                    disabled={loading}
+                                                    aria-label={`Chọn lỗi phổ biến cho ${displayName}`}
+                                                >
+                                                    Chọn Lỗi
+                                                </Button>
+                                            </div>
+                                        }
+                                        name={String(computer.maMay)}
                                         rules={[
-                                            { required: true, message: `Vui lòng nhập ghi chú cho ${displayName}!` },
+                                            { required: true, message: `Vui lòng nhập ghi chú hoặc chọn lỗi cho ${displayName}!` },
                                             { max: 255, message: 'Ghi chú không được vượt quá 255 ký tự!' }
                                         ]}
-                                        style={{ marginBottom: '20px' }} // Spacing between items
+                                        style={{ marginBottom: '20px' }}
                                     >
                                         <TextArea
-                                            rows={3} // Slightly larger text area
-                                            placeholder={`Mô tả lỗi chi tiết (ví dụ: màn hình xanh liên tục, không nhận bàn phím, chuột bị đơ...)`}
+                                            rows={3}
+                                            placeholder={`Mô tả lỗi chi tiết (ví dụ: màn hình xanh liên tục, không nhận bàn phím...) hoặc nhấn nút 'Chọn Lỗi'`}
                                             disabled={loading}
                                             maxLength={255}
-                                            showCount // Show character count
+                                            showCount
                                         />
                                     </Form.Item>
                                 );
                             })}
 
-                            {/* Action Buttons */}
                             <Form.Item style={{ marginTop: '30px', paddingTop: '20px', borderTop: '1px solid #eee', textAlign: 'right' }}>
                                 <Button
-                                    onClick={() => navigate('/')}
+                                    // Use path '/' or '/phongmay' depending on your routing
+                                    onClick={() => navigate('/phongmay')}
                                     style={{ marginRight: '12px' }}
                                     disabled={loading}
                                     icon={<ArrowLeftOutlined />}
@@ -432,7 +489,7 @@ function ReportBrokenNotes() {
                                     htmlType="submit"
                                     icon={<SaveOutlined />}
                                     loading={loading}
-                                    disabled={loading} // Disable only when loading
+                                    disabled={loading}
                                 >
                                     Lưu Ghi Chú & Cập Nhật Trạng Thái
                                 </Button>
@@ -441,6 +498,60 @@ function ReportBrokenNotes() {
                     </Spin>
                 </Card>
             </Content>
+
+            {/* --- Modal for Error Selection --- */}
+            <Modal
+                title={<><UnorderedListOutlined style={{ marginRight: 8 }} /> Chọn Lỗi Phổ Biến</>}
+                visible={isModalVisible}
+                onCancel={handleCancel}
+                footer={null} // No default OK/Cancel buttons
+                width={600} // Adjust width as needed
+                destroyOnClose // Reset state when closed
+                bodyStyle={{ maxHeight: '60vh', overflowY: 'auto' }} // Scrollable content
+            >
+                <Input
+                    placeholder="Tìm kiếm lỗi..."
+                    prefix={<SearchOutlined />}
+                    value={searchTerm}
+                    onChange={handleSearchChange}
+                    style={{ marginBottom: '20px' }}
+                    allowClear
+                />
+
+                {filteredErrorCategories.length === 0 && searchTerm && (
+                    <Text type="secondary">Không tìm thấy lỗi phù hợp với "{searchTerm}"</Text>
+                )}
+
+                {filteredErrorCategories.map(category => (
+                    <div key={category.category} style={{ marginBottom: '15px' }}>
+                        <Title level={5} style={{ marginBottom: '10px', borderBottom: '1px solid #f0f0f0', paddingBottom: '5px' }}>
+                            {category.category}
+                        </Title>
+                        <List
+                            size="small"
+                            dataSource={category.errors}
+                            renderItem={item => (
+                                <List.Item
+                                    key={item.id}
+                                    onClick={() => handleErrorSelect(item.description)}
+                                    style={{ cursor: 'pointer', padding: '8px 12px' }}
+                                    className="error-list-item" // Add class for hover effect
+                                >
+                                    {item.description}
+                                </List.Item>
+                            )}
+                        />
+                    </div>
+                ))}
+            </Modal>
+            {/* --- End Modal --- */}
+
+            {/* Add some basic CSS for hover effect (optional) */}
+            <style jsx global>{`
+                .error-list-item:hover {
+                    background-color: #f0f8ff; /* Light blue hover */
+                }
+            `}</style>
         </Layout>
     );
 }

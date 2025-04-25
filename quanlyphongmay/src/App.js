@@ -60,6 +60,7 @@ const Maytinh = lazy(() => import('./components/maytinh/maytinh'));
 const EditMayTinh = lazy(() => import('./components/maytinh/editmaytinh'));
 const AddMayTinh = lazy(() => import('./components/maytinh/addmaytinh'));
 const ReportBrokenNotes = lazy(() => import('./components/PhongMay/ReportBrokenNotes'))
+const ReportBrokenDeviceNotes = lazy(() => import('./components/PhongMay/ReportBrokenDeviceNotes'))
 const Register = lazy(() => import('./components/Register'));
 const ForgotPass = lazy(() => import('./components/Login/forgotpassword'));
 const VerifyOtp = lazy(() => import('./components/Login/verifyotp'));
@@ -113,6 +114,11 @@ const router = createBrowserRouter([
       {
         path: "report-notes/:roomId",
         element: <ProtectedRoute component={ReportBrokenNotes} />,
+        // loader: editPhongMayLoader, // Có thể thêm loader nếu cần fetch data phòng cụ thể
+      },
+      {
+        path: "reportdevice-notes/:roomId",
+        element: <ProtectedRoute component={ReportBrokenDeviceNotes} />,
         // loader: editPhongMayLoader, // Có thể thêm loader nếu cần fetch data phòng cụ thể
       },
 
