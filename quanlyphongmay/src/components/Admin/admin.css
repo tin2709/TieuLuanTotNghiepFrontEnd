@@ -1,0 +1,144 @@
+/* OrgChart.css */
+
+.org-chart-container {
+    display: flex;
+    justify-content: center; /* Center the chart horizontally */
+    padding: 40px 20px;    /* Add padding around the chart */
+    overflow-x: auto;      /* Allow horizontal scrolling if needed */
+}
+
+.org-chart {
+    /* Reset default list styles */
+    padding: 0;
+    margin: 0;
+    list-style: none;
+    text-align: center; /* Center the top node */
+}
+
+/* Basic styles for list items (nodes) */
+.org-chart li {
+    position: relative; /* Needed for line positioning */
+    display: inline-block; /* Arrange siblings horizontally */
+    vertical-align: top; /* Align tops of sibling nodes */
+    padding: 40px 15px 0 15px; /* Top padding for lines, horizontal for spacing */
+    margin: 0;
+}
+
+/* Style the actual person card inside the list item */
+.org-chart li > .node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 15px;
+    border: 1px solid #ccc; /* Default border */
+    border-radius: 8px;
+    min-width: 150px;      /* Ensure nodes have some width */
+    background-color: #f9f9f9; /* Default background */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    position: relative; /* To anchor lines */
+    z-index: 1;         /* Ensure node is above lines */
+}
+
+.org-chart .node img {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-bottom: 10px;
+    border: 2px solid #fff; /* Optional: white border around image */
+}
+
+.org-chart .node .name {
+    font-weight: bold;
+    color: #333; /* Default text color */
+    font-size: 14px;
+}
+
+/* --- Background Colors (Based on Image) --- */
+.org-chart .node.level-1 { background-color: #e0cff5; border-color: #8a5db3;} /* Margret - Light Purple */
+.org-chart .node.level-2a { background-color: #fddde6; border-color: #e91e63;} /* Mark - Pink */
+.org-chart .node.level-2b { background-color: #b2f0ea; border-color: #009688;} /* Chris L - Teal */
+.org-chart .node.level-3a { background-color: #ffd8b8; border-color: #ff9800;} /* Karyn - Peach */
+.org-chart .node.level-3b { background-color: #ddebc9; border-color: #8bc34a;} /* Chris R - Light Olive */
+.org-chart .node.level-3c { background-color: #c8dad3; border-color: #607d8b;} /* Noah - Muted Teal/Grey */
+.org-chart .node.level-3d { background-color: #b2f0ea; border-color: #009688;} /* Felix - Teal */
+
+/* --- Connecting Lines --- */
+
+/* Vertical line DOWN from parent */
+.org-chart li > .node::after {
+    content: '';
+    position: absolute;
+    bottom: -20px; /* Half of li's top padding */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1px;
+    height: 20px; /* Half of li's top padding */
+    background-color: #ccc;
+    z-index: 0; /* Behind node */
+}
+/* Don't draw line down from leaf nodes (those without a nested ul) */
+.org-chart li:not(:has(ul)) > .node::after {
+    display: none;
+}
+
+
+/* Vertical line UP from child */
+.org-chart li::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 1px;
+    height: 20px; /* Half of li's top padding */
+    background-color: #ccc;
+    z-index: 0; /* Behind node */
+}
+
+/* Horizontal line CONNECTING siblings */
+.org-chart li::after {
+    content: '';
+    position: absolute;
+    top: 0; /* Align with the top vertical lines */
+    left: 0; /* Start from the left edge */
+    width: 100%;
+    height: 1px;
+    background-color: #ccc;
+    z-index: 0; /* Behind node */
+}
+
+/* --- Line Adjustments --- */
+
+/* Remove top vertical/horizontal lines for the ROOT node */
+.org-chart > li::before,
+.org-chart > li::after {
+    display: none;
+}
+
+/* Adjust horizontal line for the FIRST child */
+.org-chart ul > li:first-child::after {
+    left: 50%; /* Start horizontal line from middle */
+    width: 50%;
+}
+
+/* Adjust horizontal line for the LAST child */
+.org-chart ul > li:last-child::after {
+    width: 50%; /* End horizontal line at middle */
+}
+
+/* Hide horizontal line completely for an ONLY child */
+.org-chart ul > li:only-child::after {
+    display: none;
+}
+
+/* Nested list (children) */
+.org-chart ul {
+    /* Reset default list styles */
+    padding: 0;
+    margin: 0;
+    list-style: none;
+    padding-top: 20px; /* Space between parent node's bottom line and children's top lines */
+    position: relative; /* Needed for horizontal line positioning */
+    white-space: nowrap; /* Prevent wrapping of children */
+}

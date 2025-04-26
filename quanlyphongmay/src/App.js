@@ -19,6 +19,7 @@ import { caThucHanhLoader } from './components/Loader/caThucHanhLoader';
 import { taikhoanAdminLoader } from './components/Loader/taikhoanAdminLoader';
 import { nhanvienAdminLoader } from './components/Loader/nhanvienAdminLoader';
 import { giaovienAdminLoader } from './components/Loader/giaovienAdminLoader';
+import { adminDashboardLoader } from './components/Loader/adminLoaders';
 
 
 // --- Component hiển thị khi chờ tải code ---
@@ -152,7 +153,8 @@ const router = createBrowserRouter([
       },
       {
         path: "admin",
-        element: <ProtectedRoute component={Admin} />
+        element: <ProtectedRoute component={Admin} />,
+        loader: adminDashboardLoader
       },
       {
         path: "quanlitaikhoan",
