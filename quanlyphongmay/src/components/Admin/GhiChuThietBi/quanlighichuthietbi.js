@@ -1,4 +1,4 @@
-// src/pages/QuanLyGhiChuMayTinh.js
+// src/pages/QuanLyGhiChuThietBi.js
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -51,14 +51,24 @@ const { RangePicker } = DatePicker;
 const DarkModeToggle = () => {
     const [isDarkMode, setIsDarkMode] = useState(false);
 
-    const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
+    const toggleDarkMode = () => {
+        setIsDarkMode((prev) => !prev);
+    };
 
     useEffect(() => {
         if (isDarkMode) {
             DarkReader.enable({ brightness: 100, contrast: 90, sepia: 10 });
         } else {
-            DarkReader.disable();
+            if (DarkReader.isEnabled()) {
+                DarkReader.disable();
+            }
         }
+        // Cleanup on unmount
+        return () => {
+            if (DarkReader.isEnabled()) {
+                DarkReader.disable();
+            }
+        };
     }, [isDarkMode]);
 
     return (
@@ -88,8 +98,8 @@ function debounce(func, wait) {
     };
 }
 
-// --- Main Component: QuanLyGhiChuMayTinh ---
-const QuanLyGhiChuMayTinh = () => {
+// --- Main Component: QuanLyGhiChuThietBi ---
+const QuanLyGhiChuThietBi = () => {
     // --- Hooks ---
     const loaderData = useLoaderData();
     const navigate = useNavigate();
@@ -110,26 +120,28 @@ const QuanLyGhiChuMayTinh = () => {
     const [nhanVienLoading, setNhanVienLoading] = useState(false); // Employee dropdown loading state
 
     // Search State
-    const [searchFieldValue, setSearchFieldValue] = useState(null); // Selected attribute
-    const [searchOperatorValue, setSearchOperatorValue] = useState(null); // Selected operator
-    const [searchInput, setSearchInput] = useState(''); // Text/Number search value
-    const [searchDateValue, setSearchDateValue] = useState(null); // Single date search value
-    const [searchDateRangeValue, setSearchDateRangeValue] = useState([null, null]); // Date range value
-    const [searchKeyword, setSearchKeyword] = useState(''); // Final keyword string for API
+    const [searchFieldValue, setSearchFieldValue] = useState(null);
+    const [searchOperatorValue, setSearchOperatorValue] = useState(null);
+    const [searchInput, setSearchInput] = useState('');
+    const [searchDateValue, setSearchDateValue] = useState(null);
+    const [searchDateRangeValue, setSearchDateRangeValue] = useState([null, null]);
+    const [searchKeyword, setSearchKeyword] = useState('');
 
     // --- Search Configuration ---
     const searchFieldsOptions = [
-        { value: 'noiDung', label: 'Nội dung', type: 'text' },
-        { value: 'tenMay', label: 'Tên Máy', type: 'text' },
-        { value: 'tenPhong', label: 'Tên Phòng', type: 'text' },
-        { value: 'tenTKBL', label: 'Người Báo Lỗi', type: 'text' },
-        { value: 'tenTKSL', label: 'Người Sửa Lỗi', type: 'text' },
+        { value: 'noiDung', label: 'Nội dung Ghi chú', type: 'text' },
         { value: 'ngayBaoLoi', label: 'Ngày Báo Lỗi', type: 'date' },
         { value: 'ngaySua', label: 'Ngày Sửa', type: 'date' },
-        { value: 'maMay', label: 'Mã Máy', type: 'number' },
-        { value: 'maPhong', label: 'Mã Phòng', type: 'number' },
+        { value: 'tenTKBL', label: 'Tên Người Báo Lỗi', type: 'text' },
         { value: 'maTKBL', label: 'Mã Người Báo Lỗi', type: 'number' },
+        { value: 'tenTKSL', label: 'Tên Người Sửa Lỗi', type: 'text' },
         { value: 'maTKSL', label: 'Mã Người Sửa Lỗi', type: 'number' },
+        { value: 'maThietBi', label: 'Mã Thiết Bị', type: 'number' },
+        { value: 'tenThietBi', label: 'Tên Thiết Bị', type: 'text' },
+        { value: 'maLoai', label: 'Mã Loại TB', type: 'number' },
+        { value: 'tenLoai', label: 'Tên Loại TB', type: 'text' },
+        { value: 'maPhong', label: 'Mã Phòng', type: 'number' },
+        { value: 'tenPhong', label: 'Tên Phòng', type: 'text' },
     ];
     const searchOperatorsOptions = [
         { value: 'EQUALS', label: 'Bằng (=)', types: ['text', 'number', 'date'] },
@@ -174,7 +186,7 @@ const QuanLyGhiChuMayTinh = () => {
 
     // --- Data Fetching Functions ---
 
-    // Fetch employee list for the modal dropdown
+    // Fetch employee list
     const fetchNhanVien = useCallback(async () => {
         const token = localStorage.getItem('authToken');
         if (!token) {
@@ -220,14 +232,14 @@ const QuanLyGhiChuMayTinh = () => {
                 throw new Error("Dữ liệu nhân viên nhận được không phải là một danh sách.");
             }
 
-            // Filter based on expected properties (maNhanVien is essential)
+            // Filter based on primary key needed (maNhanVien based on API response)
             const validData = data.filter(nv =>
                 nv && (nv.maNhanVien !== null && nv.maNhanVien !== undefined)
             );
 
             if (data.length > 0 && validData.length === 0) {
                 console.warn(
-                    "Fetched employee data, but no entries had a valid 'maNhanVien'. Check API structure.",
+                    "Fetched employee data, but no entries had a valid 'maNhanVien'. Check API structure and Modal Select.",
                     data[0] // Log first item if filtering failed
                 );
             }
@@ -246,7 +258,7 @@ const QuanLyGhiChuMayTinh = () => {
         }
     }, [loaderData?.error]);
 
-    // Fetch main computer notes data (handles initial load and search)
+    // Fetch device notes data (handles list and search)
     const fetchGhiChuData = useCallback(async (currentSearchKeyword = '') => {
         const token = localStorage.getItem('authToken');
         if (!token) {
@@ -264,16 +276,16 @@ const QuanLyGhiChuMayTinh = () => {
         const params = new URLSearchParams();
         params.append('token', token);
 
-        // Determine API endpoint based on search keyword presence
+        // Endpoint Selection
         if (currentSearchKeyword && currentSearchKeyword.includes(':')) {
-            apiUrl += 'searchGhiChuMayTinhByAdmin'; // Search endpoint
+            apiUrl += 'searchGhiChuThietBiByAdmin'; // SEARCH endpoint
             params.append('keyword', currentSearchKeyword);
         } else {
-            apiUrl += 'DSGhiChuMayTinh'; // Default list endpoint
+            apiUrl += 'DSGhiChuThietBi'; // LIST endpoint
         }
 
         apiUrl += `?${params.toString()}`; // Append parameters
-        console.log("Fetching Ghi Chu URL:", apiUrl);
+        console.log("Fetching Ghi Chu Thiet Bi URL:", apiUrl);
 
         try {
             const response = await fetch(apiUrl, {
@@ -309,19 +321,18 @@ const QuanLyGhiChuMayTinh = () => {
 
             const data = await response.json();
 
-            // Handle potential nested results from search endpoint
+            // Handle Search Response Format
             let results = [];
             if (currentSearchKeyword && currentSearchKeyword.includes(':')) {
+                // Expects { results: [...] } from search endpoint
                 if (data && Array.isArray(data.results)) {
                     results = data.results;
-                } else if (Array.isArray(data)) {
-                    results = data;
-                    console.warn("Search response was a direct array, expected nested 'results'.");
                 } else {
-                    console.warn("Search response format unexpected:", data);
-                    results = [];
+                    console.warn("Search response format unexpected (expected { results: [...] }):", data);
+                    results = []; // Default to empty on unexpected format
                 }
             } else if (Array.isArray(data)) {
+                // Normal list endpoint returns direct array
                 results = data;
             } else {
                 console.error("Unexpected data format received for list:", data);
@@ -331,13 +342,13 @@ const QuanLyGhiChuMayTinh = () => {
             // Process the final results array
             const processedData = results.map((item, index) => ({
                 ...item,
-                key: item.maGhiChuMT || `fallback-${index}`, // Ensure unique key
+                key: item.maGhiChuTB, // Use the correct primary key
                 stt: index + 1,
             }));
             setGhiChuData(processedData);
 
         } catch (error) {
-            console.error("Error fetching Ghi Chu data:", error);
+            console.error("Error fetching Ghi Chu Thiet Bi data:", error);
             if (error.message === 'Unauthorized or Forbidden') {
                 Swal.fire({
                     icon: 'error',
@@ -348,7 +359,7 @@ const QuanLyGhiChuMayTinh = () => {
             } else {
                 Swal.fire(
                     'Lỗi',
-                    `Không thể tải dữ liệu ghi chú: ${error.message}`,
+                    `Không thể tải dữ liệu ghi chú thiết bị: ${error.message}`,
                     'error'
                 );
             }
@@ -364,20 +375,19 @@ const QuanLyGhiChuMayTinh = () => {
 
     // --- useEffect Hooks ---
 
-    // Effect to process initial loader data & fetch employees
+    // Effect for Initial Load
     useEffect(() => {
-        console.log("[Effect] Processing loader data:", loaderData);
+        console.log("[Effect] Processing GhiChuThietBi loader data:", loaderData);
         setLoading(true);
         if (loaderData && !loaderData.error && Array.isArray(loaderData.data)) {
             const processedData = loaderData.data.map((item, index) => ({
                 ...item,
-                key: item.maGhiChuMT || `fallback-${index}`, // Ensure key
+                key: item.maGhiChuTB, // Use correct key
                 stt: index + 1,
             }));
-            console.log("[Effect] Processed data:", processedData);
+            console.log("[Effect] Processed GhiChuThietBi data:", processedData);
             setGhiChuData(processedData);
-            // Fetch employees if initial data load succeeded
-            fetchNhanVien();
+            fetchNhanVien(); // Fetch employees
         } else if (loaderData && loaderData.error) {
             console.error("Loader Error:", loaderData);
             if (loaderData.type === 'auth') {
@@ -390,7 +400,7 @@ const QuanLyGhiChuMayTinh = () => {
             } else {
                 Swal.fire(
                     'Lỗi',
-                    loaderData.message || 'Không thể tải dữ liệu ghi chú.',
+                    loaderData.message || 'Không thể tải dữ liệu ghi chú thiết bị.',
                     'error'
                 );
             }
@@ -398,21 +408,21 @@ const QuanLyGhiChuMayTinh = () => {
         } else {
             console.warn("No initial data from loader or format error. Attempting fetch...");
             if (loaderData?.error?.type !== 'auth') {
-                fetchGhiChuData(''); // Fetch initial data without search
-                fetchNhanVien();    // Also attempt fetch employees
+                fetchGhiChuData(''); // Fetch initial list
+                fetchNhanVien();    // Fetch employees
             } else if (!loaderData) {
                 Swal.fire(
                     'Lỗi',
-                    'Dữ liệu ghi chú không đúng định dạng hoặc bị lỗi (Loader data missing).',
+                    'Dữ liệu ghi chú thiết bị không đúng định dạng hoặc bị lỗi (Loader data missing).',
                     'error'
                 );
                 setGhiChuData([]);
             }
         }
         setLoading(false);
-    }, [loaderData, navigate, fetchGhiChuData, fetchNhanVien]); // Add fetch functions
+    }, [loaderData, navigate, fetchGhiChuData, fetchNhanVien]); // Add fetch dependencies
 
-    // Effect to build the search keyword string
+    // Effect for Building Search Keyword
     useEffect(() => {
         let keyword = '';
         const requiresValue = isOperatorRequiringValue;
@@ -422,49 +432,38 @@ const QuanLyGhiChuMayTinh = () => {
             let isValidInput = false;
 
             if (requiresValue) {
-                // Handle date range input
                 if (isDateRangeOperatorSelected) {
                     const [start, end] = searchDateRangeValue;
                     if (start && end && dayjs.isDayjs(start) && dayjs.isDayjs(end) && start.isValid() && end.isValid()) {
-                        valuePart = `${start.format('YYYY-MM-DD')},${end.format('YYYY-MM-DD')}`; // Format for API
+                        valuePart = `${start.format('YYYY-MM-DD')},${end.format('YYYY-MM-DD')}`;
                         isValidInput = true;
                     }
-                    // Handle single date input
                 } else if (isSingleDateOperatorSelected) {
                     if (searchDateValue && dayjs.isDayjs(searchDateValue) && searchDateValue.isValid()) {
-                        valuePart = searchDateValue.format('YYYY-MM-DD'); // Format for API
+                        valuePart = searchDateValue.format('YYYY-MM-DD');
                         isValidInput = true;
                     }
-                    // Handle text/number input
                 } else if (!isDateFieldSelected) {
                     if (searchInput.trim()) {
                         valuePart = searchInput.trim();
                         isValidInput = true;
                     }
                 }
-
                 if (isValidInput) {
                     keyword = `${searchFieldValue}:${searchOperatorValue}:${valuePart}`;
                 } else {
-                    keyword = ''; // Invalidate keyword if required value is missing/invalid
+                    keyword = '';
                 }
-
-            } else { // IS_NULL or IS_NOT_NULL
-                keyword = `${searchFieldValue}:${searchOperatorValue}:`; // Value part is empty
-                isValidInput = true; // No value needed, so considered valid
+            } else {
+                keyword = `${searchFieldValue}:${searchOperatorValue}:`;
+                isValidInput = true;
             }
-
-            // Final check: Ensure all parts are present if needed
             if (!(searchFieldValue && searchOperatorValue && isValidInput)) {
                 keyword = '';
             }
-
         } else {
-            // No field or operator selected, clear keyword
             keyword = '';
         }
-
-        // Update state only if keyword actually changed
         if (keyword !== searchKeyword) {
             setSearchKeyword(keyword);
         }
@@ -478,25 +477,20 @@ const QuanLyGhiChuMayTinh = () => {
         isDateRangeOperatorSelected,
         isSingleDateOperatorSelected,
         isOperatorRequiringValue,
-        searchKeyword // Include searchKeyword to prevent infinite loops if logic is complex
+        searchKeyword
     ]);
 
-    // Effect to trigger debounced fetch when the search keyword changes
+    // Effect for Triggering Debounced Fetch on Keyword Change
     useEffect(() => {
         console.log("Search keyword changed, triggering fetch:", searchKeyword);
         const keywordParts = searchKeyword.split(':');
-        // Basic validation: keyword is empty or has 3 parts
         const isValidKeyword = searchKeyword === '' || (keywordParts.length === 3 && keywordParts[0] && keywordParts[1]);
 
         if (isValidKeyword) {
-            // Trigger fetch only if keyword seems valid or is empty (reset)
             debouncedFetchData(searchKeyword);
+        } else if (!searchFieldValue && !searchOperatorValue && !searchInput && !searchDateValue && !(searchDateRangeValue[0])) {
+            debouncedFetchData(''); // Fetch all if inputs are cleared
         }
-        // Also trigger fetch if all search inputs are cleared manually
-        else if (!searchFieldValue && !searchOperatorValue && !searchInput && !searchDateValue && !(searchDateRangeValue[0])) {
-            debouncedFetchData(''); // Explicitly fetch all data
-        }
-        // Avoid fetching if keyword is invalid mid-construction
     }, [
         searchKeyword,
         debouncedFetchData,
@@ -524,10 +518,9 @@ const QuanLyGhiChuMayTinh = () => {
     const formatDateDisplay = (dateString) => {
         if (!dateString) return null;
         try {
-            // Assume input is UTC, convert to local time for display
-            const dateObj = dayjs.utc(dateString).local();
+            const dateObj = dayjs.utc(dateString).local(); // Assume UTC, display local
             if (!dateObj.isValid()) return 'Ngày không hợp lệ';
-            return dateObj.format('DD/MM/YYYY HH:mm:ss'); // Vietnamese locale format
+            return dateObj.format('DD/MM/YYYY HH:mm:ss');
         } catch (e) {
             console.error("Error formatting date:", dateString, e);
             return 'Ngày không hợp lệ';
@@ -536,21 +529,21 @@ const QuanLyGhiChuMayTinh = () => {
 
     // --- Modal Handling ---
     const showModal = (record) => {
-        setSelectedRecord(record); // Store the record to be edited
-        form.resetFields(); // Clear any previous form data
+        setSelectedRecord(record);
+        form.resetFields();
         setIsModalVisible(true);
     };
 
     const handleCancel = () => {
         setIsModalVisible(false);
-        setSelectedRecord(null); // Clear the selected record
-        form.resetFields(); // Clear form data
+        setSelectedRecord(null);
+        form.resetFields();
     };
 
     // --- API Call to Update Schedule ---
     const handleUpdateSchedule = async (values) => {
         if (!selectedRecord) {
-            message.error('Lỗi: Không có ghi chú nào được chọn để cập nhật.');
+            message.error('Lỗi: Không có ghi chú nào được chọn.');
             return;
         }
         if (!values.maNhanVienSua) {
@@ -559,7 +552,7 @@ const QuanLyGhiChuMayTinh = () => {
         }
         const token = localStorage.getItem('authToken');
         if (!token) {
-            message.error('Lỗi: Không tìm thấy token xác thực. Vui lòng đăng nhập lại.');
+            message.error('Lỗi: Không tìm thấy token xác thực.');
             navigate('/login');
             return;
         }
@@ -572,42 +565,36 @@ const QuanLyGhiChuMayTinh = () => {
             return;
         }
 
-        // Prepare data for API
         const ngaySuaStr = values.ngaySua.format('DD/MM/YYYY');
         const thoiGianBatDau = values.thoiGianBatDau.format('HH:mm');
         const thoiGianKetThuc = values.thoiGianKetThuc.format('HH:mm');
-        const maGhiChuMT = selectedRecord.maGhiChuMT;
-        const maTKSuaLoi = values.maNhanVienSua; // Should be maNhanVien from the select
+        const maGhiChuTB = selectedRecord.maGhiChuTB; // Use ThietBi note ID
+        const maTKSuaLoi = values.maNhanVienSua; // Use maNhanVien from selected option
 
-        console.log("API Call Params:", {
-            maGhiChuMT,
+        console.log("API Call Params (ThietBi):", {
+            maGhiChuTB,
             ngaySuaStr,
             thoiGianBatDau,
             thoiGianKetThuc,
-            maTKSuaLoi, // This is maNhanVien
+            maTKSuaLoi,
             token
         });
         setModalLoading(true);
 
         try {
-            // Construct API URL with Query Parameters
-            const url = new URL('https://localhost:8080/CapNhatNguoiSuaVaThoiGianSua');
-            url.searchParams.append('maGhiChuMT', maGhiChuMT);
+            const url = new URL('https://localhost:8080/CapNhatNguoiSuaVaThoiGianSuaThietBi');
+            url.searchParams.append('maGhiChuTB', maGhiChuTB);
             url.searchParams.append('ngaySuaStr', ngaySuaStr);
             url.searchParams.append('thoiGianBatDau', thoiGianBatDau);
             url.searchParams.append('thoiGianKetThuc', thoiGianKetThuc);
-            url.searchParams.append('maTKSuaLoi', maTKSuaLoi); // Send maNhanVien as maTKSuaLoi
+            url.searchParams.append('maTKSuaLoi', maTKSuaLoi);
             url.searchParams.append('token', token);
 
-            // Make API Call
             const putResponse = await fetch(url.toString(), {
                 method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
+                headers: { 'Authorization': `Bearer ${token}` }
             });
 
-            // Handle API Response
             let responseData = {};
             try {
                 responseData = await putResponse.json();
@@ -617,51 +604,53 @@ const QuanLyGhiChuMayTinh = () => {
                 }
             }
 
-            // Check if the API call was successful
             if (!putResponse.ok) {
                 throw new Error(responseData.message || `HTTP error! status: ${putResponse.status}`);
             }
 
-            message.success('Đã cập nhật lịch sửa thành công!');
-            setIsModalVisible(false); // Close the modal
+            message.success('Đã cập nhật lịch sửa thiết bị thành công!');
+            setIsModalVisible(false);
 
-            // Refetch data respecting current search filter
+            // Refresh data using current search keyword after update
             fetchGhiChuData(searchKeyword);
 
         } catch (error) {
-            console.error('Lỗi khi cập nhật lịch sửa:', error);
-            message.error(`Cập nhật thất bại: ${error.message}`);
+            console.error('Lỗi khi cập nhật lịch sửa thiết bị:', error);
+            message.error(`Cập nhật lịch sửa thất bại: ${error.message}`);
         } finally {
-            setModalLoading(false); // Stop modal button loading indicator
+            setModalLoading(false);
         }
     };
 
-    // --- Context Menu Handler ---
+    // --- Event Handlers ---
+
+    // Context Menu Handler
     const handleContextMenu = (event, record) => {
-        event.preventDefault(); // Prevent default browser context menu
+        event.preventDefault();
         const scheduledInfo = parseScheduledInfo(record.noiDung);
-        // Allow opening the modal only if not already fixed AND not already scheduled
         if (!record.ngaySua && !scheduledInfo) {
             showModal(record);
+        } else {
+            if (record.ngaySua) message.info('Thiết bị này đã được sửa.');
+            else if (scheduledInfo) message.info('Thiết bị này đã được lên lịch sửa.');
         }
     };
 
-    // --- Search Event Handlers ---
+    // Search Handlers
     const handleClearSearch = () => {
         setSearchFieldValue(null);
         setSearchOperatorValue(null);
         setSearchInput('');
         setSearchDateValue(null);
         setSearchDateRangeValue([null, null]);
-        // useEffect watching these will clear searchKeyword and trigger fetch
+        // useEffect will trigger fetch
     };
 
     const handleAttributeChange = (value) => {
         const newField = searchFieldsOptions.find(f => f.value === value);
         const newFieldType = newField?.type;
-        setSearchFieldValue(value); // Update selected field
+        setSearchFieldValue(value);
 
-        // Reset operator if incompatible
         const currentOperatorIsValid = newFieldType && searchOperatorsOptions.find(
             op => op.value === searchOperatorValue
         )?.types.includes(newFieldType);
@@ -669,24 +658,21 @@ const QuanLyGhiChuMayTinh = () => {
             setSearchOperatorValue(null);
         }
 
-        // Clear inappropriate inputs based on new field type
         if (newFieldType === 'date') {
-            setSearchInput(''); // Clear text input
+            setSearchInput('');
         } else {
-            setSearchDateValue(null); // Clear date inputs
+            setSearchDateValue(null);
             setSearchDateRangeValue([null, null]);
         }
     };
 
     const handleOperatorChange = (value) => {
-        setSearchOperatorValue(value); // Update selected operator
+        setSearchOperatorValue(value);
 
-        // Determine requirements based on the NEW operator
         const newRequiresValue = !['IS_NULL', 'IS_NOT_NULL'].includes(value);
         const newIsDateRange = isDateFieldSelected && ['BETWEEN', 'NOT_BETWEEN'].includes(value);
         const newIsSingleDate = isDateFieldSelected && newRequiresValue && !newIsDateRange;
 
-        // Clear inappropriate inputs
         if (!newRequiresValue) {
             setSearchInput('');
             setSearchDateValue(null);
@@ -694,37 +680,31 @@ const QuanLyGhiChuMayTinh = () => {
         } else if (newIsDateRange) {
             setSearchInput('');
             setSearchDateValue(null);
-            // Keep or clear range? Clearing for simplicity.
-            // setSearchDateRangeValue([null, null]);
         } else if (newIsSingleDate) {
             setSearchInput('');
-            setSearchDateRangeValue([null, null]); // Clear range
-            // Keep or clear single date? Clearing for simplicity.
-            // setSearchDateValue(null);
-        } else { // Text/Number op
+            setSearchDateRangeValue([null, null]);
+        } else {
             setSearchDateValue(null);
-            setSearchDateRangeValue([null, null]); // Clear date/range
-            // Keep searchInput
+            setSearchDateRangeValue([null, null]);
         }
     };
 
-    // --- Sidebar Navigation & Logout Handlers ---
+    // Sidebar & Logout Handlers
     const handleMenuClickSidebar = (e) => {
-        if (e.key === 'dashboard') { navigate('/admin'); }
-        else if (e.key === 'computerLogManagement') { navigate('/quanlyghichumaytinh'); }
-        // Add other navigation keys as needed
-        else if (e.key === 'logout') { handleLogout(); }
+        const key = e.key;
+        if (key === '/login') {
+            handleLogout();
+        } else {
+            navigate(key);
+        }
     };
 
     const handleLogout = () => {
-        localStorage.removeItem('authToken'); // Clear token
-        Swal.fire({
-            icon: 'success',
-            title: 'Đã đăng xuất',
-            text: 'Bạn đã đăng xuất thành công.',
-            showConfirmButton: false,
-            timer: 1500,
-        }).then(() => navigate('/login')); // Redirect to login
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('userId');
+        localStorage.removeItem('userRole');
+        navigate('/login');
+        message.success('Bạn đã đăng xuất thành công!');
     };
 
     // --- Table Column Definitions ---
@@ -734,15 +714,15 @@ const QuanLyGhiChuMayTinh = () => {
             dataIndex: 'stt',
             key: 'stt',
             width: 60,
-            fixed: 'left',
-            sorter: (a, b) => a.stt - b.stt
+            sorter: (a, b) => a.stt - b.stt,
+            fixed: 'left'
         },
         {
             title: 'Nội dung',
             dataIndex: 'noiDung',
             key: 'noiDung',
             ellipsis: true,
-            width: 300,
+            width: 250,
             sorter: (a, b) => (a.noiDung || '').localeCompare(b.noiDung || ''),
             render: (text) => text ? (
                 <Popover
@@ -755,11 +735,19 @@ const QuanLyGhiChuMayTinh = () => {
             ) : 'N/A'
         },
         {
-            title: 'Tên Máy',
-            dataIndex: 'tenMay',
-            key: 'tenMay',
-            width: 120,
-            sorter: (a, b) => (a.tenMay || '').localeCompare(b.tenMay || ''),
+            title: 'Tên Thiết Bị',
+            dataIndex: 'tenThietBi',
+            key: 'tenThietBi',
+            width: 150,
+            sorter: (a, b) => (a.tenThietBi || '').localeCompare(b.tenThietBi || ''),
+            render: (text) => text || 'N/A'
+        },
+        {
+            title: 'Loại Thiết Bị',
+            dataIndex: 'tenLoai',
+            key: 'tenLoai',
+            width: 150,
+            sorter: (a, b) => (a.tenLoai || '').localeCompare(b.tenLoai || ''),
             render: (text) => text || 'N/A'
         },
         {
@@ -779,62 +767,39 @@ const QuanLyGhiChuMayTinh = () => {
             render: (text) => formatDateDisplay(text) || 'N/A'
         },
         {
-            title: 'Người Báo Lỗi',
-            dataIndex: 'tenTaiKhoanBaoLoi',
-            key: 'tenTaiKhoanBaoLoi',
-            width: 150,
-            sorter: (a, b) => (a.tenTaiKhoanBaoLoi || '').localeCompare(b.tenTaiKhoanBaoLoi || ''),
-            render: (text) => text || 'N/A'
-        },
-        {
-            title: 'Người Sửa Lỗi',
-            dataIndex: 'tenTaiKhoanSuaLoi',
-            key: 'tenTaiKhoanSuaLoi',
-            width: 150,
-            sorter: (a, b) => (a.tenTaiKhoanSuaLoi || '').localeCompare(b.tenTaiKhoanSuaLoi || ''),
-            render: (text) => text ? text : <i>(Chưa có)</i>
-        },
-        {
             title: 'Trạng thái Sửa',
-            dataIndex: 'ngaySua', // DataIndex used for sorting primarily
+            dataIndex: 'ngaySua', // Use ngaySua for sorting fixed items
             key: 'ngaySuaStatus',
-            width: 230, // Adjusted width
-            fixed: 'right', // Keep column fixed
+            width: 180,
+            fixed: 'right',
             sorter: (a, b) => {
                 const scheduledA = parseScheduledInfo(a.noiDung) ? 1 : 0;
                 const scheduledB = parseScheduledInfo(b.noiDung) ? 1 : 0;
                 const fixedA = a.ngaySua ? 1 : 0;
                 const fixedB = b.ngaySua ? 1 : 0;
-                // Sort order: Not Fixed/Not Scheduled (0) < Scheduled (1) < Fixed (2)
-                const statusA = fixedA ? 2 : (scheduledA ? 1 : 0);
+                const statusA = fixedA ? 2 : (scheduledA ? 1 : 0); // Fixed > Scheduled > Not Fixed
                 const statusB = fixedB ? 2 : (scheduledB ? 1 : 0);
-                if (statusA !== statusB) return statusA - statusB;
-                // If both are fixed, sort by fix date
-                if (fixedA && fixedB) return dayjs(a.ngaySua).valueOf() - dayjs(b.ngaySua).valueOf();
+                if (statusA !== statusB) return statusA - statusB; // Sort by status first
+                if (fixedA && fixedB) return dayjs(a.ngaySua).valueOf() - dayjs(b.ngaySua).valueOf(); // Then by fix date
                 return 0;
             },
-            render: (_, record) => { // Use record to access all fields
+            render: (_, record) => {
                 const scheduledInfo = parseScheduledInfo(record.noiDung);
-                const formattedOriginalNgaySua = formatDateDisplay(record.ngaySua); // Format actual fix date
-                const fixerName = record.tenTaiKhoanSuaLoi ? ` (Sửa bởi: ${record.tenTaiKhoanSuaLoi})` : '';
-
+                const formattedOriginalNgaySua = formatDateDisplay(record.ngaySua);
                 let content;
-                // Priority 1: Check if actually fixed
-                if (record.ngaySua && formattedOriginalNgaySua !== 'Ngày không hợp lệ') {
-                    content = <Tag color="success">{formattedOriginalNgaySua}</Tag>;
-                    // Priority 2: Check if scheduled
-                } else if (scheduledInfo) {
-                    const scheduleText = `Lịch dự kiến: ${scheduledInfo.date} ${scheduledInfo.startTime}-${scheduledInfo.endTime}${fixerName}`;
+
+                if (scheduledInfo) {
+                    const fixerName = record.tenTaiKhoanSuaLoi ? ` (Sửa bởi: ${record.tenTaiKhoanSuaLoi})` : '';
                     content = (
-                        <Tooltip title={scheduleText}>
-                            <Tag color="processing" icon={<ToolOutlined />}>
-                                Đã lên lịch
-                            </Tag>
+                        <Tooltip title={`Lịch dự kiến: ${scheduledInfo.date} ${scheduledInfo.startTime}-${scheduledInfo.endTime}${fixerName}`}>
+                            <Tag color="processing" icon={<ToolOutlined />}>Đã lên lịch</Tag>
                         </Tooltip>
                     );
-                    // Priority 3: Otherwise, it's not fixed and not scheduled
-                } else {
+                } else if (!record.ngaySua) {
                     content = <Tag color="error">Chưa sửa</Tag>;
+                } else {
+                    const fixerName = record.tenTaiKhoanSuaLoi ? ` (Sửa bởi: ${record.tenTaiKhoanSuaLoi})` : '';
+                    content = <Tag color="success">{formattedOriginalNgaySua || 'Đã sửa'}{fixerName}</Tag>; // Display fix date/time and fixer
                 }
 
                 const allowContextMenu = !record.ngaySua && !scheduledInfo;
@@ -847,6 +812,23 @@ const QuanLyGhiChuMayTinh = () => {
                     </div>
                 );
             }
+        },
+        {
+            title: 'Người Báo Lỗi',
+            dataIndex: 'tenTaiKhoanBaoLoi',
+            key: 'tenTaiKhoanBaoLoi',
+            width: 150,
+            sorter: (a, b) => (a.tenTaiKhoanBaoLoi || '').localeCompare(b.tenTaiKhoanBaoLoi || ''),
+            render: (text) => text || 'N/A'
+        },
+        {
+            title: 'Người Sửa Lỗi',
+            dataIndex: 'tenTaiKhoanSuaLoi',
+            key: 'tenTaiKhoanSuaLoi',
+            width: 150,
+            fixed: 'right',
+            sorter: (a, b) => (a.tenTaiKhoanSuaLoi || '').localeCompare(b.tenTaiKhoanSuaLoi || ''),
+            render: (text) => text ? text : <i>(Chưa có)</i>
         },
     ];
 
@@ -881,12 +863,12 @@ const QuanLyGhiChuMayTinh = () => {
                         color: "#000"
                     }}>
                         <Popover
-                            content={<div>Quản lí các ghi chú, báo lỗi của máy tính và lên lịch sửa chữa</div>}
+                            content={<div>Quản lí các ghi chú, báo lỗi của thiết bị phòng máy</div>}
                             trigger="hover"
                         >
                             <SettingOutlined style={{ marginRight: 8, cursor: 'pointer' }} />
                         </Popover>
-                        Quản Lý Ghi Chú Máy Tính
+                        Quản Lý Ghi Chú Thiết Bị {/* Title Updated */}
                     </div>
                     <div className="actions" style={{ display: 'flex', alignItems: 'center' }}>
                         <DarkModeToggle />
@@ -897,7 +879,6 @@ const QuanLyGhiChuMayTinh = () => {
 
                         {/* --- Search Bar --- */}
                         <Row gutter={[16, 16]} style={{ marginBottom: 24 }} align="bottom">
-                            {/* Column 1: Value Input (Conditional) */}
                             <Col xs={24} sm={12} md={10} lg={8} xl={7}>
                                 <Form.Item label="Giá trị tìm kiếm" style={{ marginBottom: 0 }}>
                                     {InputComponent === Input && (
@@ -948,7 +929,6 @@ const QuanLyGhiChuMayTinh = () => {
                                     )}
                                 </Form.Item>
                             </Col>
-                            {/* Column 2: Attribute Select */}
                             <Col xs={24} sm={12} md={6} lg={5} xl={5}>
                                 <Form.Item label="Thuộc tính" style={{ marginBottom: 0 }}>
                                     <Select
@@ -967,7 +947,6 @@ const QuanLyGhiChuMayTinh = () => {
                                     </Select>
                                 </Form.Item>
                             </Col>
-                            {/* Column 3: Operator Select */}
                             <Col xs={24} sm={12} md={6} lg={5} xl={5}>
                                 <Form.Item label="Phép toán" style={{ marginBottom: 0 }}>
                                     <Select
@@ -987,7 +966,6 @@ const QuanLyGhiChuMayTinh = () => {
                                     </Select>
                                 </Form.Item>
                             </Col>
-                            {/* Column 4: Clear Button */}
                             <Col xs={24} sm={12} md={2} lg={4} xl={3}>
                                 <AntButton
                                     icon={<ClearOutlined />}
@@ -1011,9 +989,10 @@ const QuanLyGhiChuMayTinh = () => {
                                 showSizeChanger: true,
                                 showQuickJumper: true,
                                 position: ['bottomRight'],
-                                showTotal: (total, range) => `${range[0]}-${range[1]} trên ${total} mục`
+                                showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} mục`,
+                                defaultPageSize: 10,
                             }}
-                            scroll={{ x: 1500 }} // Enable horizontal scroll
+                            scroll={{ x: 1500 }} // Adjust scroll width based on columns
                             bordered
                             size="small"
                         />
@@ -1024,7 +1003,7 @@ const QuanLyGhiChuMayTinh = () => {
             {/* --- Scheduling Modal --- */}
             {selectedRecord && (
                 <Modal
-                    title={`Lên lịch sửa cho máy: ${selectedRecord.tenMay || 'N/A'} (Phòng: ${selectedRecord.tenPhong || 'N/A'})`}
+                    title={`Lên lịch sửa cho thiết bị: ${selectedRecord.tenThietBi || 'N/A'}`}
                     visible={isModalVisible}
                     onCancel={handleCancel}
                     footer={[
@@ -1045,7 +1024,7 @@ const QuanLyGhiChuMayTinh = () => {
                         </AntButton>,
                     ]}
                     destroyOnClose
-                    forceRender // Keep modal content rendered if needed
+                    forceRender
                     maskClosable={!modalLoading}
                 >
                     <Form
@@ -1056,12 +1035,12 @@ const QuanLyGhiChuMayTinh = () => {
                             ngaySua: null,
                             thoiGianBatDau: null,
                             thoiGianKetThuc: null,
-                            maNhanVienSua: null // Name corresponds to Form.Item below
+                            maNhanVienSua: null
                         }}
                     >
                         {/* --- Employee Selector (Using maNhanVien/tenNV) --- */}
                         <Form.Item
-                            name="maNhanVienSua" // This value (maNhanVien) is sent to API
+                            name="maNhanVienSua" // Value submitted will be maNhanVien
                             label="Người sửa"
                             rules={[{ required: true, message: 'Vui lòng chọn người sửa!' }]}
                         >
@@ -1072,7 +1051,7 @@ const QuanLyGhiChuMayTinh = () => {
                                 optionFilterProp="children" // Filter based on display text
                                 filterOption={(input, option) =>
                                     (option?.children ?? '').toLowerCase().includes(input.toLowerCase()) ||
-                                    (option?.value?.toString() ?? '').toLowerCase().includes(input.toLowerCase())
+                                    (option?.value?.toString() ?? '').toLowerCase().includes(input.toLowerCase()) // Search by ID too
                                 }
                                 style={{ width: '100%' }}
                             >
@@ -1119,12 +1098,10 @@ const QuanLyGhiChuMayTinh = () => {
                                     validator(_, value) {
                                         const startTime = getFieldValue('thoiGianBatDau');
                                         if (!value || !startTime) {
-                                            // Skip validation if start time is missing
-                                            return Promise.resolve();
+                                            return Promise.resolve(); // Skip if start time is missing
                                         }
                                         if (value.isAfter(startTime)) {
-                                            // Valid if end is after start
-                                            return Promise.resolve();
+                                            return Promise.resolve(); // Valid if end is after start
                                         }
                                         return Promise.reject(new Error('Giờ kết thúc phải sau giờ bắt đầu!'));
                                     },
@@ -1145,4 +1122,4 @@ const QuanLyGhiChuMayTinh = () => {
     );
 };
 
-export default QuanLyGhiChuMayTinh;
+export default QuanLyGhiChuThietBi;
