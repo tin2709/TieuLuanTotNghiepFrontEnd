@@ -24,6 +24,9 @@ const SidebarAdmin = ({ collapsed, onCollapse }) => {
             navigate('/quanligiaovien');
         } else if (e.key === 'employeeManagement') {
             navigate('/quanlinhanvien');
+        } else if (e.key === 'notemaytinhManagement') {
+                navigate('/quanlighichumaytinh');
+
         } else if (e.key === 'logout') {
             handleLogout();
         }
@@ -54,6 +57,9 @@ const SidebarAdmin = ({ collapsed, onCollapse }) => {
         } else if (path.startsWith('/quanlinhanvien')) {
             return ['employeeManagement'];
         }
+        else if (path.startsWith('/quanlighichumaytinh')) {
+            return ['notemaytinhManagement'];
+        }
         return []; // Default to no selection
     };
 
@@ -77,6 +83,9 @@ const SidebarAdmin = ({ collapsed, onCollapse }) => {
                 </Menu.Item>
                 <Menu.Item key="employeeManagement" icon={<UserOutlined />}>
                     Quản lý nhân viên
+                </Menu.Item>
+                <Menu.Item key="notemaytinhManagement" icon={<UserOutlined />}>
+                    Quản lý ghi chú máy tính
                 </Menu.Item>
                 <Menu.Item key="logout" icon={<LogoutOutlined />}>
                     Đăng xuất

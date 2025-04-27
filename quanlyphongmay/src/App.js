@@ -20,7 +20,7 @@ import { taikhoanAdminLoader } from './components/Loader/taikhoanAdminLoader';
 import { nhanvienAdminLoader } from './components/Loader/nhanvienAdminLoader';
 import { giaovienAdminLoader } from './components/Loader/giaovienAdminLoader';
 import { adminDashboardLoader } from './components/Loader/adminLoaders';
-
+import { ghichumaytinhLoader } from './components/Loader/ghichumaytinhLoader';
 
 // --- Component hiển thị khi chờ tải code ---
 const LoadingFallback = () => (
@@ -57,6 +57,7 @@ const Admin = lazy(() => import('./components/Admin/admin'));
 const QuanLiTaiKhoan = lazy(() => import('./components/Admin/TaiKhoan/quanlitaikhoan'));
 const QuanLiGiaoVien = lazy(() => import('./components/Admin/GiaoVien/quanligiaovien'));
 const QuanLiNhanVien = lazy(() => import('./components/Admin/NhanVien/quanlinhanvien'));
+const QuanLiGhiChuMayTinh = lazy(() => import('./components/Admin/GhiChuMayTinh/quanlighichumaytinh'));
 const Maytinh = lazy(() => import('./components/maytinh/maytinh'));
 const EditMayTinh = lazy(() => import('./components/maytinh/editmaytinh'));
 const AddMayTinh = lazy(() => import('./components/maytinh/addmaytinh'));
@@ -170,6 +171,11 @@ const router = createBrowserRouter([
         path: "quanlinhanvien",
         element: <ProtectedRoute component={QuanLiNhanVien} />,
         loader: nhanvienAdminLoader, // Loader nếu cần
+      },
+      {
+        path: "quanlighichumaytinh",
+        element: <ProtectedRoute component={QuanLiGhiChuMayTinh} />,
+        loader: ghichumaytinhLoader, // Loader nếu cần
       },
 
       // --- Catch-all hoặc trang 404 (Tùy chọn) ---
