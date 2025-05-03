@@ -1,75 +1,110 @@
-/* General styles */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-  }
-  
-  /* Container wrapping the whole page */
-  .container {
-    position: relative;
-    min-height: 100vh;
-  }
-  
-  /* Hero Section */
-  .hero-section {
-    position: relative;
-    height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-  }
-  
-  /* The background image */
-  .hero-image {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    
-    object-fit: cover;
-    opacity: 0.8; /* Optional, for a darker image */
-  }
-  
-  /* Content container */
-  .content {
-    position: relative;
-    z-index: 10;
-    color: white;
-    padding: 0 20px;
-    text-align: center;
-  }
-  
-  /* Heading */
+/* Base body styling (optional, but good practice for consistency) */
+body {
+  margin: 0;
+  font-family: sans-serif; /* Or your preferred font */
+  background-color: rgb(15 23 42); /* Fallback bg similar to slate-900 */
+}
+
+/* Main container styling */
+.container1 {
+  position: relative; /* For mask positioning if needed */
+  display: flex;
+  align-items: center; /* Vertical centering */
+  justify-content: center; /* Horizontal centering */
+  min-height: 100vh; /* Full viewport height */
+  overflow: hidden; /* Prevent scrollbars from mask/gradients */
+
+  /* Background Layers (order matters: last one is 'top') */
+  background-color: rgb(15 23 42); /* Base color (slate-900) */
+  background-image:
+    /* 1. Radial Gradient Overlay (Top layer) */
+          radial-gradient(125% 125% at 50% 10%, rgba(99,102,241,0.3) 40%, rgba(15,23,42,1) 100%),
+            /* 2. Grid Pattern (Bottom layer) */
+          linear-gradient(to right, #ffffff2e 1px, transparent 1px),
+          linear-gradient(to bottom, #ffffff2e 1px, transparent 1px);
+
+  background-size:
+          auto, /* Size for radial gradient */
+          50px 50px, /* Size for the grid pattern */
+          50px 50px; /* Size for the grid pattern */
+
+  /* Mask Effect */
+  -webkit-mask-image: radial-gradient(ellipse 150% 150% at 100% 100%, #000 100%, transparent 105%);
+  mask-image: radial-gradient(ellipse 150% 150% at 100% 100%, #000 100%, transparent 105%);
+}
+
+/* Content block styling */
+.content {
+  text-align: center;
+  color: white;
+  /* Apply the animation */
+  animation: slideUpFadeIn 1s ease-out forwards;
+  opacity: 0; /* Start hidden before animation */
+}
+
+/* Heading styles */
+.title {
+  font-size: 2.25rem; /* approx text-4xl */
+  font-weight: 700; /* font-bold */
+  margin-bottom: 1rem; /* mb-4 */
+  line-height: 1.2;
+}
+
+/* Subtitle styles */
+.subtitle {
+  font-size: 1.125rem; /* approx text-lg */
+  margin-bottom: 2rem; /* mb-8 */
+  color: rgb(203 213 225); /* slate-300 */
+  line-height: 1.6;
+}
+
+/* Button styles */
+.start-btn {
+  display: inline-block; /* inline-block */
+  background-color: rgb(79 70 229); /* indigo-600 */
+  color: white;
+  font-weight: 700; /* font-bold */
+  padding: 0.75rem 2rem; /* py-3 px-8 */
+  border-radius: 0.5rem; /* rounded-lg */
+  font-size: 1.125rem; /* text-lg */
+  text-decoration: none; /* Remove default link underline */
+  transition: background-color 300ms ease-out, box-shadow 300ms ease-out; /* transition-colors duration-300 + shadow */
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); /* shadow-lg */
+}
+
+.start-btn:hover {
+  background-color: rgb(67 56 202); /* hover:bg-indigo-700 */
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); /* hover:shadow-xl */
+}
+
+/* Responsive Font Sizes (Matching Tailwind breakpoints approx) */
+@media (min-width: 640px) { /* sm */
   .title {
-    font-size: 2rem;
-    font-weight: bold;
-    margin-bottom: 16px;
+    font-size: 3rem; /* text-5xl */
   }
-  
-  /* Subtitle */
   .subtitle {
-    font-size: 1.2rem;
-    margin-bottom: 24px;
+    font-size: 1.25rem; /* text-xl */
   }
-  
-  /* Button */
-  .start-btn {
-    background-color: #38a169; /* Green */
-    color: white;
-    padding: 12px 24px;
-    border-radius: 30px;
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 1.125rem;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    transition: background-color 0.3s ease;
+}
+
+@media (min-width: 768px) { /* md */
+  .title {
+    font-size: 3.75rem; /* text-6xl */
   }
-  
-  .start-btn:hover {
-    background-color: #2f855a; /* Darker green on hover */
+  .subtitle {
+    font-size: 1.5rem; /* text-2xl */
   }
-  
+}
+
+
+/* Animation Keyframes */
+@keyframes slideUpFadeIn {
+  from { /* 0% */
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to { /* 100% */
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
