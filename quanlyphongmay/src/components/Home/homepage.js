@@ -58,7 +58,7 @@ const HomePage = () => {
         localStorage.removeItem('authToken');
         localStorage.removeItem('username');
         localStorage.removeItem('userRole');
-        navigate('/login');
+        window.location.href = '/login';
         message.success('Đã đăng xuất!');
     };
 

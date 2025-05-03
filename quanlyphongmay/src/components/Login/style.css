@@ -1,104 +1,189 @@
-/* Hero Section */
+/* style.css */
+/* Base body styling */
+body {
+    margin: 0;
+    font-family: sans-serif;
+    min-height: 100vh;
+}
+
+/* Hero Section - Centers content */
 .hero-section {
     position: relative;
-    height: 100vh;
+    min-height: 100vh; /* Use min-height to adapt to content */
+    height: auto;      /* Allow height to grow */
     display: flex;
     justify-content: center;
     align-items: center;
-    text-align: center;
+    overflow: hidden;
+    padding: 40px 20px; /* More padding top/bottom for longer forms */
+    box-sizing: border-box;
 }
 
+/* Background Image */
 .hero-image {
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
-    opacity: 0.7;
+    z-index: -1;
 }
 
+/* Content Wrapper */
 .content {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: white;
-}
-
-/* Card Styling */
-.custom-card {
-    background-color: white;
-    padding: 40px;
-    border-radius: 1rem;
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
     width: 100%;
-    max-width: 600px; /* Increased card size */
-    margin: auto;
+    max-width: 550px; /* Increased max-width for register form */
+    display: flex;
+    justify-content: center;
 }
 
+/* --- Glassmorphism Card Styling --- */
+.custom-card {
+    background-color: rgba(255, 255, 255, 0.1); /* Slightly adjust transparency */
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    padding: 35px 40px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.15);
+    width: 100%;
+    opacity: 0;
+    animation: slideUpFadeInBlurForm 1.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+/* Card Body */
 .card-body {
-    text-align: center;
-    padding: 40px;
+    /* Padding is now handled by .custom-card, so remove inline padding classes */
+    text-align: left;
+    padding: 0;
 }
 
-h3 {
-    font-size: 2.5rem; /* Increase heading size */
-    color: black; /* Set color to black */
+/* --- Elements inside the card --- */
+
+/* Heading */
+/* Target the h3 inside card-body, remove text-black if present in JSX */
+.card-body h3 {
+    text-align: center;
+    font-weight: bold; /* Use font-weight */
+    margin-bottom: 2.5rem; /* Adjust spacing */
+    color: white; /* White heading */
+    font-size: 1.8rem; /* Adjust size */
 }
 
 /* Form Styling */
 form {
-    display: grid;
-    grid-template-columns: 1fr; /* All elements on a single column */
-    grid-gap: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px; /* Adjust gap between form elements */
 }
 
 .form-group {
     display: flex;
-    justify-content: space-between; /* Align label and input on the same row */
-    align-items: center;
+    flex-direction: column;
+    position: relative;
+    /* Remove bootstrap margin classes (like mb-3) from JSX if possible, rely on form gap */
 }
 
-.form-group label {
-    font-size: 1.2rem; /* Increase label font size */
-    font-weight: bold;
-    width: 30%; /* Ensure label has a fixed width */
-    margin-bottom: 5px;
+/* --- Label Styling (Visible) --- */
+.form-group label.form-label { /* Target labels with .form-label class */
+    font-size: 0.9rem;
+    font-weight: 500; /* Slightly bolder */
+    width: 100%;
+    margin-bottom: 6px; /* Space between label and input */
+    color: rgba(255, 255, 255, 0.9); /* White label */
+    display: block; /* Ensure label is visible */
 }
 
+/* --- Input Field Styling (Underline Style) --- */
 input.form-control {
-    font-size: 1.1rem; /* Increase input font size */
-    padding: 12px; /* Increase input padding */
-    border-radius: 5px;
-    border: 1px solid #ccc;
-    width: 65%; /* Ensure inputs take up remaining space */
-}
-
-button.btn {
-    font-size: 1.1rem; /* Increase button font size */
-    padding: 12px;
-    border-radius: 5px;
+    font-size: 1rem;
+    padding: 10px 5px;
     border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+    background-color: transparent;
+    color: white;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color 0.3s ease;
+    outline: none;
+    border-radius: 0; /* Remove bootstrap radius */
 }
 
-button.btn:hover {
-    background-color: #0056b3;
-    transform: translateY(-2px);
+input.form-control::placeholder {
+    color: rgba(255, 255, 255, 0.6);
+    opacity: 1;
+    font-weight: 300;
 }
 
-/* Avatar Upload */
+input.form-control:focus {
+    border-bottom-color: white;
+    box-shadow: none;
+}
+
+/* --- Select Dropdown Styling --- */
+select.form-control.custom-select {
+    font-size: 1rem;
+    padding: 10px 5px;
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+    background-color: transparent; /* Make background transparent */
+    color: white; /* Text color */
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color 0.3s ease;
+    outline: none;
+    appearance: none; /* Remove default arrow */
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    /* Add custom arrow */
+    background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22rgba(255,255,255,0.7)%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E');
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-size: 10px auto;
+    border-radius: 0; /* Remove bootstrap radius */
+}
+
+select.form-control.custom-select:focus {
+    border-bottom-color: white;
+    box-shadow: none;
+}
+
+/* Style options (browser support varies) */
+select.form-control.custom-select option {
+    background-color: #2b3035; /* Dark background for dropdown options */
+    color: white;
+}
+
+/* --- Avatar Upload Styling --- */
 .upload-label {
     cursor: pointer;
-    display: inline-block;
-    text-align: center;
-    margin-top: 20px;
-    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-top: 10px;
+    padding: 8px;
+    border-radius: 6px;
+    transition: background-color 0.2s ease;
+}
+
+.upload-label:hover {
+    background-color: rgba(255, 255, 255, 0.1); /* Subtle hover */
+}
+
+.upload-label span {
+    font-size: 0.95rem;
+    color: rgba(255, 255, 255, 0.8); /* Light text */
+    font-weight: 500;
 }
 
 .img-cont {
-    width: 70px;
-    height: 70px;
+    width: 55px;
+    height: 55px;
     border-radius: 50%;
     overflow: hidden;
-    margin-bottom: 10px;
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.3); /* Lighter border */
 }
 
 .user-img {
@@ -107,53 +192,130 @@ button.btn:hover {
     object-fit: cover;
 }
 
-.form-check-label {
-    font-size: 1.1rem;
-}
-
-small {
+/* --- Submit Button Styling --- */
+/* Target button with .btn and .btn-primary */
+button.btn.btn-primary {
     font-size: 1rem;
-    color: #bbb;
+    padding: 12px;
+    border-radius: 25px; /* Pill shape */
+    border: none;
+    cursor: pointer;
+    background-color: white; /* White background */
+    color: #333; /* Dark text */
+    transition: background-color 0.3s ease, transform 0.2s ease, box-shadow 0.3s ease;
+    width: 100%;
+    margin-top: 15px; /* Space above button */
+    font-weight: 600;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 }
 
-a {
-    font-size: 1.1rem;
-    color: #007bff;
+button.btn.btn-primary:disabled {
+    background-color: rgba(204, 204, 204, 0.8); /* More muted disabled state */
+    color: #777;
+    cursor: not-allowed;
+    opacity: 0.7;
+    box-shadow: none;
 }
 
-a:hover {
+button.btn.btn-primary:hover:not(:disabled) {
+    background-color: #f0f0f0;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+}
+
+/* --- Error Message Styling --- */
+.error-message.below-input-error {
+    display: block;
+    color: #ffdddd; /* Lighter red */
+    font-size: 0.85em;
+    margin-top: 6px; /* Space below input/select */
+    width: 100%;
+    text-align: left;
+    font-weight: 500;
+}
+
+/* --- Login Link Styling --- */
+/* Targeting the paragraph and link at the bottom */
+.card-body p.text-center {
+    text-align: center;
+    margin-top: 25px; /* Space above link */
+    margin-bottom: 0;
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.8); /* Light text */
+}
+
+.card-body p.text-center a {
+    color: #cceeff; /* Light blue link */
+    font-weight: 600;
+    text-decoration: none; /* Optional: remove underline */
+    transition: color 0.2s ease;
+}
+
+.card-body p.text-center a:hover {
+    color: white;
     text-decoration: underline;
 }
 
-/* Add some margin for mobile responsiveness */
-@media (max-width: 768px) {
-    .content {
-        padding: 20px;
-    }
 
-    .custom-card {
-        padding: 30px;
+/* --- Responsive Adjustments --- */
+@media (max-width: 768px) {
+    .hero-section {
+        padding: 30px 15px;
+    }
+    .content {
         max-width: 90%;
     }
-
-    h3 {
-        font-size: 2rem;
+    .custom-card {
+        padding: 30px;
     }
-
-    .form-group {
-        flex-direction: column; /* Stack label and input vertically on small screens */
-        align-items: flex-start;
-    }
-
-    .form-group label {
-        width: 100%;
-        margin-bottom: 10px;
-    }
-
-    input.form-control {
-        width: 100%; /* Make input take up full width on small screens */
+    .card-body h3 {
+        font-size: 1.6rem;
+        margin-bottom: 2rem;
     }
 }
-label{
-    color: #000;
+
+@media (max-width: 480px) {
+    .content {
+        max-width: 95%;
+    }
+    .custom-card {
+        padding: 25px 20px;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+    }
+    input.form-control,
+    select.form-control.custom-select,
+    button.btn.btn-primary {
+        font-size: 0.9rem;
+    }
+    button.btn.btn-primary {
+        padding: 11px;
+    }
+    .form-group label.form-label {
+        font-size: 0.85rem;
+    }
+    .card-body h3 {
+        font-size: 1.5rem;
+    }
+    form {
+        gap: 15px; /* Slightly reduce gap */
+    }
+    .upload-label span {
+        font-size: 0.9rem;
+    }
+}
+
+
+/* --- Animation Keyframes --- */
+@keyframes slideUpFadeInBlurForm {
+    from {
+        opacity: 0;
+        transform: translateY(50px);
+        filter: blur(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+        filter: blur(0px);
+    }
 }
