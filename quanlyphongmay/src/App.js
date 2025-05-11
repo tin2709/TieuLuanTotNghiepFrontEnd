@@ -66,6 +66,8 @@ const EditMayTinh = lazy(() => import('./components/maytinh/editmaytinh'));
 const AddMayTinh = lazy(() => import('./components/maytinh/addmaytinh'));
 const ReportBrokenNotes = lazy(() => import('./components/PhongMay/ReportBrokenNotes'))
 const ReportBrokenDeviceNotes = lazy(() => import('./components/PhongMay/ReportBrokenDeviceNotes'))
+const PhanTichLog = lazy(() => import('./components/Admin/Log/phantichlog'))
+
 const Register = lazy(() => import('./components/Register'));
 const ForgotPass = lazy(() => import('./components/Login/forgotpassword'));
 const VerifyOtp = lazy(() => import('./components/Login/verifyotp'));
@@ -184,6 +186,10 @@ const router = createBrowserRouter([
         path: "quanlighichuthietbi",
         element: <ProtectedRoute component={QuanLiGhiChuThietBi} />,
         loader: ghichuthietbiLoader, // Loader nếu cần
+      },
+      {
+        path: "phantichlog",
+        element: <ProtectedRoute component={PhanTichLog} />,
       },
 
       // --- Catch-all hoặc trang 404 (Tùy chọn) ---
