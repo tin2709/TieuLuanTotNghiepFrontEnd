@@ -1,0 +1,92 @@
+{
+  "header": {
+    "logo": "Computer Room Management",
+    "nav": {
+      "about": "About Us",
+      "services": "Services",
+      "contact": "Contact"
+    },
+    "managementDropdown": {
+      "label": "Management"
+    },
+    "logout": "Logout",
+    "greeting": {
+      "default": "Hello, {{name}}",
+      "admin": "Hello Admin {{name}}",
+      "teacher": "Hello Teacher {{name}}",
+      "staff": "Hello Staff {{name}}"
+    }
+  },
+  "managementMenu": {
+    "room": "Manage Computer Rooms",
+    "floor": "Manage Floors",
+    "computer": "Manage Computers",
+    "practiceSession": "Manage Practice Sessions"
+  },
+  "hero": {
+    "title": "Smart Computer Room Management System",
+    "paragraph": "A modern solution to simplify tracking, maintenance, and optimization of your computer room operations.",
+    "button": "Learn More"
+  },
+  "about": {
+    "title": "About the System",
+    "imageAlt": "System Introduction - Working Group",
+    "paragraph1": "The Computer Room Management System is built to address the challenges in operating large or small-scale computer rooms...",
+    "paragraph2": "The goal of the system is to improve management efficiency, minimize equipment downtime, and provide a better end-user experience."
+  },
+  "services": {
+    "title": "Features & Services",
+    "cards": {
+      "manageEquipment": {
+        "title": "Equipment Management",
+        "text": "Track detailed information, configuration, and status of each computer, room, and floor."
+      },
+      "reportIssue": {
+        "title": "Issue Reporting",
+        "text": "Allows users to easily report errors, administrators receive and update processing progress."
+      },
+      "statistics": {
+        "title": "Statistics & Reports",
+        "text": "Provides visual reports on usage status, operational performance, and incident history."
+      }
+    }
+  },
+  "contact": {
+    "title": "Contact Support",
+    "intro": "Do you have questions, feedback, or need technical support? Please submit your information using the form below.",
+    "form": {
+      "name": {
+        "label": "Full Name",
+        "placeholder": "Your Name"
+      },
+      "email": {
+        "label": "Email Address",
+        "placeholder": "Contact Email"
+      },
+      "message": {
+        "label": "Message Content",
+        "placeholder": "Your message content..."
+      },
+      "submit": "Send Contact"
+    }
+  },
+  "footer": {
+    "copyright": "Computer Room Management System ©{{year}}"
+  },
+  "validation": {
+    "requiredName": "Please enter your name!",
+    "requiredEmail": "Please enter your email address!",
+    "invalidEmail": "Invalid email format!",
+    "requiredMessage": "Please enter the message content!"
+  },
+  "auth": {
+    "invalidSession": "Invalid login session. Please log in again.",
+    "sessionExpired": "Login session expired. Please log in again.",
+    "permissionsLoadFailed": "Could not load user permissions.",
+    "connectionError": "Connection error while loading permissions: {{message}}",
+    "logoutSuccess": "Logged out successfully!"
+  },
+  "contactMessages": {
+    "submitSuccess": "Thank you for contacting us! We will respond shortly."
+  }
+}

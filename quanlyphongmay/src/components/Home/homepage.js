@@ -1,7 +1,7 @@
 // src/components/Home/Home.js
-import React, { useState, useEffect, useCallback } from 'react'; // Added useCallback
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Layout, Menu, Dropdown, Typography, Row, Col, Card, Space, Button, Form, Input, message, Anchor, Spin } from 'antd'; // Added Spin
+import { Layout, Menu, Dropdown, Typography, Row, Col, Card, Space, Button, Form, Input, message, Anchor, Spin } from 'antd';
 import {
     DownOutlined,
     LogoutOutlined,
@@ -20,27 +20,41 @@ import {
 import { OverPack } from 'rc-scroll-anim';
 import QueueAnim from 'rc-queue-anim';
 
-import './homepage.css';
+import { useTranslation } from 'react-i18next'; // Import useTranslation
+
+import './homepage.css'; // Assume this handles your basic layout/styling
 
 const { Header, Content, Footer } = Layout;
 const { Title, Paragraph, Text } = Typography;
 const { TextArea } = Input;
 const { Link } = Anchor;
 
-const API_BASE_URL = "https://localhost:8080"; // Define API base URL
+const API_BASE_URL = "https://localhost:8080"; // Define API base URL (Keep this)
+
+// Language options for the switcher
+const languageOptions = [
+    { key: 'en', label: 'English', flag: '🇺🇸' },
+    { key: 'vi', label: 'Tiếng Việt', flag: '🇻🇳' },
+    // { key: 'zh', label: '中文', flag: '🇨🇳' },
+    // { key: 'ko', label: '한국어', flag: '🇰🇷' },
+    // { key: 'fr', label: 'Français', flag: '🇫🇷' },
+];
 
 const HomePage = () => {
     const navigate = useNavigate();
-    const username = localStorage.getItem("username") || "Người dùng";
-    const rawUserRole = localStorage.getItem("userRole"); // Get role string from localStorage
-    const maTK = localStorage.getItem("maTK"); // Get maTK from localStorage
-    const authToken = localStorage.getItem("authToken"); // Get authToken from localStorage
+    const { t, i18n } = useTranslation(); // Initialize useTranslation hook
+
+    const username = localStorage.getItem("username") || t('header.greeting.default', { name: 'Người dùng' }); // Use translation for default
+    const rawUserRole = localStorage.getItem("userRole");
+    const maTK = localStorage.getItem("maTK");
+    const authToken = localStorage.getItem("authToken");
 
     const [form] = Form.useForm();
 
-    const [renderBelowFold, setRenderBelowFold] = useState(false); // For delayed rendering
-    const [userPermissions, setUserPermissions] = useState({}); // Stores fetched permissions { RESOURCE: { ACTION: true/false } }
-    const [permissionsLoading, setPermissionsLoading] = useState(true); // Loading state for permissions
+    const [renderBelowFold, setRenderBelowFold] = useState(false);
+    const [userPermissions, setUserPermissions] = useState({});
+    const [permissionsLoading, setPermissionsLoading] = useState(true);
+    const [currentLanguage, setCurrentLanguage] = useState(i18n.language); // State to track current language
 
     // Effect for delayed rendering
     useEffect(() => {
@@ -50,22 +64,27 @@ const HomePage = () => {
         return () => clearTimeout(timer);
     }, []);
 
+    // Effect to update current language state when i18n.language changes
+    useEffect(() => {
+        setCurrentLanguage(i18n.language);
+    }, [i18n.language]);
+
+
     // --- Effect to fetch user permissions on component mount ---
     useEffect(() => {
         // Check if required info exists for fetching permissions
         if (!maTK || !authToken) {
             console.error("Missing maTK or authToken in localStorage. Redirecting to login.");
-            message.error("Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.");
+            message.error(t('auth.invalidSession')); // Use translation
             navigate('/login');
-            return; // Stop the effect if login info is missing
+            return;
         }
 
         // Role "1" (Admin) bypasses specific permissions checks for menu visibility
         if (rawUserRole === "1") {
             console.log("Admin user detected, showing all management menu items.");
-            setPermissionsLoading(false); // Admin permissions are instantly "loaded"
-            // No need to fetch for Admin, just show all items
-            return; // Stop the effect for Admin
+            setPermissionsLoading(false);
+            return;
         }
 
         // For non-Admin users, fetch permissions
@@ -75,64 +94,60 @@ const HomePage = () => {
                 const response = await fetch(`${API_BASE_URL}/getUserPermissionsByUserId?userId=${maTK}&token=${authToken}`);
 
                 if (!response.ok) {
-                    // Attempt to parse error message from backend
-                    const errorData = await response.json().catch(() => ({ message: "Phản hồi không hợp lệ từ máy chủ khi tải quyền người dùng." }));
+                    const errorData = await response.json().catch(() => ({ message: t('permissions.loadFailed') })); // Use translation
                     console.error("Failed to fetch user permissions:", response.status, errorData);
                     if (response.status === 401) {
-                        message.error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+                        message.error(t('auth.sessionExpired')); // Use translation
                         navigate('/login');
                     } else {
-                        message.error(errorData.message || 'Không thể tải quyền người dùng.');
+                        message.error(errorData.message || t('permissions.loadFailed')); // Use translation
                     }
-                    setUserPermissions({}); // Clear permissions state on error
-                    return; // Stop execution
+                    setUserPermissions({});
+                    return;
                 }
 
                 const result = await response.json();
                 console.log("Fetched user permissions:", result.permissions);
 
-                // Transform the flat list into a nested object for easier lookup
                 const formattedPermissions = {};
                 if (Array.isArray(result.permissions)) {
                     result.permissions.forEach(perm => {
-                        const resource = perm.resource; // e.g., "COMPUTER"
-                        const action = perm.action; // e.g., "VIEW"
+                        const resource = perm.resource;
+                        const action = perm.action;
 
                         if (!formattedPermissions[resource]) {
                             formattedPermissions[resource] = {};
                         }
-                        formattedPermissions[resource][action] = true; // Set the permission flag to true
+                        formattedPermissions[resource][action] = true;
                     });
                 }
-                setUserPermissions(formattedPermissions); // Update state with formatted permissions
+                setUserPermissions(formattedPermissions);
 
             } catch (error) {
                 console.error("Error fetching user permissions:", error);
-                message.error(`Lỗi kết nối khi tải quyền: ${error.message}`);
-                setUserPermissions({}); // Clear permissions state on error
+                message.error(t('auth.connectionError', { message: error.message })); // Use translation with parameter
+                setUserPermissions({});
             } finally {
-                setPermissionsLoading(false); // Set loading to false regardless of success/failure
+                setPermissionsLoading(false);
             }
         };
 
         fetchUserPermissions();
 
-    }, [maTK, authToken, rawUserRole, navigate]); // Dependencies: re-run if these change
+    }, [maTK, authToken, rawUserRole, navigate, t]); // Add 't' as dependency
 
-    // Logic xác định lời chào dựa trên role
-    let greetingMessage = `Chào, ${username}`;
+    // Logic xác định lời chào dựa trên role (using translation)
+    let greetingMessage = t('header.greeting.default', { name: username });
     if (rawUserRole === "2") {
-        greetingMessage = `Chào giáo viên ${username}`;
+        greetingMessage = t('header.greeting.teacher', { name: username });
     } else if (rawUserRole === "3") {
-        greetingMessage = `Chào nhân viên ${username}`;
+        greetingMessage = t('header.greeting.staff', { name: username });
     } else if (rawUserRole === "1") {
-        greetingMessage = `Chào Admin ${username}`;
+        greetingMessage = t('header.greeting.admin', { name: username });
     }
-
 
     // Logic đăng xuất
     const handleLogout = () => {
-        // Clear all relevant items from localStorage
         localStorage.removeItem('authToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('maTK');
@@ -141,134 +156,149 @@ const HomePage = () => {
         localStorage.removeItem('loginSuccessTimestamp');
         localStorage.removeItem('expireAt');
 
-        message.success('Đã đăng xuất!');
-        navigate('/login'); // Use navigate for SPA behavior
+        message.success(t('auth.logoutSuccess')); // Use translation
+        navigate('/login');
+    };
+
+    // --- Language Switcher Handler ---
+    const changeLanguage = (lng) => {
+        i18n.changeLanguage(lng);
+        // Optionally save preference to localStorage
+        // localStorage.setItem('selectedLanguage', lng);
+    };
+
+    // Menu items for the language switcher dropdown
+    const languageMenu = {
+        items: languageOptions.map(lang => ({
+            key: lang.key,
+            label: <Space>{lang.flag} {lang.label}</Space>,
+            onClick: () => changeLanguage(lang.key),
+        })),
     };
 
     // Define ALL potential menu items with their required resource and action (if any)
+    // Use translation keys for labels
     const rawMenuItems = [
         {
             key: '/phongmay',
-            icon: <DesktopOutlined />, // Icon
-            label: 'Quản lý Phòng máy',
-            resource: 'ROOM', // Backend resource name
-            requiredAction: 'VIEW', // Required backend action for visibility
+            icon: <DesktopOutlined />,
+            labelKey: 'managementMenu.room', // Use key instead of hardcoded string
+            resource: 'ROOM',
+            requiredAction: 'VIEW',
         },
         {
             key: '/tang',
             icon: <ApartmentOutlined />,
-            label: 'Quản lý Tầng',
-            resource: 'FLOOR', // Backend resource name
-            requiredAction: 'VIEW', // Required backend action for visibility
+            labelKey: 'managementMenu.floor', // Use key
+            resource: 'FLOOR',
+            requiredAction: 'VIEW',
         },
         {
             key: '/maytinh',
             icon: <ClusterOutlined />,
-            label: 'Quản lý Máy tính',
-            resource: 'COMPUTER', // Backend resource name
-            requiredAction: 'VIEW', // Required backend action for visibility
+            labelKey: 'managementMenu.computer', // Use key
+            resource: 'COMPUTER',
+            requiredAction: 'VIEW',
         },
         {
             key: '/cathuchanh',
             icon: <ScheduleOutlined />,
-            label: 'Quản lý Ca thực hành',
-            // No resource/requiredAction defined here means this item is NOT filtered
-            // based on the userPermissions state fetched by getUserPermissionsByUserId.
-            // If managing practice sessions requires a specific permission (e.g., for a
-            // 'PRACTICE_SESSION' resource), you would add 'resource' and 'requiredAction' properties here.
+            labelKey: 'managementMenu.practiceSession', // Use key
+            // No resource/requiredAction defined means this item is NOT filtered by permissions.
         },
-        // Add other potential management links here
+        // Add other potential management links here using labelKey
     ];
 
     // Filter the menu items based on fetched permissions or Admin role
     const filteredMenuItems = rawMenuItems.filter(item => {
-        // If the user is Admin, show all management items
         if (rawUserRole === "1") {
             return true;
         }
-
-        // If the item doesn't require a specific permission check (like 'Ca thực hành' in this example), show it
         if (!item.resource || !item.requiredAction) {
             return true;
         }
-
-        // For other roles, check if the userPermissions state indicates the required permission
-        // userPermissions[item.resource] might be undefined if the user has no permissions for that resource at all
-        // userPermissions[item.resource]?.[item.requiredAction] checks if the resource exists AND the action exists and is true
         return userPermissions[item.resource]?.[item.requiredAction] === true;
     }).map(item => ({ // Map to the format required by Ant Design Dropdown items
         key: item.key,
         icon: item.icon,
-        label: item.label,
-        onClick: () => navigate(item.key), // Use navigate here
+        label: t(item.labelKey), // Use translated label
+        onClick: () => navigate(item.key),
     }));
 
-
-    // Combine filtered items with Logout item for the dropdown menu structure (antd v5+)
-    const dropdownMenuStructure = [
+    // Combine filtered items with Logout item for the dropdown menu structure
+    const managementDropdownMenuStructure = [
         ...filteredMenuItems,
         {
-            type: 'divider', // Optional: adds a separator
+            type: 'divider',
         },
         {
             key: 'logout',
             icon: <LogoutOutlined />,
-            label: 'Đăng xuất',
-            danger: true, // Style as danger
+            label: t('header.logout'), // Use translation
+            danger: true,
             onClick: handleLogout,
         },
     ];
-
 
     // Handle contact form submission
     const onFinishContact = (values) => {
         console.log('Contact form submitted: ', values);
         // Simulate API call success
         setTimeout(() => {
-            message.success('Cảm ơn bạn đã liên hệ! Chúng tôi sẽ phản hồi sớm.');
+            message.success(t('contactMessages.submitSuccess')); // Use translation
             form.resetFields();
         }, 500);
         // TODO: Implement actual API call to your backend contact endpoint if available
     };
 
-    // Image dimensions for layout shift prevention
+    // Image dimensions (Keep this)
     const aboutUsImageUrl = "https://images.unsplash.com/photo-1517048676732-d65bc937f952?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80";
     const imageWidth = 450;
     const imageHeight = 300;
 
-
     // Determine if the management dropdown should be disabled
-    // It should be disabled while permissions are loading, but *not* for Admins
     const isManagementDropdownDisabled = permissionsLoading && rawUserRole !== "1";
+
+    // Find the current language's flag and label for the switcher button
+    const currentLangOption = languageOptions.find(lang => lang.key === currentLanguage) || languageOptions[0];
 
 
     return (
         <Layout className="layout home-layout">
-            <style>{` body { font-display: swap !important; } `}</style> {/* Keep font-display */}
+            <style>{` body { font-display: swap !important; } `}</style>
 
             {/* --- Header --- */}
             <Header className="home-header">
-                <div className="logo">QL Phòng Máy</div>
+                {/* Use translation for logo text */}
+                <div className="logo">{t('header.logo')}</div>
                 <div className="header-nav">
                     <Anchor targetOffset={80} affix={false} className="anchor-nav">
-                        <Link href="#about" title="Giới Thiệu" />
-                        <Link href="#services" title="Dịch Vụ" />
-                        <Link href="#contact" title="Liên Hệ" />
+                        {/* Use translation for link titles */}
+                        <Link href="#about" title={t('header.nav.about')} />
+                        <Link href="#services" title={t('header.nav.services')} />
+                        <Link href="#contact" title={t('header.nav.contact')} />
                     </Anchor>
 
+                    {/* Language Switcher Dropdown */}
+                    <Dropdown menu={languageMenu} trigger={['click']} placement="bottomRight" className="language-switcher">
+                        <Button type="text" icon={<Space>{currentLangOption.flag} <DownOutlined /></Space>}>
+                            {currentLangOption.label}
+                        </Button>
+                    </Dropdown>
+
+
                     {/* Management Dropdown */}
-                    <Dropdown menu={{ items: dropdownMenuStructure }} trigger={['hover']} className="management-dropdown">
-                        {/* Use Space to align icon and text */}
+                    <Dropdown menu={{ items: managementDropdownMenuStructure }} trigger={['hover']} className="management-dropdown">
                         <a className="ant-dropdown-link" onClick={e => e.preventDefault()} disabled={isManagementDropdownDisabled}>
                             <Space>
-                                Quản Lý
+                                {t('header.managementDropdown.label')} {/* Use translation */}
                                 {isManagementDropdownDisabled ? <Spin indicator={<LoadingOutlined style={{ fontSize: 14 }} spin />} /> : <DownOutlined />}
                             </Space>
                         </a>
                     </Dropdown>
 
                     <Text className="user-greeting">{greetingMessage}</Text>
-                    <Button type="text" icon={<LogoutOutlined />} onClick={handleLogout} className="logout-button" title="Đăng xuất"/>
+                    <Button type="text" icon={<LogoutOutlined />} onClick={handleLogout} className="logout-button" title={t('header.logout')}/> {/* Use translation */}
                 </div>
             </Header>
 
@@ -277,11 +307,14 @@ const HomePage = () => {
                 {/* --- Hero Section (Render immediately) --- */}
                 <div className="hero-section content-section">
                     <div className="section-content">
-                        <Title level={1} style={{ marginBottom: '20px', color: '#001529' }}>Hệ Thống Quản Lý Phòng Máy Thông Minh</Title>
+                        {/* Use translation for hero title */}
+                        <Title level={1} style={{ marginBottom: '20px', color: '#001529' }}>{t('hero.title')}</Title>
+                        {/* Use translation for hero paragraph */}
                         <Paragraph style={{ fontSize: '1.2em', maxWidth: '800px', margin: '0 auto' }}>
-                            Giải pháp hiện đại giúp đơn giản hóa việc theo dõi, bảo trì và tối ưu hóa hoạt động phòng máy tính của bạn.
+                            {t('hero.paragraph')}
                         </Paragraph>
-                        <Button type="primary" size="large" href="#about" style={{ marginTop: '30px' }}>Tìm Hiểu Thêm</Button>
+                        {/* Use translation for hero button */}
+                        <Button type="primary" size="large" href="#about" style={{ marginTop: '30px' }}>{t('hero.button')}</Button>
                     </div>
                 </div>
 
@@ -291,23 +324,25 @@ const HomePage = () => {
                         {/* --- About Section --- */}
                         <div id="about" className="content-section bg-light">
                             <div className="section-content">
-                                <Title level={2} style={{ textAlign: 'center', marginBottom: '40px' }}><InfoCircleOutlined /> Giới Thiệu Hệ Thống</Title>
+                                {/* Use translation for about title */}
+                                <Title level={2} style={{ textAlign: 'center', marginBottom: '40px' }}><InfoCircleOutlined /> {t('about.title')}</Title>
                                 <Row gutter={[32, 32]} align="middle">
                                     <Col xs={24} md={12}>
                                         <img
                                             src={aboutUsImageUrl}
-                                            alt="Giới thiệu hệ thống - Nhóm làm việc"
+                                            alt={t('about.imageAlt')}
                                             style={{ width: '100%', maxWidth: '450px', display: 'block', margin: '0 auto', borderRadius: '8px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }}
                                             width={imageWidth}
                                             height={imageHeight}
                                         />
                                     </Col>
                                     <Col xs={24} md={12}>
+                                        {/* Use translation for about paragraphs */}
                                         <Paragraph style={{ fontSize: '1.1em' }}>
-                                            Hệ thống Quản lý Phòng Máy được xây dựng để giải quyết những thách thức trong việc vận hành các phòng máy tính quy mô lớn hoặc nhỏ...
+                                            {t('about.paragraph1')}
                                         </Paragraph>
                                         <Paragraph style={{ fontSize: '1.1em', marginTop: '15px' }}>
-                                            Mục tiêu của hệ thống là nâng cao hiệu quả quản lý giảm thiểu thời gian chết của thiết bị và cung cấp trải nghiệm tốt hơn cho người dùng cuối.
+                                            {t('about.paragraph2')}
                                         </Paragraph>
                                     </Col>
                                 </Row>
@@ -318,11 +353,30 @@ const HomePage = () => {
                         <OverPack id="services" className="content-section" playScale={0.2}>
                             <div key="services-content" className="section-content">
                                 <QueueAnim key="services-anim" type={['bottom', 'top']} leaveReverse >
-                                    <Title level={2} key="title" style={{ textAlign: 'center', marginBottom: '50px' }}><CustomerServiceOutlined /> Tính Năng & Dịch Vụ</Title>
+                                    {/* Use translation for services title */}
+                                    <Title level={2} key="title" style={{ textAlign: 'center', marginBottom: '50px' }}><CustomerServiceOutlined /> {t('services.title')}</Title>
                                     <Row gutter={[24, 24]} key="cards">
-                                        <Col xs={24} sm={12} lg={8}> <Card title="Quản Lý Thiết Bị" bordered={false} hoverable> <DesktopOutlined style={{ fontSize: '24px', color: '#1890ff', marginBottom: '10px'}}/> <p>Theo dõi thông tin chi tiết, cấu hình, trạng thái của từng máy tính, phòng máy và tầng.</p> </Card> </Col>
-                                        <Col xs={24} sm={12} lg={8}> <Card title="Báo Cáo Sự Cố" bordered={false} hoverable> <InfoCircleOutlined style={{ fontSize: '24px', color: '#faad14', marginBottom: '10px'}}/> <p>Cho phép người dùng dễ dàng báo cáo lỗi, quản trị viên tiếp nhận và cập nhật tiến độ xử lý.</p> </Card> </Col>
-                                        <Col xs={24} sm={12} lg={8}> <Card title="Thống Kê & Báo Cáo" bordered={false} hoverable> <ClusterOutlined style={{ fontSize: '24px', color: '#52c41a', marginBottom: '10px'}}/> <p>Cung cấp báo cáo trực quan về tình trạng sử dụng, hiệu suất hoạt động và lịch sử sự cố.</p></Card> </Col>
+                                        <Col xs={24} sm={12} lg={8}>
+                                            {/* Use translation for card title and text */}
+                                            <Card title={t('services.cards.manageEquipment.title')} bordered={false} hoverable>
+                                                <DesktopOutlined style={{ fontSize: '24px', color: '#1890ff', marginBottom: '10px'}}/>
+                                                <p>{t('services.cards.manageEquipment.text')}</p>
+                                            </Card>
+                                        </Col>
+                                        <Col xs={24} sm={12} lg={8}>
+                                            {/* Use translation for card title and text */}
+                                            <Card title={t('services.cards.reportIssue.title')} bordered={false} hoverable>
+                                                <InfoCircleOutlined style={{ fontSize: '24px', color: '#faad14', marginBottom: '10px'}}/>
+                                                <p>{t('services.cards.reportIssue.text')}</p>
+                                            </Card>
+                                        </Col>
+                                        <Col xs={24} sm={12} lg={8}>
+                                            {/* Use translation for card title and text */}
+                                            <Card title={t('services.cards.statistics.title')} bordered={false} hoverable>
+                                                <ClusterOutlined style={{ fontSize: '24px', color: '#52c41a', marginBottom: '10px'}}/>
+                                                <p>{t('services.cards.statistics.text')}</p>
+                                            </Card>
+                                        </Col>
                                     </Row>
                                 </QueueAnim>
                             </div>
@@ -331,20 +385,47 @@ const HomePage = () => {
                         {/* --- Contact Section --- */}
                         <div id="contact" className="content-section bg-light">
                             <div className="section-content contact-form-container">
-                                <Title level={2} style={{ textAlign: 'center', marginBottom: '30px' }}><ContactsOutlined /> Liên Hệ Hỗ Trợ</Title>
+                                {/* Use translation for contact title */}
+                                <Title level={2} style={{ textAlign: 'center', marginBottom: '30px' }}><ContactsOutlined /> {t('contact.title')}</Title>
+                                {/* Use translation for contact intro */}
                                 <Paragraph style={{ textAlign: 'center', marginBottom: '40px' }}>
-                                    Bạn có câu hỏi, góp ý hoặc cần hỗ trợ kỹ thuật? Xin vui lòng gửi thông tin qua biểu mẫu dưới đây.
+                                    {t('contact.intro')}
                                 </Paragraph>
+                                {/* Use translation for form labels and placeholders */}
                                 <Form form={form} name="contact" onFinish={onFinishContact} layout="vertical" style={{ maxWidth: '600px', margin: '0 auto' }}>
                                     <Row gutter={16}>
-                                        <Col xs={24} sm={12}> <Form.Item name="name" label="Họ và Tên" rules={[{ required: true, message: 'Vui lòng nhập tên!' }]}> <Input prefix={<UserOutlined />} placeholder="Tên của bạn" /> </Form.Item> </Col>
-                                        <Col xs={24} sm={12}> <Form.Item name="email" label="Địa chỉ Email" rules={[{ required: true, message: 'Vui lòng nhập email!' }, { type: 'email', message: 'Email không đúng định dạng!' }]}> <Input prefix={<MailOutlined />} placeholder="Email liên hệ" /> </Form.Item> </Col>
+                                        <Col xs={24} sm={12}>
+                                            <Form.Item
+                                                name="name"
+                                                label={t('contact.form.name.label')}
+                                                rules={[{ required: true, message: t('validation.requiredName') }]} // Use translation for validation message
+                                            >
+                                                <Input prefix={<UserOutlined />} placeholder={t('contact.form.name.placeholder')} />
+                                            </Form.Item>
+                                        </Col>
+                                        <Col xs={24} sm={12}>
+                                            <Form.Item
+                                                name="email"
+                                                label={t('contact.form.email.label')}
+                                                rules={[
+                                                    { required: true, message: t('validation.requiredEmail') }, // Use translation
+                                                    { type: 'email', message: t('validation.invalidEmail') } // Use translation
+                                                ]}
+                                            >
+                                                <Input prefix={<MailOutlined />} placeholder={t('contact.form.email.placeholder')} />
+                                            </Form.Item>
+                                        </Col>
                                     </Row>
-                                    <Form.Item name="message" label="Nội dung" rules={[{ required: true, message: 'Vui lòng nhập nội dung!' }]}>
-                                        <TextArea rows={5} placeholder="Nội dung tin nhắn của bạn..." />
+                                    <Form.Item
+                                        name="message"
+                                        label={t('contact.form.message.label')}
+                                        rules={[{ required: true, message: t('validation.requiredMessage') }]} // Use translation
+                                    >
+                                        <TextArea rows={5} placeholder={t('contact.form.message.placeholder')} />
                                     </Form.Item>
                                     <Form.Item style={{ textAlign: 'center', marginTop: '20px' }}>
-                                        <Button type="primary" htmlType="submit" size="large"> Gửi Liên Hệ </Button>
+                                        {/* Use translation for submit button */}
+                                        <Button type="primary" htmlType="submit" size="large"> {t('contact.form.submit')} </Button>
                                     </Form.Item>
                                 </Form>
                             </div>
@@ -353,8 +434,6 @@ const HomePage = () => {
                 ) : (
                     <>
                         {/* --- Placeholders --- */}
-                        {/* Consider adding a spinner to indicate initial loading */}
-                        {/* Or simple colored blocks as placeholders */}
                         <div className="placeholder-section" style={{ minHeight: '450px', background: '#f0f2f5' }}></div>
                         <div className="placeholder-section" style={{ minHeight: '400px', background: '#fafafa' }}></div>
                         <div className="placeholder-section" style={{ minHeight: '500px', background: '#f0f2f5' }}></div>
@@ -364,7 +443,8 @@ const HomePage = () => {
 
             {/* --- Footer --- */}
             <Footer style={{ textAlign: 'center' }} className="home-footer">
-                Hệ Thống Quản Lý Phòng Máy ©{new Date().getFullYear()}
+                {/* Use translation for footer text with year parameter */}
+                {t('footer.copyright', { year: new Date().getFullYear() })}
             </Footer>
         </Layout>
     );

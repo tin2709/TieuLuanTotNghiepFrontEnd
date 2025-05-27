@@ -1,0 +1,92 @@
+{
+  "header": {
+    "logo": "Quản lý Phòng Máy",
+    "nav": {
+      "about": "Giới Thiệu",
+      "services": "Dịch Vụ",
+      "contact": "Liên Hệ"
+    },
+    "managementDropdown": {
+      "label": "Quản Lý"
+    },
+    "logout": "Đăng xuất",
+    "greeting": {
+      "default": "Chào, {{name}}",
+      "admin": "Chào Admin {{name}}",
+      "teacher": "Chào Giáo viên {{name}}",
+      "staff": "Chào Nhân viên {{name}}"
+    }
+  },
+  "managementMenu": {
+    "room": "Quản lý Phòng máy",
+    "floor": "Quản lý Tầng",
+    "computer": "Quản lý Máy tính",
+    "practiceSession": "Quản lý Ca thực hành"
+  },
+  "hero": {
+    "title": "Hệ Thống Quản Lý Phòng Máy Thông Minh",
+    "paragraph": "Giải pháp hiện đại giúp đơn giản hóa việc theo dõi, bảo trì và tối ưu hóa hoạt động phòng máy tính của bạn.",
+    "button": "Tìm Hiểu Thêm"
+  },
+  "about": {
+    "title": "Giới Thiệu Hệ Thống",
+    "imageAlt": "Giới thiệu hệ thống - Nhóm làm việc",
+    "paragraph1": "Hệ thống Quản lý Phòng Máy được xây dựng để giải quyết những thách thức trong việc vận hành các phòng máy tính quy mô lớn hoặc nhỏ...",
+    "paragraph2": "Mục tiêu của hệ thống là nâng cao hiệu quả quản lý giảm thiểu thời gian chết của thiết bị và cung cấp trải nghiệm tốt hơn cho người dùng cuối."
+  },
+  "services": {
+    "title": "Tính Năng & Dịch Vụ",
+    "cards": {
+      "manageEquipment": {
+        "title": "Quản Lý Thiết Bị",
+        "text": "Theo dõi thông tin chi tiết, cấu hình, trạng thái của từng máy tính, phòng máy và tầng."
+      },
+      "reportIssue": {
+        "title": "Báo Cáo Sự Cố",
+        "text": "Cho phép người dùng dễ dàng báo cáo lỗi, quản trị viên tiếp nhận và cập nhật tiến độ xử lý."
+      },
+      "statistics": {
+        "title": "Thống Kê & Báo Cáo",
+        "text": "Cung cấp báo cáo trực quan về tình trạng sử dụng, hiệu suất hoạt động và lịch sử sự cố."
+      }
+    }
+  },
+  "contact": {
+    "title": "Liên Hệ Hỗ Trợ",
+    "intro": "Bạn có câu hỏi, góp ý hoặc cần hỗ trợ kỹ thuật? Xin vui lòng gửi thông tin qua biểu mẫu dưới đây.",
+    "form": {
+      "name": {
+        "label": "Họ và Tên",
+        "placeholder": "Tên của bạn"
+      },
+      "email": {
+        "label": "Địa chỉ Email",
+        "placeholder": "Email liên hệ"
+      },
+      "message": {
+        "label": "Nội dung",
+        "placeholder": "Nội dung tin nhắn của bạn..."
+      },
+      "submit": "Gửi Liên Hệ"
+    }
+  },
+  "footer": {
+    "copyright": "Hệ Thống Quản Lý Phòng Máy ©{{year}}"
+  },
+  "validation": {
+    "requiredName": "Vui lòng nhập tên!",
+    "requiredEmail": "Vui lòng nhập địa chỉ email!",
+    "invalidEmail": "Email không đúng định dạng!",
+    "requiredMessage": "Vui lòng nhập nội dung!"
+  },
+  "auth": {
+    "invalidSession": "Phiên đăng nhập không hợp lệ. Vui lòng đăng nhập lại.",
+    "sessionExpired": "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+    "permissionsLoadFailed": "Không thể tải quyền người dùng.",
+    "connectionError": "Lỗi kết nối khi tải quyền: {{message}}",
+    "logoutSuccess": "Đã đăng xuất thành công!"
+  },
+  "contactMessages": {
+    "submitSuccess": "Cảm ơn bạn đã liên hệ! Chúng tôi sẽ phản hồi sớm."
+  }
+}
