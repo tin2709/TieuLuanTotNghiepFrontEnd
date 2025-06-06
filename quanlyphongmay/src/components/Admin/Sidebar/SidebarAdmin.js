@@ -1,30 +1,51 @@
 // components/SidebarAdmin.js
-import React from 'react';
+import React, { useState, useEffect } from 'react'; // Added useState, useEffect
 import { Layout, Menu } from 'antd';
 import {
     UserOutlined,
     DashboardOutlined,
     LogoutOutlined,
-    AreaChartOutlined, // Added icon for analysis
+    AreaChartOutlined,
+    SnippetsOutlined, // Added icon for "Ghi chú" SubMenu
     // Keep other icons if needed elsewhere in the menu
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import Swal from 'sweetalert2';
 
 const { Sider } = Layout;
+const { SubMenu } = Menu; // Import SubMenu
 
 const SidebarAdmin = ({ collapsed, onCollapse }) => {
     const navigate = useNavigate();
     const location = useLocation();
 
-    // Internal handler for menu clicks.
-    // Note: If parent components (like QuanLyTaiKhoan) have
-    // their own logic (e.g., unsaved changes), they need to
-    // manage navigation *before* calling `navigate`, typically
-    // by wrapping the Sidebar or providing a custom `onMenuClick` prop.
-    // The user's provided code uses this internal handler directly on the Menu's onClick.
-    // The unsaved changes logic is handled in QuanLyTaiKhoan's *own* handler passed to Sidebar.
-    // This internal handler just navigates.
+    // Function to determine which submenus should be open based on the current path
+    const getOpenKeysForPath = (path) => {
+        const open = [];
+        // Check if the current path belongs to any item under "Tài khoản"
+        if (path.startsWith('/quanlitaikhoan') || path.startsWith('/quanligiaovien') || path.startsWith('/quanlinhanvien')) {
+            open.push('accountSubMenu'); // Key for "Tài khoản" submenu
+        }
+        // Check if the current path belongs to any item under "Ghi chú"
+        if (path.startsWith('/quanlighichumaytinh') || path.startsWith('/quanlighichuthietbi')) {
+            open.push('notesSubMenu'); // Key for "Ghi chú" submenu
+        }
+        return open;
+    };
+
+    // State for managing currently open submenus
+    const [currentOpenKeys, setCurrentOpenKeys] = useState(getOpenKeysForPath(location.pathname));
+
+    // Effect to update open submenus when the route changes
+    useEffect(() => {
+        setCurrentOpenKeys(getOpenKeysForPath(location.pathname));
+    }, [location.pathname]);
+
+    // Handler for when submenus are opened or closed by the user
+    const onSubMenuOpenChange = (keys) => {
+        setCurrentOpenKeys(keys);
+    };
+
     const handleMenuClick = (e) => {
         const keyRouteMap = {
             dashboard: '/admin',
@@ -32,8 +53,10 @@ const SidebarAdmin = ({ collapsed, onCollapse }) => {
             teacherManagement: '/quanligiaovien',
             employeeManagement: '/quanlinhanvien',
             notemaytinhManagement: '/quanlighichumaytinh',
-            notethietbiManagement: '/quanlighichuthietbi', // Assuming this is the route
-            analyzeLog: '/phantichlog', // Assuming this is the route
+            notethietbiManagement: '/quanlighichuthietbi',
+            monhocmanagement: '/quanlimonhoc',
+            cathuchanhmanagement: '/quanlicathuchanh',
+            analyzeLog: '/phantichlog',
             logout: '/login', // Logout is handled internally here
         };
 
@@ -43,7 +66,6 @@ const SidebarAdmin = ({ collapsed, onCollapse }) => {
             navigate(keyRouteMap[e.key]);
         }
     };
-
 
     const handleLogout = () => {
         localStorage.removeItem('authToken');
@@ -68,9 +90,6 @@ const SidebarAdmin = ({ collapsed, onCollapse }) => {
     // Determine selected key based on current path
     const getSelectedKey = () => {
         const path = location.pathname;
-        // Check paths against menu keys.
-        // Use startsWith for paths that might have sub-routes,
-        // or strict equality if the path is exact (like the dashboard root).
         if (path === '/admin') {
             return ['dashboard'];
         } else if (path.startsWith('/quanlitaikhoan')) {
@@ -79,16 +98,18 @@ const SidebarAdmin = ({ collapsed, onCollapse }) => {
             return ['teacherManagement'];
         } else if (path.startsWith('/quanlinhanvien')) {
             return ['employeeManagement'];
-        }
-        else if (path.startsWith('/quanlighichumaytinh')) {
+        } else if (path.startsWith('/quanlighichumaytinh')) {
             return ['notemaytinhManagement'];
-        }
-        // FIX: Corrected the path check for 'Quản lý ghi chú thiết bị'
-        else if (path.startsWith('/quanlighichuthietbi')) {
+        } else if (path.startsWith('/quanlighichuthietbi')) {
             return ['notethietbiManagement'];
-        }
-        // This condition was already correct in your original code
-        else if (path.startsWith('/phantichlog')) {
+        } else if (path.startsWith('/quanlimonhoc')) {
+            return ['monhocmanagement'];
+        }else if (path.startsWith('/quanlicathuchanh')) {
+                return ['cathuchanhmanagement'];
+
+
+
+        } else if (path.startsWith('/phantichlog')) {
             return ['analyzeLog'];
         }
         return []; // Default to no selection
@@ -100,29 +121,42 @@ const SidebarAdmin = ({ collapsed, onCollapse }) => {
             <div style={{ height: 32, margin: 16, background: 'rgba(255, 255, 255, 0.2)' }} />
             <Menu
                 theme="dark"
-                selectedKeys={getSelectedKey()} // Control selection using state derived from path
+                selectedKeys={getSelectedKey()}
+                openKeys={currentOpenKeys} // Control which submenus are open
+                onOpenChange={onSubMenuOpenChange} // Handle user interaction for opening/closing submenus
                 mode="inline"
-                onClick={handleMenuClick} // Use the internal handler defined above
+                onClick={handleMenuClick}
             >
                 <Menu.Item key="dashboard" icon={<DashboardOutlined />}>
                     Thống kê
                 </Menu.Item>
-                <Menu.Item key="userManagement" icon={<UserOutlined />}>
-                    Quản lý tài khoản
+
+                <SubMenu key="accountSubMenu" icon={<UserOutlined />} title="Tài khoản">
+                    <Menu.Item key="userManagement" icon={<UserOutlined />}>
+                        Quản lý tài khoản
+                    </Menu.Item>
+                    <Menu.Item key="teacherManagement" icon={<UserOutlined />}>
+                        Quản lý giáo viên
+                    </Menu.Item>
+                    <Menu.Item key="employeeManagement" icon={<UserOutlined />}>
+                        Quản lý nhân viên
+                    </Menu.Item>
+                </SubMenu>
+
+                <SubMenu key="notesSubMenu" icon={<SnippetsOutlined />} title="Ghi chú">
+                    <Menu.Item key="notemaytinhManagement" icon={<UserOutlined />}>
+                        Quản lý ghi chú máy tính
+                    </Menu.Item>
+                    <Menu.Item key="notethietbiManagement" icon={<UserOutlined />}>
+                        Quản lý ghi chú thiết bị
+                    </Menu.Item>
+                </SubMenu>
+                <Menu.Item key="monhocmanagement" icon={<AreaChartOutlined />}>
+                    Quản lí môn học
                 </Menu.Item>
-                <Menu.Item key="teacherManagement" icon={<UserOutlined />}>
-                    Quản lý giáo viên
+                <Menu.Item key="cathuchanhmanagement" icon={<AreaChartOutlined />}>
+                    Quản lí ca thực hành
                 </Menu.Item>
-                <Menu.Item key="employeeManagement" icon={<UserOutlined />}>
-                    Quản lý nhân viên
-                </Menu.Item>
-                <Menu.Item key="notemaytinhManagement" icon={<UserOutlined />}>
-                    Quản lý ghi chú máy tính
-                </Menu.Item>
-                <Menu.Item key="notethietbiManagement" icon={<UserOutlined />}>
-                    Quản lý ghi chú thiết bị
-                </Menu.Item>
-                {/* Using AreaChartOutlined icon for Analyze Log */}
                 <Menu.Item key="analyzeLog" icon={<AreaChartOutlined />}>
                     Phân tích Log
                 </Menu.Item>

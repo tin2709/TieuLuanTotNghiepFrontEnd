@@ -157,7 +157,7 @@ const HomePage = () => {
         localStorage.removeItem('expireAt');
 
         message.success(t('auth.logoutSuccess')); // Use translation
-        navigate('/login');
+        window.location.href = "/login";
     };
 
     // --- Language Switcher Handler ---
