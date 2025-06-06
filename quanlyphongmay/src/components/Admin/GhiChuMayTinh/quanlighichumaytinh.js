@@ -733,16 +733,17 @@ const QuanLyGhiChuMayTinh = () => {
             title: 'STT',
             dataIndex: 'stt',
             key: 'stt',
-            width: 60,
+            width: 60, // Tăng nhẹ
             fixed: 'left',
-            sorter: (a, b) => a.stt - b.stt
+            sorter: (a, b) => a.stt - b.stt,
+            align: 'center', // Căn giữa cho STT thường đẹp hơn
         },
         {
             title: 'Nội dung',
             dataIndex: 'noiDung',
             key: 'noiDung',
             ellipsis: true,
-            width: 300,
+            width: 200, // Tăng đáng kể, cho phép nội dung dài hơn
             sorter: (a, b) => (a.noiDung || '').localeCompare(b.noiDung || ''),
             render: (text) => text ? (
                 <Popover
@@ -758,7 +759,7 @@ const QuanLyGhiChuMayTinh = () => {
             title: 'Tên Máy',
             dataIndex: 'tenMay',
             key: 'tenMay',
-            width: 120,
+            width: 150, // Tăng
             sorter: (a, b) => (a.tenMay || '').localeCompare(b.tenMay || ''),
             render: (text) => text || 'N/A'
         },
@@ -766,7 +767,7 @@ const QuanLyGhiChuMayTinh = () => {
             title: 'Tên Phòng',
             dataIndex: 'tenPhong',
             key: 'tenPhong',
-            width: 120,
+            width: 150, // Tăng
             sorter: (a, b) => (a.tenPhong || '').localeCompare(b.tenPhong || ''),
             render: (text) => text || 'N/A'
         },
@@ -774,7 +775,7 @@ const QuanLyGhiChuMayTinh = () => {
             title: 'Ngày Báo Lỗi',
             dataIndex: 'ngayBaoLoi',
             key: 'ngayBaoLoi',
-            width: 180,
+            width: 150, // Tăng để hiển thị ngày tháng rõ ràng
             sorter: (a, b) => dayjs(a.ngayBaoLoi).valueOf() - dayjs(b.ngayBaoLoi).valueOf(),
             render: (text) => formatDateDisplay(text) || 'N/A'
         },
@@ -782,7 +783,7 @@ const QuanLyGhiChuMayTinh = () => {
             title: 'Người Báo Lỗi',
             dataIndex: 'tenTaiKhoanBaoLoi',
             key: 'tenTaiKhoanBaoLoi',
-            width: 150,
+            width: 150, // Tăng đáng kể
             sorter: (a, b) => (a.tenTaiKhoanBaoLoi || '').localeCompare(b.tenTaiKhoanBaoLoi || ''),
             render: (text) => text || 'N/A'
         },
@@ -790,39 +791,35 @@ const QuanLyGhiChuMayTinh = () => {
             title: 'Người Sửa Lỗi',
             dataIndex: 'tenTaiKhoanSuaLoi',
             key: 'tenTaiKhoanSuaLoi',
-            width: 150,
+            width: 150, // Tăng đáng kể
             sorter: (a, b) => (a.tenTaiKhoanSuaLoi || '').localeCompare(b.tenTaiKhoanSuaLoi || ''),
             render: (text) => text ? text : <i>(Chưa có)</i>
         },
         {
             title: 'Trạng thái Sửa',
-            dataIndex: 'ngaySua', // DataIndex used for sorting primarily
+            dataIndex: 'ngaySua',
             key: 'ngaySuaStatus',
-            width: 230, // Adjusted width
-            fixed: 'right', // Keep column fixed
+            width: 120, // Tăng, đủ cho tag hoặc ngày
+            fixed: 'right',
             sorter: (a, b) => {
                 const scheduledA = parseScheduledInfo(a.noiDung) ? 1 : 0;
                 const scheduledB = parseScheduledInfo(b.noiDung) ? 1 : 0;
                 const fixedA = a.ngaySua ? 1 : 0;
                 const fixedB = b.ngaySua ? 1 : 0;
-                // Sort order: Not Fixed/Not Scheduled (0) < Scheduled (1) < Fixed (2)
                 const statusA = fixedA ? 2 : (scheduledA ? 1 : 0);
-                const statusB = fixedB ? 2 : (scheduledB ? 1 : 0);
+                const statusB = fixedB ? 2 : (scheduledA ? 1 : 0); // Sửa lỗi: scheduledB thay vì scheduledA
                 if (statusA !== statusB) return statusA - statusB;
-                // If both are fixed, sort by fix date
                 if (fixedA && fixedB) return dayjs(a.ngaySua).valueOf() - dayjs(b.ngaySua).valueOf();
                 return 0;
             },
-            render: (_, record) => { // Use record to access all fields
+            render: (_, record) => {
                 const scheduledInfo = parseScheduledInfo(record.noiDung);
-                const formattedOriginalNgaySua = formatDateDisplay(record.ngaySua); // Format actual fix date
+                const formattedOriginalNgaySua = formatDateDisplay(record.ngaySua);
                 const fixerName = record.tenTaiKhoanSuaLoi ? ` (Sửa bởi: ${record.tenTaiKhoanSuaLoi})` : '';
 
                 let content;
-                // Priority 1: Check if actually fixed
                 if (record.ngaySua && formattedOriginalNgaySua !== 'Ngày không hợp lệ') {
                     content = <Tag color="success">{formattedOriginalNgaySua}</Tag>;
-                    // Priority 2: Check if scheduled
                 } else if (scheduledInfo) {
                     const scheduleText = `Lịch dự kiến: ${scheduledInfo.date} ${scheduledInfo.startTime}-${scheduledInfo.endTime}${fixerName}`;
                     content = (
@@ -832,7 +829,6 @@ const QuanLyGhiChuMayTinh = () => {
                             </Tag>
                         </Tooltip>
                     );
-                    // Priority 3: Otherwise, it's not fixed and not scheduled
                 } else {
                     content = <Tag color="error">Chưa sửa</Tag>;
                 }

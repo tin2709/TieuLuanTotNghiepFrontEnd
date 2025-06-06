@@ -418,7 +418,7 @@ const QuanLyGiaoVien = () => {
                 </Content>
             </Layout>
             <Modal
-                title="Chuyển đổi giáo viên"
+                title="Chuyển đổi giáo viên thành nhân viên"
                 open={isConversionModalVisible} // 'visible' is deprecated, use 'open'
                 onOk={handleConvertGiaoVien}
                 onCancel={handleCancelConversionModal}

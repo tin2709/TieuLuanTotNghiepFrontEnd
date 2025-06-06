@@ -77,28 +77,7 @@ export const createLabManagementHandlers = ({ dispatch, state, navigate, form, s
         let currentToken = getToken();
         let isRefreshed = false;
 
-        if (!isPublic && currentToken && isTokenExpired()) {
-            console.log("Token hết hạn, thử làm mới...");
-            const refreshSuccessful = await refreshTokenApi();
-            if (refreshSuccessful) {
-                console.log("Token làm mới thành công, tiếp tục request.");
-                currentToken = getToken(); // Get the new token
-                isRefreshed = true;
-            } else {
-                console.error("Không thể làm mới token, đăng xuất người dùng.");
-                // Clear local storage and navigate
-                localStorage.clear(); // Clear all items
-                navigate('/login', { replace: true });
-                Swal.fire({
-                    title: "Phiên đăng nhập hết hạn",
-                    text: "Không thể làm mới phiên. Vui lòng đăng nhập lại.",
-                    icon: "warning",
-                    timer: 3000,
-                    showConfirmButton: false,
-                });
-                throw new Error("Unauthorized - Refresh Failed"); // Stop current API call
-            }
-        }
+
 
         if (!currentToken && !isPublic) {
             console.error("Không có token xác thực hoặc refresh thất bại:", url);

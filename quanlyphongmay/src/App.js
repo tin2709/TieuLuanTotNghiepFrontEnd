@@ -22,6 +22,7 @@ import { giaovienAdminLoader } from './components/Loader/giaovienAdminLoader';
 import { adminDashboardLoader } from './components/Loader/adminLoaders';
 import { ghichumaytinhLoader } from './components/Loader/ghichumaytinhLoader';
 import { ghichuthietbiLoader } from './components/Loader/ghichuthietbiLoader';
+import { monhocLoader } from './components/Loader/monhocLoader';
 
 
 // --- Component hiển thị khi chờ tải code ---
@@ -67,6 +68,8 @@ const AddMayTinh = lazy(() => import('./components/maytinh/addmaytinh'));
 const ReportBrokenNotes = lazy(() => import('./components/PhongMay/ReportBrokenNotes'))
 const ReportBrokenDeviceNotes = lazy(() => import('./components/PhongMay/ReportBrokenDeviceNotes'))
 const PhanTichLog = lazy(() => import('./components/Admin/Log/phantichlog'))
+const QuanLiCaThucHanh = lazy(() => import('./components/Admin/CaThucHanh/quanlicathuchanh'));
+const QuanLiMonHoc = lazy(() => import('./components/Admin/MonHoc/quanlimonhoc'));
 
 const Register = lazy(() => import('./components/Register'));
 const ForgotPass = lazy(() => import('./components/Login/forgotpassword'));
@@ -186,6 +189,16 @@ const router = createBrowserRouter([
         path: "quanlighichuthietbi",
         element: <ProtectedRoute component={QuanLiGhiChuThietBi} />,
         loader: ghichuthietbiLoader, // Loader nếu cần
+      },
+      {
+        path: "quanlicathuchanh",
+        element: <ProtectedRoute component={QuanLiCaThucHanh} />,
+        loader: caThucHanhLoader
+      },
+      {
+        path: "quanlimonhoc",
+        element: <ProtectedRoute component={QuanLiMonHoc} />,
+        loader: monhocLoader
       },
       {
         path: "phantichlog",
