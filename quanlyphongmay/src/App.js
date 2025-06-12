@@ -69,7 +69,8 @@ const ReportBrokenNotes = lazy(() => import('./components/PhongMay/ReportBrokenN
 const ReportBrokenDeviceNotes = lazy(() => import('./components/PhongMay/ReportBrokenDeviceNotes'))
 const PhanTichLog = lazy(() => import('./components/Admin/Log/phantichlog'))
 const QuanLiCaThucHanh = lazy(() => import('./components/Admin/CaThucHanh/quanlicathuchanh'));
-const QuanLiMonHoc = lazy(() => import('./components/Admin/MonHoc/quanlimonhoc'));
+const QuanLiMonHocByAdmin = lazy(() => import('./components/Admin/MonHoc/quanlimonhoc'));
+const QuanLiMonHoc = lazy(() => import('./components/MonHoc/monhoc'));
 
 const Register = lazy(() => import('./components/Register'));
 const ForgotPass = lazy(() => import('./components/Login/forgotpassword'));
@@ -194,6 +195,11 @@ const router = createBrowserRouter([
         path: "quanlicathuchanh",
         element: <ProtectedRoute component={QuanLiCaThucHanh} />,
         loader: caThucHanhLoader
+      },
+      {
+        path: "quanlimonhocbyadmin",
+        element: <ProtectedRoute component={QuanLiMonHocByAdmin} />,
+        loader: monhocLoader
       },
       {
         path: "quanlimonhoc",

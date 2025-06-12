@@ -14,37 +14,34 @@ import {
     CustomerServiceOutlined,
     ContactsOutlined,
     ScheduleOutlined,
-    LoadingOutlined // Added LoadingOutlined for smaller loading indicators
+    BookOutlined, // Added for Subject management
+    LoadingOutlined
 } from '@ant-design/icons';
 
 import { OverPack } from 'rc-scroll-anim';
 import QueueAnim from 'rc-queue-anim';
 
-import { useTranslation } from 'react-i18next'; // Import useTranslation
+import { useTranslation } from 'react-i18next';
 
-import './homepage.css'; // Assume this handles your basic layout/styling
+import './homepage.css';
 
 const { Header, Content, Footer } = Layout;
 const { Title, Paragraph, Text } = Typography;
 const { TextArea } = Input;
 const { Link } = Anchor;
 
-const API_BASE_URL = "https://localhost:8080"; // Define API base URL (Keep this)
+const API_BASE_URL = "https://localhost:8080";
 
-// Language options for the switcher
 const languageOptions = [
     { key: 'en', label: 'English', flag: '🇺🇸' },
     { key: 'vi', label: 'Tiếng Việt', flag: '🇻🇳' },
-    // { key: 'zh', label: '中文', flag: '🇨🇳' },
-    // { key: 'ko', label: '한국어', flag: '🇰🇷' },
-    // { key: 'fr', label: 'Français', flag: '🇫🇷' },
 ];
 
 const HomePage = () => {
     const navigate = useNavigate();
-    const { t, i18n } = useTranslation(); // Initialize useTranslation hook
+    const { t, i18n } = useTranslation();
 
-    const username = localStorage.getItem("username") || t('header.greeting.default', { name: 'Người dùng' }); // Use translation for default
+    const username = localStorage.getItem("username") || t('header.greeting.default', { name: 'Người dùng' });
     const rawUserRole = localStorage.getItem("userRole");
     const maTK = localStorage.getItem("maTK");
     const authToken = localStorage.getItem("authToken");
@@ -53,8 +50,8 @@ const HomePage = () => {
 
     const [renderBelowFold, setRenderBelowFold] = useState(false);
     const [userPermissions, setUserPermissions] = useState({});
-    const [permissionsLoading, setPermissionsLoading] = useState(true);
-    const [currentLanguage, setCurrentLanguage] = useState(i18n.language); // State to track current language
+    const [permissionsLoading, setPermissionsLoading] = useState(true); // Default to true, then set false
+    const [currentLanguage, setCurrentLanguage] = useState(i18n.language);
 
     // Effect for delayed rendering
     useEffect(() => {
@@ -69,45 +66,45 @@ const HomePage = () => {
         setCurrentLanguage(i18n.language);
     }, [i18n.language]);
 
-
     // --- Effect to fetch user permissions on component mount ---
     useEffect(() => {
-        // Check if required info exists for fetching permissions
+        // Always check for maTK and authToken
         if (!maTK || !authToken) {
             console.error("Missing maTK or authToken in localStorage. Redirecting to login.");
-            message.error(t('auth.invalidSession')); // Use translation
+            message.error(t('auth.invalidSession'));
             navigate('/login');
             return;
         }
 
-        // Role "1" (Admin) bypasses specific permissions checks for menu visibility
-        if (rawUserRole === "1") {
-            console.log("Admin user detected, showing all management menu items.");
-            setPermissionsLoading(false);
+        // Roles 1, 2, and 3 have their menu items defined statically by the client logic.
+        // So, we don't need to fetch permissions from the backend for these specific roles.
+        if (rawUserRole === "1" || rawUserRole === "2" || rawUserRole === "3") {
+            console.log(`User role ${rawUserRole} detected. Applying role-based menu filtering directly.`);
+            setPermissionsLoading(false); // Permissions are "loaded" because they are known statically
             return;
         }
 
-        // For non-Admin users, fetch permissions
+        // For any other role, fetch specific permissions from the backend
         const fetchUserPermissions = async () => {
             setPermissionsLoading(true);
             try {
                 const response = await fetch(`${API_BASE_URL}/getUserPermissionsByUserId?userId=${maTK}&token=${authToken}`);
 
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ message: t('permissions.loadFailed') })); // Use translation
+                    const errorData = await response.json().catch(() => ({ message: t('permissions.loadFailed') }));
                     console.error("Failed to fetch user permissions:", response.status, errorData);
                     if (response.status === 401) {
-                        message.error(t('auth.sessionExpired')); // Use translation
+                        message.error(t('auth.sessionExpired'));
                         navigate('/login');
                     } else {
-                        message.error(errorData.message || t('permissions.loadFailed')); // Use translation
+                        message.error(errorData.message || t('permissions.loadFailed'));
                     }
                     setUserPermissions({});
                     return;
                 }
 
                 const result = await response.json();
-                console.log("Fetched user permissions:", result.permissions);
+                console.log("Fetched user permissions for non-special role:", result.permissions);
 
                 const formattedPermissions = {};
                 if (Array.isArray(result.permissions)) {
@@ -125,7 +122,7 @@ const HomePage = () => {
 
             } catch (error) {
                 console.error("Error fetching user permissions:", error);
-                message.error(t('auth.connectionError', { message: error.message })); // Use translation with parameter
+                message.error(t('auth.connectionError', { message: error.message }));
                 setUserPermissions({});
             } finally {
                 setPermissionsLoading(false);
@@ -156,15 +153,13 @@ const HomePage = () => {
         localStorage.removeItem('loginSuccessTimestamp');
         localStorage.removeItem('expireAt');
 
-        message.success(t('auth.logoutSuccess')); // Use translation
+        message.success(t('auth.logoutSuccess'));
         window.location.href = "/login";
     };
 
     // --- Language Switcher Handler ---
     const changeLanguage = (lng) => {
         i18n.changeLanguage(lng);
-        // Optionally save preference to localStorage
-        // localStorage.setItem('selectedLanguage', lng);
     };
 
     // Menu items for the language switcher dropdown
@@ -176,48 +171,67 @@ const HomePage = () => {
         })),
     };
 
-    // Define ALL potential menu items with their required resource and action (if any)
+    // Define ALL potential menu items with their required resource and action
     // Use translation keys for labels
     const rawMenuItems = [
         {
             key: '/phongmay',
             icon: <DesktopOutlined />,
-            labelKey: 'managementMenu.room', // Use key instead of hardcoded string
+            labelKey: 'managementMenu.room',
             resource: 'ROOM',
             requiredAction: 'VIEW',
         },
         {
             key: '/tang',
             icon: <ApartmentOutlined />,
-            labelKey: 'managementMenu.floor', // Use key
+            labelKey: 'managementMenu.floor',
             resource: 'FLOOR',
             requiredAction: 'VIEW',
         },
         {
             key: '/maytinh',
             icon: <ClusterOutlined />,
-            labelKey: 'managementMenu.computer', // Use key
+            labelKey: 'managementMenu.computer',
             resource: 'COMPUTER',
             requiredAction: 'VIEW',
         },
         {
             key: '/cathuchanh',
             icon: <ScheduleOutlined />,
-            labelKey: 'managementMenu.practiceSession', // Use key
-            // No resource/requiredAction defined means this item is NOT filtered by permissions.
+            labelKey: 'managementMenu.practiceSession',
+            resource: 'PRACTICE_SESSION', // Assuming this resource exists
+            requiredAction: 'VIEW',
         },
-        // Add other potential management links here using labelKey
+        {
+            key: '/quanlimonhoc', // Correct key for Subject management
+            icon: <BookOutlined />,
+            labelKey: 'Quản lí môn học',
+            resource: 'SUBJECT', // Assuming this resource exists
+            requiredAction: 'VIEW',
+        },
     ];
 
-    // Filter the menu items based on fetched permissions or Admin role
+    // Filter the menu items based on user role or fetched permissions
     const filteredMenuItems = rawMenuItems.filter(item => {
         if (rawUserRole === "1") {
+            // Admin sees all management items
             return true;
+        } else if (rawUserRole === "2") {
+            // Teacher sees 'quản lí phòng máy', 'quản lí ca thực hành', 'quản lí môn học'
+            // Corrected: Use '/monhoc' instead of '/quanlimonhoc'
+            return ['/phongmay', '/cathuchanh', '/quanlimonhoc'].includes(item.key);
+        } else if (rawUserRole === "3") {
+            // Staff sees 'quản lí phòng máy', 'quản lí máy tính'
+            return ['/phongmay', '/maytinh'].includes(item.key);
+        } else {
+            // For other roles, rely on fetched permissions
+            if (!item.resource || !item.requiredAction) {
+                // If an item doesn't explicitly require permissions, show it by default
+                return true;
+            }
+            // Check if the user has permission for the resource and action
+            return userPermissions[item.resource]?.[item.requiredAction] === true;
         }
-        if (!item.resource || !item.requiredAction) {
-            return true;
-        }
-        return userPermissions[item.resource]?.[item.requiredAction] === true;
     }).map(item => ({ // Map to the format required by Ant Design Dropdown items
         key: item.key,
         icon: item.icon,
@@ -234,7 +248,7 @@ const HomePage = () => {
         {
             key: 'logout',
             icon: <LogoutOutlined />,
-            label: t('header.logout'), // Use translation
+            label: t('header.logout'),
             danger: true,
             onClick: handleLogout,
         },
@@ -245,19 +259,21 @@ const HomePage = () => {
         console.log('Contact form submitted: ', values);
         // Simulate API call success
         setTimeout(() => {
-            message.success(t('contactMessages.submitSuccess')); // Use translation
+            message.success(t('contactMessages.submitSuccess'));
             form.resetFields();
         }, 500);
         // TODO: Implement actual API call to your backend contact endpoint if available
     };
 
-    // Image dimensions (Keep this)
+    // Image dimensions
     const aboutUsImageUrl = "https://images.unsplash.com/photo-1517048676732-d65bc937f952?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1170&q=80";
     const imageWidth = 450;
     const imageHeight = 300;
 
     // Determine if the management dropdown should be disabled
-    const isManagementDropdownDisabled = permissionsLoading && rawUserRole !== "1";
+    // It's disabled only if permissions are still loading AND the user role is not one of the statically handled roles (1, 2, 3)
+    const isManagementDropdownDisabled = permissionsLoading && !["1", "2", "3"].includes(rawUserRole);
+
 
     // Find the current language's flag and label for the switcher button
     const currentLangOption = languageOptions.find(lang => lang.key === currentLanguage) || languageOptions[0];
@@ -269,11 +285,9 @@ const HomePage = () => {
 
             {/* --- Header --- */}
             <Header className="home-header">
-                {/* Use translation for logo text */}
                 <div className="logo">{t('header.logo')}</div>
                 <div className="header-nav">
                     <Anchor targetOffset={80} affix={false} className="anchor-nav">
-                        {/* Use translation for link titles */}
                         <Link href="#about" title={t('header.nav.about')} />
                         <Link href="#services" title={t('header.nav.services')} />
                         <Link href="#contact" title={t('header.nav.contact')} />
@@ -286,19 +300,18 @@ const HomePage = () => {
                         </Button>
                     </Dropdown>
 
-
                     {/* Management Dropdown */}
                     <Dropdown menu={{ items: managementDropdownMenuStructure }} trigger={['hover']} className="management-dropdown">
                         <a className="ant-dropdown-link" onClick={e => e.preventDefault()} disabled={isManagementDropdownDisabled}>
                             <Space>
-                                {t('header.managementDropdown.label')} {/* Use translation */}
+                                {t('header.managementDropdown.label')}
                                 {isManagementDropdownDisabled ? <Spin indicator={<LoadingOutlined style={{ fontSize: 14 }} spin />} /> : <DownOutlined />}
                             </Space>
                         </a>
                     </Dropdown>
 
                     <Text className="user-greeting">{greetingMessage}</Text>
-                    <Button type="text" icon={<LogoutOutlined />} onClick={handleLogout} className="logout-button" title={t('header.logout')}/> {/* Use translation */}
+                    <Button type="text" icon={<LogoutOutlined />} onClick={handleLogout} className="logout-button" title={t('header.logout')}/>
                 </div>
             </Header>
 
@@ -307,13 +320,10 @@ const HomePage = () => {
                 {/* --- Hero Section (Render immediately) --- */}
                 <div className="hero-section content-section">
                     <div className="section-content">
-                        {/* Use translation for hero title */}
                         <Title level={1} style={{ marginBottom: '20px', color: '#001529' }}>{t('hero.title')}</Title>
-                        {/* Use translation for hero paragraph */}
                         <Paragraph style={{ fontSize: '1.2em', maxWidth: '800px', margin: '0 auto' }}>
                             {t('hero.paragraph')}
                         </Paragraph>
-                        {/* Use translation for hero button */}
                         <Button type="primary" size="large" href="#about" style={{ marginTop: '30px' }}>{t('hero.button')}</Button>
                     </div>
                 </div>
@@ -324,7 +334,6 @@ const HomePage = () => {
                         {/* --- About Section --- */}
                         <div id="about" className="content-section bg-light">
                             <div className="section-content">
-                                {/* Use translation for about title */}
                                 <Title level={2} style={{ textAlign: 'center', marginBottom: '40px' }}><InfoCircleOutlined /> {t('about.title')}</Title>
                                 <Row gutter={[32, 32]} align="middle">
                                     <Col xs={24} md={12}>
@@ -337,7 +346,6 @@ const HomePage = () => {
                                         />
                                     </Col>
                                     <Col xs={24} md={12}>
-                                        {/* Use translation for about paragraphs */}
                                         <Paragraph style={{ fontSize: '1.1em' }}>
                                             {t('about.paragraph1')}
                                         </Paragraph>
@@ -353,25 +361,21 @@ const HomePage = () => {
                         <OverPack id="services" className="content-section" playScale={0.2}>
                             <div key="services-content" className="section-content">
                                 <QueueAnim key="services-anim" type={['bottom', 'top']} leaveReverse >
-                                    {/* Use translation for services title */}
                                     <Title level={2} key="title" style={{ textAlign: 'center', marginBottom: '50px' }}><CustomerServiceOutlined /> {t('services.title')}</Title>
                                     <Row gutter={[24, 24]} key="cards">
                                         <Col xs={24} sm={12} lg={8}>
-                                            {/* Use translation for card title and text */}
                                             <Card title={t('services.cards.manageEquipment.title')} bordered={false} hoverable>
                                                 <DesktopOutlined style={{ fontSize: '24px', color: '#1890ff', marginBottom: '10px'}}/>
                                                 <p>{t('services.cards.manageEquipment.text')}</p>
                                             </Card>
                                         </Col>
                                         <Col xs={24} sm={12} lg={8}>
-                                            {/* Use translation for card title and text */}
                                             <Card title={t('services.cards.reportIssue.title')} bordered={false} hoverable>
                                                 <InfoCircleOutlined style={{ fontSize: '24px', color: '#faad14', marginBottom: '10px'}}/>
                                                 <p>{t('services.cards.reportIssue.text')}</p>
                                             </Card>
                                         </Col>
                                         <Col xs={24} sm={12} lg={8}>
-                                            {/* Use translation for card title and text */}
                                             <Card title={t('services.cards.statistics.title')} bordered={false} hoverable>
                                                 <ClusterOutlined style={{ fontSize: '24px', color: '#52c41a', marginBottom: '10px'}}/>
                                                 <p>{t('services.cards.statistics.text')}</p>
@@ -385,20 +389,17 @@ const HomePage = () => {
                         {/* --- Contact Section --- */}
                         <div id="contact" className="content-section bg-light">
                             <div className="section-content contact-form-container">
-                                {/* Use translation for contact title */}
                                 <Title level={2} style={{ textAlign: 'center', marginBottom: '30px' }}><ContactsOutlined /> {t('contact.title')}</Title>
-                                {/* Use translation for contact intro */}
                                 <Paragraph style={{ textAlign: 'center', marginBottom: '40px' }}>
                                     {t('contact.intro')}
                                 </Paragraph>
-                                {/* Use translation for form labels and placeholders */}
                                 <Form form={form} name="contact" onFinish={onFinishContact} layout="vertical" style={{ maxWidth: '600px', margin: '0 auto' }}>
                                     <Row gutter={16}>
                                         <Col xs={24} sm={12}>
                                             <Form.Item
                                                 name="name"
                                                 label={t('contact.form.name.label')}
-                                                rules={[{ required: true, message: t('validation.requiredName') }]} // Use translation for validation message
+                                                rules={[{ required: true, message: t('validation.requiredName') }]}
                                             >
                                                 <Input prefix={<UserOutlined />} placeholder={t('contact.form.name.placeholder')} />
                                             </Form.Item>
@@ -408,8 +409,8 @@ const HomePage = () => {
                                                 name="email"
                                                 label={t('contact.form.email.label')}
                                                 rules={[
-                                                    { required: true, message: t('validation.requiredEmail') }, // Use translation
-                                                    { type: 'email', message: t('validation.invalidEmail') } // Use translation
+                                                    { required: true, message: t('validation.requiredEmail') },
+                                                    { type: 'email', message: t('validation.invalidEmail') }
                                                 ]}
                                             >
                                                 <Input prefix={<MailOutlined />} placeholder={t('contact.form.email.placeholder')} />
@@ -419,12 +420,11 @@ const HomePage = () => {
                                     <Form.Item
                                         name="message"
                                         label={t('contact.form.message.label')}
-                                        rules={[{ required: true, message: t('validation.requiredMessage') }]} // Use translation
+                                        rules={[{ required: true, message: t('validation.requiredMessage') }]}
                                     >
                                         <TextArea rows={5} placeholder={t('contact.form.message.placeholder')} />
                                     </Form.Item>
                                     <Form.Item style={{ textAlign: 'center', marginTop: '20px' }}>
-                                        {/* Use translation for submit button */}
                                         <Button type="primary" htmlType="submit" size="large"> {t('contact.form.submit')} </Button>
                                     </Form.Item>
                                 </Form>
@@ -443,7 +443,6 @@ const HomePage = () => {
 
             {/* --- Footer --- */}
             <Footer style={{ textAlign: 'center' }} className="home-footer">
-                {/* Use translation for footer text with year parameter */}
                 {t('footer.copyright', { year: new Date().getFullYear() })}
             </Footer>
         </Layout>

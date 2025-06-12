@@ -1,9 +1,9 @@
-
 export async function ghichumaytinhLoader() {
-    console.log("⚡️ [Loader] Running ghichumaytinjLoader...");
+    console.log("⚡️ [Loader] Running ghichumaytinhLoader...");
     const token = localStorage.getItem("authToken");
+    const userRole = localStorage.getItem("userRole"); // Lấy vai trò người dùng
 
-    // 1. Check Token
+    // 1. Check Token and Role (only admin should access this page directly)
     if (!token) {
         console.warn("🔒 [Loader] No token found. Returning auth error signal.");
         return {
@@ -13,7 +13,16 @@ export async function ghichumaytinhLoader() {
         };
     }
 
-    // 2. Call API DSTang
+    if (userRole !== '1') { // Assuming '1' is the admin role
+        console.warn("🚫 [Loader] User is not admin. Access denied.");
+        return {
+            error: true,
+            type: 'permission',
+            message: 'Bạn không có quyền truy cập trang này.'
+        };
+    }
+
+    // 2. Call API DSGhiChuMayTinh
     try {
         const url = `https://localhost:8080/DSGhiChuMayTinh?token=${token}`; // Updated API URL
         console.log(`📞 [Loader] Fetching: ${url}`);
