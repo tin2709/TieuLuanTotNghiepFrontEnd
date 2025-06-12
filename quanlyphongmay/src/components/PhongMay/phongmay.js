@@ -141,6 +141,14 @@ export default function LabManagement() {
     const [avatarImage, setAvatarImage] = useState(null); // For header avatar
     const [isDarkMode, setIsDarkMode] = useState(false);
 
+    // Lấy userRole và username từ localStorage để component có thể truy cập nếu cần.
+    const userRole = localStorage.getItem("userRole");
+    // Tạo biến flag để kiểm tra vai trò giáo viên một cách rõ ràng
+    const isTeacherRole = userRole === '2';
+
+    console.log(`[LabManagement Component] User Role: ${userRole}, Is Teacher: ${isTeacherRole}`);
+
+
     // Context Menu State
     const [contextMenuVisible, setContextMenuVisible] = useState(false);
     const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 });
@@ -170,13 +178,16 @@ export default function LabManagement() {
             { element: '#qr-code-button', intro: 'Tạo mã QR để thống kê nhanh thông tin phòng máy.', position: 'bottom-start' },
             { element: '#export-pdf-button', intro: 'Xuất danh sách phòng máy ra file PDF.', position: 'bottom-start' },
             { element: '#export-excel-button', intro: 'Xuất danh sách phòng máy ra file Excel.', position: 'bottom-start' },
-            { element: '#create-new-dropdown', intro: 'Tạo phòng máy mới bằng form hoặc import từ file.', position: 'bottom-start' },
+            // Conditionally add 'create-new-dropdown' step
+            ...(!isTeacherRole ? [{ element: '#create-new-dropdown', intro: 'Tạo phòng máy mới bằng form hoặc import từ file.', position: 'bottom-start' }] : []),
             { element: '.ant-table-thead > tr > th:nth-child(3)', intro: 'Click vào đây để sắp xếp danh sách phòng máy theo tên phòng.', position: 'bottom' },
             { element: '.ant-table-thead > tr > th:nth-child(5)', intro: 'Click vào đây để sắp xếp danh sách phòng máy theo số lượng máy.', position: 'bottom' },
             { element: '.ant-table-thead > tr > th:nth-child(6)', intro: 'Click vào đây để sắp xếp danh sách phòng máy theo trạng thái hoạt động.', position: 'bottom' },
-            { element: '.ant-table-thead > tr > th:last-child', intro: 'Tại cột này, bạn có thể chỉnh sửa, xóa phòng máy hoặc xem trạng thái chi tiết.', position: 'left' },
-            // Make sure #delete-selected-button exists or Intro.js might skip/error
-            { element: '#delete-selected-button', intro: 'Xóa các phòng máy đã được chọn (tick vào checkbox).', position: 'top-end' },
+            // Adjust action column step based on role
+            // Bổ sung step cho giáo viên:
+            { element: '.ant-table-thead > tr > th:last-child', intro: 'Tại cột này, bạn có thể xem trạng thái chi tiết của phòng máy.', position: 'left' },
+            // Chỉ thêm step xóa nếu không phải giáo viên
+            ...(!isTeacherRole ? [{ element: '#delete-selected-button', intro: 'Xóa các phòng máy đã được chọn (tick vào checkbox).', position: 'top-end' }] : []),
             { element: '#dark-mode-button', intro: 'Bật/tắt chế độ Dark Mode.', position: 'bottom-end' },
             { element: '#user-avatar', intro: 'Xem và chỉnh sửa thông tin hồ sơ người dùng.', position: 'bottom-end' },
             { element: '#logout-button', intro: 'Đăng xuất khỏi ứng dụng.', position: 'bottom-end' },
@@ -199,6 +210,8 @@ export default function LabManagement() {
     // Load initial data from loader
     useEffect(() => {
         console.log("[LabManagement] Loader Result:", loaderResult);
+        // Dữ liệu từ loader đã được xử lý (lọc theo giáo viên hoặc toàn bộ)
+        // Component này chỉ cần nhận và hiển thị dữ liệu đó.
         if (loaderResult?.error) {
             // Handle specific auth error from loader if needed
             if (loaderResult.type === 'auth') {
@@ -270,49 +283,65 @@ export default function LabManagement() {
     };
 
     // --- Columns Definitions ---
-    const columns = useMemo(() => [
-        {
-            title: (<Checkbox
-                // Check/indeterminate logic based on *currently displayed* page data vs selected keys
-                checked={state.labRooms.length > 0 && state.labRooms.every(r => state.selectedRowKeys.includes(r.maPhong))}
-                indeterminate={state.selectedRowKeys.length > 0 && state.labRooms.some(r => state.selectedRowKeys.includes(r.maPhong)) && !state.labRooms.every(r => state.selectedRowKeys.includes(r.maPhong))}
-                onChange={(e) => {
-                    const currentPageKeys = state.labRooms.map(r => r.maPhong);
-                    const newSelectedKeys = e.target.checked
-                        ? [...new Set([...state.selectedRowKeys, ...currentPageKeys])] // Add current page keys to selection
-                        : state.selectedRowKeys.filter(k => !currentPageKeys.includes(k)); // Remove current page keys from selection
+    const columns = useMemo(() => {
+        // Define isTeacherRole here to ensure it's captured in the useMemo's dependencies
+        // and re-evaluated if userRole changes.
+        const currentIsTeacherRole = userRole === '2';
+
+        const baseColumns = [
+            // Conditional checkbox column
+            !currentIsTeacherRole ? {
+                title: (<Checkbox
+                    // Check/indeterminate logic based on *currently displayed* page data vs selected keys
+                    checked={state.labRooms.length > 0 && state.labRooms.every(r => state.selectedRowKeys.includes(r.maPhong))}
+                    indeterminate={state.selectedRowKeys.length > 0 && state.labRooms.some(r => state.selectedRowKeys.includes(r.maPhong)) && !state.labRooms.every(r => state.selectedRowKeys.includes(r.maPhong))}
+                    onChange={(e) => {
+                        const currentPageKeys = state.labRooms.map(r => r.maPhong);
+                        const newSelectedKeys = e.target.checked
+                            ? [...new Set([...state.selectedRowKeys, ...currentPageKeys])] // Add current page keys to selection
+                            : state.selectedRowKeys.filter(k => !currentPageKeys.includes(k)); // Remove current page keys from selection
+                        handlers.onSelectChange(newSelectedKeys);
+                    }}
+                    aria-label="Chọn tất cả trên trang này"
+                />),
+                key: "selection", width: 60, fixed: "left",
+                render: (text, record) => <Checkbox checked={state.selectedRowKeys.includes(record.maPhong)} onChange={(e) => {
+                    const isChecked = e.target.checked;
+                    const newSelectedKeys = isChecked
+                        ? [...state.selectedRowKeys, record.maPhong]
+                        : state.selectedRowKeys.filter(key => key !== record.maPhong);
                     handlers.onSelectChange(newSelectedKeys);
-                }}
-                aria-label="Chọn tất cả trên trang này"
-            />),
-            key: "selection", width: 60, fixed: "left",
-            render: (text, record) => <Checkbox checked={state.selectedRowKeys.includes(record.maPhong)} onChange={(e) => {
-                const isChecked = e.target.checked;
-                const newSelectedKeys = isChecked
-                    ? [...state.selectedRowKeys, record.maPhong]
-                    : state.selectedRowKeys.filter(key => key !== record.maPhong);
-                handlers.onSelectChange(newSelectedKeys);
-            }} aria-label={`Chọn phòng ${record.tenPhong}`} />
-        },
-        { title: "STT", key: "stt", width: 60, align: "center", render: (text, record, index) => (state.pagination.current - 1) * state.pagination.pageSize + index + 1 },
-        { title: "Tên phòng", dataIndex: "tenPhong", key: "tenPhong", sorter: true, width: 150 },
-        { title: "Mô tả", dataIndex: "moTa", key: "moTa", sorter: true, ellipsis: true },
-        { title: "Số máy", dataIndex: "soMay", key: "soMay", align: "center", sorter: true, width: 100 },
-        { title: "Trạng thái", dataIndex: "trangThai", key: "trangThai", sorter: true, width: 150 },
-        {
-            title: "Hành động", key: "action", align: "center", width: 120, fixed: 'right', render: (text, record) => (
-                <div className="flex justify-center gap-2">
-                    <Button icon={<EditOutlined />} size="small" type="link" onClick={() => navigate(`/editphongmay/${record.maPhong}`)} aria-label={`Sửa phòng ${record.tenPhong}`} />
-                    <Button icon={<DeleteOutlined />} size="small" type="link" danger onClick={() => handlers.handleDelete(record)} aria-label={`Xóa phòng ${record.tenPhong}`} />
-                    <Button icon={<MessageOutlined />} size="small" type="link" onClick={() => handlers.showComputerStatusModal(record)} aria-label={`Xem trạng thái phòng ${record.tenPhong}`} />
-                </div>
-            )
-        },
-    ], [state.labRooms, state.selectedRowKeys, state.pagination, handlers, navigate]); // Include all dependencies
+                }} aria-label={`Chọn phòng ${record.tenPhong}`} />
+            } : null, // If isTeacherRole, this column is null
+            { title: "STT", key: "stt", width: 60, align: "center", render: (text, record, index) => (state.pagination.current - 1) * state.pagination.pageSize + index + 1 },
+            { title: "Tên phòng", dataIndex: "tenPhong", key: "tenPhong", sorter: true, width: 150 },
+            { title: "Mô tả", dataIndex: "moTa", key: "moTa", sorter: true, ellipsis: true },
+            { title: "Số máy", dataIndex: "soMay", key: "soMay", align: "center", sorter: true, width: 100 },
+            { title: "Trạng thái", dataIndex: "trangThai", key: "trangThai", sorter: true, width: 150 },
+            // Action column (always present, content depends on role)
+            {
+                title: "Hành động", key: "action", align: "center", width: 120, fixed: 'right', render: (text, record) => (
+                    <div className="flex justify-center gap-2">
+                        {/* If not teacher role, show Edit and Delete buttons */}
+                        {!currentIsTeacherRole && (
+                            <>
+                                <Button icon={<EditOutlined />} size="small" type="link" onClick={() => navigate(`/editphongmay/${record.maPhong}`)} aria-label={`Sửa phòng ${record.tenPhong}`} />
+                                <Button icon={<DeleteOutlined />} size="small" type="link" danger onClick={() => handlers.handleDelete(record)} aria-label={`Xóa phòng ${record.tenPhong}`} />
+                            </>
+                        )}
+                        {/* Always show MessageOutlined button for viewing status */}
+                        <Button icon={<MessageOutlined />} size="small" type="link" onClick={() => handlers.showComputerStatusModal(record)} aria-label={`Xem trạng thái phòng ${record.tenPhong}`} />
+                    </div>
+                )
+            },
+        ].filter(Boolean); // Filter out nulls from the array (only for the checkbox column)
+        return baseColumns;
+    }, [state.labRooms, state.selectedRowKeys, state.pagination, handlers, navigate, userRole]); // Add userRole to dependencies
 
     // Columns for Computer Update Modal
     const computerUpdateColumns = useMemo(() => {
-        const role = state.computerUpdateModal.userRole; // Get role from modal state
+        // userRole được lấy từ state.computerUpdateModal, đảm bảo tính nhất quán
+        const role = state.computerUpdateModal.userRole;
         const isRole3 = role === '3';
         const roomStatusForUpdate = state.computerUpdateModal.roomStatusForUpdate;
 
@@ -357,7 +386,7 @@ export default function LabManagement() {
     }, [
         state.computerUpdateModal.attendanceKeys,
         state.computerUpdateModal.brokenReportKeys,
-        state.computerUpdateModal.userRole,
+        state.computerUpdateModal.userRole, // Phụ thuộc vào userRole từ modal state
         state.computerUpdateModal.roomStatusForUpdate,
         state.statusModal.computers, // Depend on computers list for rendering names/status
         handlers // Need handlers for onClick actions
@@ -365,7 +394,8 @@ export default function LabManagement() {
 
     // Columns for Device Update Modal
     const deviceUpdateColumns = useMemo(() => {
-        const role = localStorage.getItem("userRole"); // Can get role directly or pass via state
+        // userRole được lấy trực tiếp từ localStorage.
+        const role = localStorage.getItem("userRole");
         const isRole3 = role === '3';
         // Get room status from the *statusModal* state, as device update modal doesn't store it separately
         const roomStatusForUpdate = state.statusModal.roomStatus;
@@ -409,6 +439,8 @@ export default function LabManagement() {
     }, [
         state.deviceUpdateModal.selectedKeys,
         state.deviceUpdateModal.brokenReportKeys,
+        // Không phụ thuộc vào 'role' trực tiếp mà phụ thuộc vào hàm getitem của localstore
+        // vì `localStorage.getItem("userRole")` luôn được gọi lại khi re-render useMemo
         state.statusModal.roomStatus, // Depend on actual room status
         state.statusModal.currentDevices, // Depend on device list
         handlers // Need handlers for onClick
@@ -590,9 +622,12 @@ export default function LabManagement() {
                                 <Button id="qr-code-button" icon={<QrcodeOutlined />} onClick={handlers.fetchLabRoomsForQrCode}>Mã QR</Button>
                                 <Button id="export-pdf-button" onClick={exportToPDF} >Xuất PDF</Button>
                                 <Button id="export-excel-button" onClick={exportToExcel} >Xuất Excel</Button>
-                                <Dropdown id="create-new-dropdown" overlay={menu} placement="bottomRight" arrow>
-                                    <Button type="primary" icon={<PlusOutlined />}>Tạo mới</Button>
-                                </Dropdown>
+                                {/* Nút "Tạo mới" chỉ hiển thị nếu KHÔNG phải vai trò giáo viên */}
+                                {!isTeacherRole && (
+                                    <Dropdown id="create-new-dropdown" overlay={menu} placement="bottomRight" arrow>
+                                        <Button type="primary" icon={<PlusOutlined />}>Tạo mới</Button>
+                                    </Dropdown>
+                                )}
                             </div>
                         </div>
 
@@ -601,9 +636,10 @@ export default function LabManagement() {
                         {/* Table Container */}
                         <div className="border rounded-lg overflow-x-auto mb-4" style={{ borderColor: isDarkMode ? '#444' : '#f0f0f0' }}>
                             <Table
-                                rowSelection={{ type: "checkbox", selectedRowKeys: state.selectedRowKeys, onChange: handlers.onSelectChange }}
+                                // rowSelection chỉ được kích hoạt nếu KHÔNG phải vai trò giáo viên
+                                rowSelection={!isTeacherRole ? { type: "checkbox", selectedRowKeys: state.selectedRowKeys, onChange: handlers.onSelectChange } : undefined}
                                 columns={columns}
-                                dataSource={state.labRooms}
+                                dataSource={state.labRooms} // labRooms sẽ tự động chứa dữ liệu đã được lọc bởi loader
                                 rowKey="maPhong"
                                 loading={state.tableLoading}
                                 pagination={{
@@ -622,8 +658,8 @@ export default function LabManagement() {
                             />
                         </div>
 
-                        {/* Delete Selected Button - Conditionally Rendered */}
-                        {state.hasSelected && (
+                        {/* Nút "Xóa đã chọn" chỉ hiển thị nếu KHÔNG phải vai trò giáo viên */}
+                        {!isTeacherRole && state.hasSelected && (
                             <Button
                                 id="delete-selected-button"
                                 type="primary" danger
@@ -773,7 +809,8 @@ export default function LabManagement() {
                     footer={[
                         <Button key="cancelCU" onClick={handlers.handleComputerUpdateModalClose} disabled={state.computerUpdateModal.updating}>Hủy</Button>,
                         // Conditionally render 'Change All Broken' button based on role/status
-                        !(state.computerUpdateModal.userRole === '3' && state.computerUpdateModal.roomStatusForUpdate === 'Trống') && (
+                        // Nút này chỉ hiển thị nếu KHÔNG phải vai trò giáo viên (hoặc là vai trò khác mà không phải Trống)
+                        !(isTeacherRole && state.computerUpdateModal.roomStatusForUpdate === 'Trống') && (
                             <Button
                                 key="changeAllBroken"
                                 onClick={handlers.handleChangeAllBroken}
@@ -799,7 +836,7 @@ export default function LabManagement() {
                 >
                     <Spin spinning={state.computerUpdateModal.updating} tip="Đang xử lý...">
                         {/* Informational text based on role and room status */}
-                        {state.computerUpdateModal.userRole === '3' && state.computerUpdateModal.roomStatusForUpdate === 'Trống' ? (
+                        {isTeacherRole && state.computerUpdateModal.roomStatusForUpdate === 'Trống' ? ( // Sử dụng isTeacherRole
                             <p style={{ marginBottom: '15px', fontStyle: 'italic', textAlign: 'center', color: '#888' }}>Chỉ có thể chọn các máy đang ở trạng thái '{BROKEN_STATUS}' để chuyển thành '{ACTIVE_STATUS}'.</p>
                         ) : (
                             <p style={{ marginBottom: '15px', fontStyle: 'italic', textAlign: 'center', color: '#888' }}>Tick chọn để thay đổi trạng thái điểm danh hoặc báo hỏng. Máy '{BROKEN_STATUS}' không thể thay đổi.</p>

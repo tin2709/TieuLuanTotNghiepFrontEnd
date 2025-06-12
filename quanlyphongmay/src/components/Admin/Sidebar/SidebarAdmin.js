@@ -54,7 +54,7 @@ const SidebarAdmin = ({ collapsed, onCollapse }) => {
             employeeManagement: '/quanlinhanvien',
             notemaytinhManagement: '/quanlighichumaytinh',
             notethietbiManagement: '/quanlighichuthietbi',
-            monhocmanagement: '/quanlimonhoc',
+            monhocmanagement: '/quanlimonhocbyadmin',
             cathuchanhmanagement: '/quanlicathuchanh',
             analyzeLog: '/phantichlog',
             logout: '/login', // Logout is handled internally here
@@ -102,7 +102,7 @@ const SidebarAdmin = ({ collapsed, onCollapse }) => {
             return ['notemaytinhManagement'];
         } else if (path.startsWith('/quanlighichuthietbi')) {
             return ['notethietbiManagement'];
-        } else if (path.startsWith('/quanlimonhoc')) {
+        } else if (path.startsWith('/quanlimonhocbyadmin')) {
             return ['monhocmanagement'];
         }else if (path.startsWith('/quanlicathuchanh')) {
                 return ['cathuchanhmanagement'];

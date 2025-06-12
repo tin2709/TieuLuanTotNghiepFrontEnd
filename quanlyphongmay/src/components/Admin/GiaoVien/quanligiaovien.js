@@ -1,41 +1,25 @@
-// components/QuanLyGiaoVien.js
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import { Table, Button as AntButton, Layout, Menu, Popover, Input, Select, Row, Col, Modal, Dropdown, Space, Tooltip } from 'antd';
+// src/pages/QuanLyGiaoVien.js
+import React, { useState, useEffect } from 'react';
+import { Table, Button as AntButton, Layout, Popover, Input, Select, Row, Col, Modal, Dropdown, Tooltip } from 'antd';
 import {
-    UserOutlined,
-    DashboardOutlined,
-    LogoutOutlined,
     SettingOutlined,
     SearchOutlined,
     ClearOutlined,
     SaveOutlined,
     DownOutlined,
     DeleteOutlined,
-    PlusOutlined, ReloadOutlined, // Thêm icon cho "Lưu tìm kiếm mới"
+    PlusOutlined, ReloadOutlined,
+    SunOutlined, MoonOutlined
 } from '@ant-design/icons';
-import Swal from 'sweetalert2';
 import { Header } from "antd/es/layout/layout";
 import * as DarkReader from "darkreader";
-import { SunOutlined, MoonOutlined } from "@ant-design/icons";
-import { useNavigate } from "react-router-dom";
 import SidebarAdmin from '../Sidebar/SidebarAdmin';
-
-// Import actions và thunks từ Redux slices
-import { fetchTeachers, convertTeacher } from '../../../redux/QuanLiGVRedux/teachersSlice';
-import { fetchPositionOptions } from '../../../redux/QuanLiGVRedux/positionsSlice';
-import {
-    setCurrentSearch,
-    saveCurrentSearchConfig,
-    loadSearchConfig,
-    removeSearchConfig,
-    clearCurrentSearch,
-    LOAD_ALL_CONFIG_NAME
-} from '../../../redux/QuanLiGVRedux/searchConfigsSlice';
+import useQuanLyGiaoVienLogic from './useQuanLyGiaoVienLogic'; // Import the new hook
 
 const { Content } = Layout;
 const { Option } = Select;
 
+// --- DarkModeToggle component (giữ nguyên) ---
 const DarkModeToggle = () => {
     const [isDarkMode, setIsDarkMode] = useState(false);
     const toggleDarkMode = () => setIsDarkMode((prev) => !prev);
@@ -52,253 +36,93 @@ const DarkModeToggle = () => {
     );
 };
 
-// Debounce function (giữ nguyên)
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            timeout = null;
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
 const QuanLyGiaoVien = () => {
-    const dispatch = useDispatch();
-    const navigate = useNavigate();
+    // Sử dụng hook để lấy tất cả logic và trạng thái
+    const {
+        giaoVienData,
+        teachersStatus,
+        conversionStatus,
+        chucVuOptions,
+        positionsStatus,
+        currentSearchConfig,
+        searchConfigList,
+        LOAD_ALL_CONFIG_NAME, // Lấy hằng số từ hook
+        collapsed,
+        setCollapsed,
+        isConversionModalVisible,
+        selectedGiaoVienForConversion,
+        selectedChucVu,
+        setSelectedChucVu,
+        searchFieldsOptions,
+        searchOperatorsOptions,
+        handleLoadAllTeachers,
+        handleSearchInputChange,
+        handleSearchFieldChange,
+        handleSearchOperatorChange,
+        handleClearSearch,
+        handleSaveSearchConfig,
+        handleLoadSearchConfig,
+        handleRemoveSearchConfig,
+        handleMenuClickSidebar,
+        handleCancelConversionModal,
+        handleConvertGiaoVien,
+        showConversionModal, // Hàm này được dùng trong render của cột
+    } = useQuanLyGiaoVienLogic();
 
-    // Lấy dữ liệu từ Redux store
-    const { data: giaoVienData, status: teachersStatus, conversionStatus } = useSelector((state) => state.teachers);
-    const { options: chucVuOptions, status: positionsStatus } = useSelector((state) => state.positions);
-    const { currentSearchConfig, searchConfigList, savedSearchConfigs } = useSelector((state) => state.searchConfigs);
-
-    const [collapsed, setCollapsed] = useState(false);
-    const [isConversionModalVisible, setIsConversionModalVisible] = useState(false);
-    const [selectedGiaoVienForConversion, setSelectedGiaoVienForConversion] = useState(null);
-    const [selectedChucVu, setSelectedChucVu] = useState(null);
-
-    // Giá trị searchKeyword được tạo ra từ currentSearchConfig
-    const searchKeyword = useMemo(() => {
-        if (currentSearchConfig.keyword && currentSearchConfig.field && currentSearchConfig.operator) {
-            return `${currentSearchConfig.field}:${currentSearchConfig.operator}:${currentSearchConfig.keyword}`;
-        }
-        return '';
-    }, [currentSearchConfig]);
-
-
-    const searchFieldsOptions = [
-        { value: 'hoTen', label: 'Họ Tên' },
-        { value: 'soDienThoai', label: 'Số Điện Thoại' },
-        { value: 'email', label: 'Email' },
-        { value: 'hocVi', label: 'Học Vị' },
-        { value: 'tenKhoa', label: 'Tên Khoa' },
-    ];
-
-    const searchOperatorsOptions = [
-        { value: 'EQUALS', label: 'Equals' },
-        { value: 'NOT_EQUALS', label: 'Not Equals' },
-        { value: 'LIKE', label: 'Like' },
-        { value: 'STARTS_WITH', label: 'Starts With' },
-        { value: 'ENDS_WITH', label: 'Ends With' },
-        // Bỏ GT, LT, IN, NOT_IN vì ví dụ hiện tại chỉ tìm kiếm trên string
-    ];
-
-    // Debounced fetch
-    const debouncedFetch = useCallback(
-        debounce(() => {
-            // Chỉ fetch nếu có từ khóa hoặc không có từ khóa (tải tất cả)
-            // Logic này đảm bảo fetch khi searchKeyword thay đổi (kể cả khi rỗng)
-            dispatch(fetchTeachers(searchKeyword));
-        }, 1000),
-        [dispatch, searchKeyword] // Phụ thuộc vào searchKeyword đã được tính toán
-    );
-
-    useEffect(() => {
-        // Fetch dữ liệu giáo viên và chức vụ khi component mount hoặc searchKeyword thay đổi
-        debouncedFetch();
-    }, [searchKeyword, debouncedFetch]); // Thêm debouncedFetch vào dependencies
-
-    useEffect(() => {
-        dispatch(fetchPositionOptions());
-    }, [dispatch]);
-
-    const handleLoadAllTeachers = () => {
-        dispatch(loadSearchConfig(LOAD_ALL_CONFIG_NAME));
-    }
-    const handleSearchInputChange = (e) => {
-        dispatch(setCurrentSearch({ keyword: e.target.value }));
-    };
-
-    const handleSearchFieldChange = (value) => {
-        dispatch(setCurrentSearch({ field: value }));
-    };
-
-    const handleSearchOperatorChange = (value) => {
-        dispatch(setCurrentSearch({ operator: value }));
-    };
-
-    const handleClearSearch = () => {
-        dispatch(clearCurrentSearch());
-        // fetchTeachers sẽ được gọi lại do searchKeyword thay đổi thành rỗng
-    };
-
-    const handleSaveSearchConfig = async () => {
-        if (!currentSearchConfig.field || !currentSearchConfig.operator || !currentSearchConfig.keyword) {
-            Swal.fire('Thiếu thông tin!', 'Vui lòng nhập đầy đủ tiêu chí tìm kiếm trước khi lưu.', 'warning');
-            return;
-        }
-
-        const { value: configName } = await Swal.fire({
-            title: 'Đặt tên cho cấu hình tìm kiếm',
-            input: 'text',
-            inputValue: currentSearchConfig.name || `Tìm kiếm ${currentSearchConfig.field}`,
-            showCancelButton: true,
-            inputValidator: (value) => {
-                if (!value) {
-                    return 'Bạn cần nhập tên cho cấu hình!';
-                }
-                if (searchConfigList.includes(value) && value !== currentSearchConfig.name) {
-                    return 'Tên cấu hình này đã tồn tại!';
-                }
-            }
-        });
-
-        if (configName) {
-            dispatch(saveCurrentSearchConfig({ name: configName }));
-        }
-    };
-
-    const handleLoadSearchConfig = (configName) => {
-        dispatch(loadSearchConfig(configName));
-        // fetchTeachers sẽ tự động được gọi lại do searchKeyword thay đổi
-    };
-
-    const handleRemoveSearchConfig = (configName) => {
-        Swal.fire({
-            title: `Bạn chắc chắn muốn xóa cấu hình "${configName}"?`,
-            text: "Hành động này không thể hoàn tác!",
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: 'Xóa!',
-            cancelButtonText: 'Hủy'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                dispatch(removeSearchConfig(configName));
-            }
-        });
-    };
-
-
-    const handleMenuClickSidebar = (e) => {
-        if (e.key === 'dashboard') navigate('/admin');
-        else if (e.key === 'userManagement') navigate('/quanlitaikhoan');
-        else if (e.key === 'teacherManagement') navigate('/quanlygiaovien');
-        else if (e.key === 'employeeManagement') navigate('/quanlinhanvien');
-        else if (e.key === 'logout') handleLogout();
-    };
-
-    const handleLogout = () => {
-        localStorage.removeItem('authToken');
-        Swal.fire({
-            icon: 'success',
-            title: 'Logged Out',
-            text: 'You have been successfully logged out.',
-            showConfirmButton: false,
-            timer: 1500,
-        }).then(() => navigate('/login'));
-    };
-
-    const showConversionModal = (record) => {
-        setSelectedGiaoVienForConversion(record);
-        setIsConversionModalVisible(true);
-    };
-
-    const handleCancelConversionModal = () => {
-        setIsConversionModalVisible(false);
-        setSelectedChucVu(null);
-        setSelectedGiaoVienForConversion(null);
-    };
-
-    const handleConvertGiaoVien = async () => {
-        if (!selectedGiaoVienForConversion || !selectedChucVu) {
-            Swal.fire({ icon: 'error', title: 'Lỗi', text: 'Vui lòng chọn chức vụ.' });
-            return;
-        }
-
-        const result = await Swal.fire({
-            title: 'Bạn có chắc chắn muốn chuyển đổi giáo viên này?',
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#3085d6',
-            cancelButtonColor: '#d33',
-            confirmButtonText: 'Có, chuyển đổi!',
-            cancelButtonText: 'Không, hủy bỏ!'
-        });
-
-        if (result.isConfirmed) {
-            dispatch(convertTeacher({
-                maGiaoVienItem: selectedGiaoVienForConversion.maGiaoVienItem,
-                hoTen: selectedGiaoVienForConversion.hoTen,
-                email: selectedGiaoVienForConversion.email,
-                soDienThoai: selectedGiaoVienForConversion.soDienThoai,
-                maCV: selectedChucVu,
-                taiKhoanMaTK: selectedGiaoVienForConversion.taiKhoanMaTK,
-            })).then(() => {
-                if (conversionStatus !== 'failed') { // Kiểm tra nếu không có lỗi từ slice
-                    setIsConversionModalVisible(false);
-                    setSelectedChucVu(null);
-                    setSelectedGiaoVienForConversion(null);
-                }
-            });
-        }
-    };
-
+    // Định nghĩa cột bảng (sử dụng showConversionModal từ hook)
     const giaoVienColumns = [
         { title: 'STT', dataIndex: 'stt', key: 'stt', sorter: (a, b) => a.stt - b.stt },
         { title: 'Mã Giáo Viên', dataIndex: 'maGiaoVien', key: 'maGiaoVien', sorter: (a, b) => a.maGiaoVien - b.maGiaoVien },
-        { title: 'Họ Tên', dataIndex: 'hoTen', key: 'hoTen', sorter: (a, b) => a.hoTen.localeCompare(b.hoTen) },
-        { title: 'Số Điện Thoại', dataIndex: 'soDienThoai', key: 'soDienThoai', sorter: (a, b) => String(a.soDienThoai).localeCompare(String(b.soDienThoai)) },
-        { title: 'Email', dataIndex: 'email', key: 'email', sorter: (a, b) => a.email.localeCompare(b.email) },
+        { title: 'Họ Tên', dataIndex: 'hoTen', key: 'hoTen', sorter: (a, b) => (a.hoTen || '').localeCompare(b.hoTen || '') },
+        { title: 'Số Điện Thoại', dataIndex: 'soDienThoai', key: 'soDienThoai', sorter: (a, b) => String(a.soDienThoai || '').localeCompare(String(b.soDienThoai || '')) },
+        { title: 'Email', dataIndex: 'email', key: 'email', sorter: (a, b) => (a.email || '').localeCompare(b.email || '') },
         {
-            title: 'Học Vị', dataIndex: 'hocVi', key: 'hocVi', sorter: (a, b) => a.hocVi.localeCompare(b.hocVi),
+            title: 'Học Vị',
+            dataIndex: 'hocVi',
+            key: 'hocVi',
+            sorter: (a, b) => (a.hocVi || '').localeCompare(b.hocVi || ''),
             render: (text, record) => (
                 <div
                     className="editable-cell"
-                    onContextMenu={(e) => { e.preventDefault(); showConversionModal(record); }}
-                    style={{ cursor: 'context-menu' }}
+                    // Chỉ cho phép chuyển đổi nếu giáo viên chưa phải là nhân viên
+                    onContextMenu={(e) => {
+                        e.preventDefault();
+                        if (record.maNhanVien === null) { // Kiểm tra nếu giáo viên này chưa có mã nhân viên
+                            showConversionModal(record);
+                        } else {
+                            // Optionally, inform the user that this teacher is already an employee
+                            // message.info('Giáo viên này đã được chuyển đổi thành nhân viên.');
+                        }
+                    }}
+                    style={{ cursor: record.maNhanVien === null ? 'context-menu' : 'default' }} // Change cursor if convertible
                 >
-                    {text}
+                    {text || 'N/A'}
                 </div>
             ),
         },
-        { title: 'Tên Khoa', dataIndex: 'tenKhoa', key: 'tenKhoa', sorter: (a, b) => a.tenKhoa.localeCompare(b.tenKhoa) },
+        { title: 'Tên Khoa', dataIndex: 'tenKhoa', key: 'tenKhoa', sorter: (a, b) => (a.tenKhoa || '').localeCompare(b.tenKhoa || '') },
     ];
 
-
-    const items = [
-        // Mục "Tải tất cả" được thêm vào đầu danh sách
+    // Tạo menu Dropdown cho cấu hình tìm kiếm
+    const dropdownMenuItems = [
         {
             key: 'load-all',
             label: 'Tải tất cả giáo viên',
             icon: <ReloadOutlined />,
-            onClick: handleLoadAllTeachers, // Gọi hàm mới
+            onClick: handleLoadAllTeachers,
         },
-        { type: 'divider' }, // Thêm divider sau mục "Tải tất cả"
+        { type: 'divider' },
 
         ...(searchConfigList || []).map(name => ({
             key: `load-${name}`,
             label: (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span onClick={() => handleLoadSearchConfig(name)}>{name}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                    <span onClick={() => handleLoadSearchConfig(name)} style={{ flexGrow: 1, cursor: 'pointer' }}>{name}</span>
                     <Tooltip title="Xóa cấu hình này">
                         <DeleteOutlined
                             style={{ color: 'red', cursor: 'pointer', marginLeft: 8 }}
                             onClick={(e) => {
-                                e.stopPropagation();
+                                e.stopPropagation(); // Ngăn sự kiện click của span bên trong
                                 handleRemoveSearchConfig(name);
                             }}
                         />
@@ -306,14 +130,14 @@ const QuanLyGiaoVien = () => {
                 </div>
             ),
         })),
-        (searchConfigList && searchConfigList.length > 0) && { type: 'divider' }, // Chỉ hiện divider này nếu có cấu hình đã lưu
+        (searchConfigList && searchConfigList.length > 0) && { type: 'divider' },
         {
             key: 'save-new',
             label: 'Lưu tìm kiếm hiện tại...',
             icon: <SaveOutlined />,
             onClick: handleSaveSearchConfig,
         },
-    ].filter(Boolean);
+    ].filter(Boolean); // Lọc bỏ các giá trị null/false (nếu có)
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
@@ -349,7 +173,6 @@ const QuanLyGiaoVien = () => {
                                     value={currentSearchConfig.keyword}
                                     onChange={handleSearchInputChange}
                                     style={{ width: '100%' }}
-                                    // size="small" // Bỏ size small để nhất quán
                                     suffix={
                                         currentSearchConfig.keyword && (
                                             <AntButton
@@ -362,7 +185,7 @@ const QuanLyGiaoVien = () => {
                                     }
                                 />
                             </Col>
-                            {currentSearchConfig.keyword && ( // Chỉ hiện khi có keyword
+                            {currentSearchConfig.keyword && (
                                 <>
                                     <Col xs={24} sm={12} md={6} lg={5}>
                                         <Select
@@ -370,7 +193,6 @@ const QuanLyGiaoVien = () => {
                                             value={currentSearchConfig.field}
                                             onChange={handleSearchFieldChange}
                                             style={{ width: '100%' }}
-                                            // size="small"
                                         >
                                             {searchFieldsOptions.map(item => (
                                                 <Option key={item.value} value={item.value}>{item.label}</Option>
@@ -383,7 +205,6 @@ const QuanLyGiaoVien = () => {
                                             value={currentSearchConfig.operator}
                                             onChange={handleSearchOperatorChange}
                                             style={{ width: '100%' }}
-                                            // size="small"
                                         >
                                             {searchOperatorsOptions.map(item => (
                                                 <Option key={item.value} value={item.value}>{item.label}</Option>
@@ -393,7 +214,7 @@ const QuanLyGiaoVien = () => {
                                 </>
                             )}
                             <Col xs={24} sm={12} md={4} lg={currentSearchConfig.keyword ? 4 : 18}>
-                                <Dropdown menu={{ items }} trigger={['click']}>
+                                <Dropdown menu={{ items: dropdownMenuItems }} trigger={['click']}>
                                     <AntButton>
                                         Cấu hình tìm kiếm <DownOutlined />
                                     </AntButton>
@@ -409,20 +230,22 @@ const QuanLyGiaoVien = () => {
                                 pageSizeOptions: ['10', '20', '50'],
                                 showSizeChanger: true,
                                 showQuickJumper: true,
-                                current: 1, // Nên có state quản lý pagination nếu cần
+                                // current: 1, // Bỏ current cứng, để Ant Design tự quản lý nếu không có state phân trang riêng
                                 total: giaoVienData.length // Hoặc total từ API nếu có phân trang server-side
                             }}
-                            rowKey="key" // Đảm bảo mỗi row có key duy nhất
+                            rowKey="key"
+                            bordered // Thêm border cho bảng dễ nhìn
+                            size="small" // Bảng nhỏ gọn hơn
                         />
                     </div>
                 </Content>
             </Layout>
             <Modal
                 title="Chuyển đổi giáo viên thành nhân viên"
-                open={isConversionModalVisible} // 'visible' is deprecated, use 'open'
+                open={isConversionModalVisible}
                 onOk={handleConvertGiaoVien}
                 onCancel={handleCancelConversionModal}
-                confirmLoading={conversionStatus === 'loading'} // Sử dụng conversionStatus
+                confirmLoading={conversionStatus === 'loading'}
             >
                 {selectedGiaoVienForConversion && (
                     <div>
@@ -452,7 +275,3 @@ const QuanLyGiaoVien = () => {
 };
 
 export default QuanLyGiaoVien;
-
-// Bỏ giaovienAdminLoader vì việc fetch dữ liệu ban đầu sẽ được xử lý bởi Redux Thunk
-// Nếu bạn vẫn muốn sử dụng loader của React Router, nó có thể dispatch một action để load dữ liệu vào store
-// thay vì trả về data trực tiếp. Tuy nhiên, để đơn giản, chúng ta sẽ fetch trong useEffect.
