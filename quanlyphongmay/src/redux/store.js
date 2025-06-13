@@ -5,7 +5,6 @@ import positionsReducer from './QuanLiGVRedux/positionsSlice';
 import searchConfigsReducer from './QuanLiGVRedux/searchConfigsSlice'; // for teachers
 
 import employeesReducer from './QuanLiNVRedux/employeesSlice';
-import khoaOptionsReducer from './QuanLiNVRedux/khoaOptionsSlice';
 import employeeSearchConfigsReducer from './QuanLiNVRedux/employeeSearchConfigsSlice'; // for employees
 import chucVuOptionsReducer from './QuanLiNVRedux/chucVuOptionsSlice'; // <-- Add this
 
@@ -13,6 +12,7 @@ import chucVuOptionsReducer from './QuanLiNVRedux/chucVuOptionsSlice'; // <-- Ad
 import ghiChuMayTinhSearchConfigsReducer from './QuanLiGhiChuMayTinhRedux/ghiChuMayTinhSearchConfigsSlice'; // for ghiChuMayTinh
 
 // IMPORT MỚI CHO MÔN HỌC
+import khoaOptionsReducer from './QuanLiNVRedux/khoaOptionsSlice'; // <--- Thêm import này
 
 
 // IMPORT MỚI CHO GHI CHÚ THIẾT BỊ
@@ -26,7 +26,6 @@ export const store = configureStore({
         searchConfigs: searchConfigsReducer, // for teachers
         employees: employeesReducer,
         khoaOptions: khoaOptionsReducer,
-
         employeeSearchConfigs: employeeSearchConfigsReducer, // for employees
         ghiChuMayTinhSearchConfigs: ghiChuMayTinhSearchConfigsReducer, // for ghiChuMayTinh
 

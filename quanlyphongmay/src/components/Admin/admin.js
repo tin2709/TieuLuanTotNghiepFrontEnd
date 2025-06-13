@@ -105,7 +105,8 @@ const AdminDashboard = () => {
 
     // --- State ---
     const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState(null);
+    // REMOVED: Loại bỏ state 'error' để không chặn render toàn màn hình
+    // const [error, setError] = useState(null);
     const [authError, setAuthError] = useState(null);
     const [roomStats, setRoomStats] = useState([]);
     const [timeSeriesData, setTimeSeriesData] = useState([]);
@@ -119,12 +120,18 @@ const AdminDashboard = () => {
         const logPrefix = `[EFFECT LOADER DATA][${new Date().toISOString()}]`;
         console.log(`${logPrefix} Processing loader result:`, loaderResult);
         setIsLoading(true);
-        setError(null);
+        // REMOVED: Bỏ reset error
+        // setError(null);
         setAuthError(null);
-        setRoomStats([]); setTimeSeriesData([]); setBuildingsData([]); setFloorsData([]); setRoomsData([]); // Reset
+        // Đảm bảo các state được reset hoặc khởi tạo với mảng rỗng để UI không bị "lỗi data"
+        setRoomStats([]);
+        setTimeSeriesData([]);
+        setBuildingsData([]);
+        setFloorsData([]);
+        setRoomsData([]);
 
         if (loaderResult?.error) {
-            console.error(`${logPrefix} Loader error:`, loaderResult);
+            console.error(`${logPrefix} Loader error:`, loaderResult.message);
             if (loaderResult.type === 'auth') {
                 setAuthError(loaderResult.message);
                 setTimeout(() => {
@@ -132,9 +139,11 @@ const AdminDashboard = () => {
                         .then(() => navigate('/login'));
                 }, 100);
             } else {
-                setError(loaderResult.message);
+                // Thay vì đặt lỗi toàn màn hình, chỉ log và cố gắng hiển thị partial data nếu có
+                // REMOVED: Bỏ setError
+                // setError(loaderResult.message);
                 if (loaderResult.data) { // Xử lý partial data
-                    console.warn(`${logPrefix} Processing partial data.`);
+                    console.warn(`${logPrefix} Processing partial data due to error.`);
                     const data = loaderResult.data;
                     setRoomStats(Array.isArray(data.roomStats) ? data.roomStats : []);
                     const rawTsData = Array.isArray(data.timeSeriesData) ? data.timeSeriesData : [];
@@ -150,10 +159,13 @@ const AdminDashboard = () => {
                     setBuildingsData(Array.isArray(data.buildings) ? data.buildings : []);
                     setFloorsData(Array.isArray(data.floors) ? data.floors : []);
                     setRoomsData(Array.isArray(data.rooms) ? data.rooms : []);
+                } else {
+                    console.warn(`${logPrefix} No partial data available. UI will show empty states for affected sections.`);
+                    // Các state đã được reset về mảng rỗng ở đầu useEffect
                 }
             }
         } else if (loaderResult?.data) { // Thành công
-            console.log(`${logPrefix} Loader success.`);
+            console.log(`${logPrefix} Loader success, setting all data.`);
             const data = loaderResult.data;
             setRoomStats(Array.isArray(data.roomStats) ? data.roomStats : []);
             const rawTsData = Array.isArray(data.timeSeriesData) ? data.timeSeriesData : [];
@@ -169,12 +181,12 @@ const AdminDashboard = () => {
             setBuildingsData(Array.isArray(data.buildings) ? data.buildings : []);
             setFloorsData(Array.isArray(data.floors) ? data.floors : []);
             setRoomsData(Array.isArray(data.rooms) ? data.rooms : []);
-        } else { // Trường hợp không mong muốn
-            console.error(`${logPrefix} Invalid loader result.`);
-            setError("Dữ liệu tải về không hợp lệ.");
+        } else { // Trường hợp không mong muốn (loaderResult là null/undefined hoặc không có data/error)
+            console.warn(`${logPrefix} Invalid or empty loader result. UI will show empty states.`);
+            // Các state đã được reset về mảng rỗng ở đầu useEffect
         }
-        setIsLoading(false); // Hoàn tất xử lý
-    }, [loaderResult, navigate]);
+        setIsLoading(false); // Hoàn tất xử lý, dù có lỗi hay không, UI vẫn sẽ render
+    }, [loaderResult, navigate]); // Thêm navigate vào dependencies
 
     // --- Memoized Data Processing ---
     const basicStats = useMemo(() => {
@@ -188,10 +200,8 @@ const AdminDashboard = () => {
         return { totalWorking, totalBroken, totalComputers };
     }, [roomStats]);
 
-    // **SỬA LỖI**: Đảm bảo derivedStats luôn trả về object hợp lệ
     const derivedStats = useMemo(() => {
         const defaultResult = { workingPercentage: '0.0', brokenPercentage: '0.0', pieChartData: [] };
-        // Kiểm tra basicStats trước khi dùng
         if (!basicStats || typeof basicStats.totalComputers === 'undefined') {
             return defaultResult;
         }
@@ -206,72 +216,71 @@ const AdminDashboard = () => {
             return { workingPercentage, brokenPercentage, pieChartData: pieData };
         } catch (e) {
             console.error("Error calculating derivedStats:", e);
-            return defaultResult; // Trả về mặc định nếu có lỗi
+            return defaultResult;
         }
-    }, [basicStats]); // Chỉ phụ thuộc basicStats
+    }, [basicStats]);
 
-    // **SỬA LỖI**: Destructure riêng biệt và có giá trị mặc định
     const { totalWorking, totalBroken, totalComputers } = basicStats || { totalWorking: 0, totalBroken: 0, totalComputers: 0 };
     const { workingPercentage, brokenPercentage, pieChartData } = derivedStats || { workingPercentage: '0.0', brokenPercentage: '0.0', pieChartData: [] };
 
     const barChartData = useMemo(() => {
-        if (!Array.isArray(roomStats)) return []; // Đảm bảo là mảng
+        if (!Array.isArray(roomStats)) return [];
         return roomStats.map((room) => ({ name: room.tenPhong || `Phòng ${room.maPhong || 'N/A'}`, 'Đang hoạt động': room.soMayDangHoatDong || 0, 'Đã hỏng': room.soMayDaHong || 0 }));
     }, [roomStats]);
 
     const chartDataSource = useMemo(() => {
         console.log("[Memo ChartData] Processing data for organizational chart...");
+        // Không cần kiểm tra loaderHasError nữa vì UI không bị chặn hoàn toàn
+
         if (!Array.isArray(buildingsData) || !Array.isArray(floorsData) || !Array.isArray(roomsData)) {
-            if (!error && !authError && !isLoading) { // Chỉ báo lỗi nếu không có lỗi loader khác
-                return { name: 'Lỗi Định Dạng Dữ Liệu Cấu Trúc', attributes: { type: 'root', error: true, message: 'Dữ liệu cấu trúc không đúng định dạng.' }, children: [] };
+            // Đây là trường hợp dữ liệu được set về rỗng hoặc null do lỗi không xác định
+            return { name: 'Hệ thống (Không có dữ liệu)', attributes: { type: 'root', empty: true }, children: [] };
+        }
+
+        if (buildingsData.length === 0 && floorsData.length === 0 && roomsData.length === 0) {
+            // Trường hợp không có dữ liệu thật sự, có thể do lỗi API hoặc không có dữ liệu trong DB
+            return { name: 'Hệ thống (Không có dữ liệu)', attributes: { type: 'root', empty: true }, children: [] };
+        }
+
+        try {
+            const buildingNodes = buildingsData.map(building => {
+                const buildingFloors = floorsData.filter(floor => floor.toaNha?.maToaNha === building.maToaNha);
+                return {
+                    name: building.tenToaNha || `Tòa nhà ${building.maToaNha || 'N/A'}`,
+                    attributes: { type: 'building', id: building.maToaNha },
+                    children: buildingFloors.map(floor => {
+                        const floorRooms = roomsData.filter(room => room.tang?.maTang === floor.maTang);
+                        return {
+                            name: floor.tenTang || `Tầng ${floor.maTang || 'N/A'}`,
+                            attributes: { type: 'floor', id: floor.maTang },
+                            children: floorRooms.map(room => {
+                                let gvCount = 0, hsCount = 0, otherCount = 0;
+                                if (room.mayTinhs && Array.isArray(room.mayTinhs)) {
+                                    room.mayTinhs.forEach(c => { const m = c.moTa?.toLowerCase(); if (m === 'gv') gvCount++; else if (m === 'hs' || m === 'sv') hsCount++; });
+                                    const totalReported = room.soMay || (gvCount + hsCount); otherCount = Math.max(0, totalReported - gvCount - hsCount);
+                                } else { otherCount = room.soMay || 0; }
+                                const totalComputersInRoom = room.soMay ?? (gvCount + hsCount + otherCount);
+                                return { name: room.tenPhong || `Phòng ${room.maPhong || 'N/A'}`, attributes: { type: 'room', id: room.maPhong, gvCount, hsCount, otherCount, totalComputers: totalComputersInRoom, trangThai: room.trangThai || 'N/A', moTa: room.moTa || '' } };
+                            })
+                        };
+                    })
+                };
+            });
+            if (buildingNodes.length === 0 && (buildingsData.length > 0 || floorsData.length > 0 || roomsData.length > 0)) {
+                console.warn("[Memo ChartData] Input data exists, but result tree is empty. Likely data mismatch.");
+                return { name: 'Hệ thống (Không thể tạo cây)', attributes: { type: 'root', empty: true }, children: [] };
+            } else if (buildingNodes.length === 0) {
+                return { name: 'Hệ thống (Không có tòa nhà)', attributes: { type: 'root', empty: true }, children: [] };
             }
-            return null;
+            return { name: 'Hệ thống Phòng máy', attributes: { type: 'root' }, children: buildingNodes };
+        } catch (processingError) {
+            console.error("[Memo ChartData] Error processing chart data:", processingError);
+            return { name: 'Lỗi Xử Lý Cấu Trúc', attributes: { type: 'root', error: true, message: processingError.message }, children: [] };
         }
-        if (!error && !authError && buildingsData.length === 0 && floorsData.length === 0 && roomsData.length === 0) {
-            return { name: 'Hệ thống (Chưa có dữ liệu)', attributes: { type: 'root', empty: true }, children: [] };
-        }
-        if (!error || loaderResult?.type === 'partial_api_network') {
-            try {
-                const buildingNodes = buildingsData.map(building => {
-                    const buildingFloors = floorsData.filter(floor => floor.toaNha?.maToaNha === building.maToaNha);
-                    return {
-                        name: building.tenToaNha || `Tòa nhà ${building.maToaNha || 'N/A'}`,
-                        attributes: { type: 'building', id: building.maToaNha },
-                        children: buildingFloors.map(floor => {
-                            const floorRooms = roomsData.filter(room => room.tang?.maTang === floor.maTang);
-                            return {
-                                name: floor.tenTang || `Tầng ${floor.maTang || 'N/A'}`,
-                                attributes: { type: 'floor', id: floor.maTang },
-                                children: floorRooms.map(room => {
-                                    let gvCount = 0, hsCount = 0, otherCount = 0;
-                                    if (room.mayTinhs && Array.isArray(room.mayTinhs)) {
-                                        room.mayTinhs.forEach(c => { const m = c.moTa?.toLowerCase(); if (m === 'gv') gvCount++; else if (m === 'hs' || m === 'sv') hsCount++; });
-                                        const totalReported = room.soMay || (gvCount + hsCount); otherCount = Math.max(0, totalReported - gvCount - hsCount);
-                                    } else { otherCount = room.soMay || 0; }
-                                    const totalComputersInRoom = room.soMay ?? (gvCount + hsCount + otherCount); // Đổi tên biến để tránh nhầm lẫn
-                                    return { name: room.tenPhong || `Phòng ${room.maPhong || 'N/A'}`, attributes: { type: 'room', id: room.maPhong, gvCount, hsCount, otherCount, totalComputers: totalComputersInRoom, trangThai: room.trangThai || 'N/A', moTa: room.moTa || '' } };
-                                })
-                            };
-                        })
-                    };
-                });
-                if (buildingNodes.length === 0 && (buildingsData.length > 0 || floorsData.length > 0 || roomsData.length > 0)) {
-                    console.warn("[Memo ChartData] Input data exists, but result tree is empty.");
-                    return { name: 'Lỗi Xử Lý Cây', attributes: { type: 'root', error: true, message: 'Lỗi logic lọc dữ liệu cây.' }, children: [] };
-                } else if (buildingNodes.length === 0) {
-                    return { name: 'Hệ thống (Không có tòa nhà)', attributes: { type: 'root', empty: true }, children: [] };
-                }
-                return { name: 'Hệ thống Phòng máy', attributes: { type: 'root' }, children: buildingNodes };
-            } catch (processingError) {
-                console.error("[Memo ChartData] Error processing chart data:", processingError);
-                return { name: 'Lỗi Xử Lý Cấu Trúc', attributes: { type: 'root', error: true, message: processingError.message }, children: [] };
-            }
-        }
-        return null; // Trả về null nếu có lỗi loader (không phải partial)
-    }, [buildingsData, floorsData, roomsData, error, authError, isLoading, loaderResult?.type]);
+    }, [buildingsData, floorsData, roomsData]); // Đã bỏ 'loaderResult?.error', 'loaderResult?.type' khỏi dependencies vì không phụ thuộc vào trạng thái lỗi của loader nữa.
 
     // --- Chart Renderers ---
-    const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
+    const renderCustomizedLabel = useCallback(({ cx, cy, midAngle, innerRadius, outerRadius, percent }) => {
         if (!percent || percent < 0.03) return null;
         const RADIAN = Math.PI / 180;
         const radius = innerRadius + (outerRadius - innerRadius) * 0.6;
@@ -282,7 +291,7 @@ const AdminDashboard = () => {
                 {(percent * 100).toFixed(0)}%
             </text>
         );
-    };
+    }, []);
 
     const renderOrgChartNodes = useCallback((node) => {
         if (!node) return null;
@@ -319,36 +328,20 @@ const AdminDashboard = () => {
 
     // --- Render Logic ---
     const renderContent = () => {
+        // Chỉ xử lý lỗi xác thực, các lỗi khác sẽ không chặn render UI chính
         if (authError) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 'calc(100vh - 150px)' }}><Spin size="large" tip={authError} /></div>;
-        if (isLoading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 'calc(100vh - 150px)' }}><Spin size="large" tip="Đang xử lý dữ liệu..." /></div>;
-        if (error) {
-            return (
-                <Card style={{ margin: '20px', border: '1px solid #ffccc7', backgroundColor: '#fff2f0' }} bodyStyle={{ padding: '30px' }}>
-                    <Title level={3} style={{ color: '#cf1322', textAlign: 'center', marginBottom: '20px' }}>️❌ Gặp sự cố</Title>
-                    <p style={{ color: '#a8071a', textAlign: 'center', marginBottom: '25px' }}>{error}</p>
-                    <div style={{ textAlign: 'center' }}>
-                        <AntButton type="primary" icon={<SyncOutlined />} onClick={() => navigate('.', { replace: true })}>
-                            Thử lại
-                        </AntButton>
-                    </div>
-                    <Typography.Paragraph type="secondary" style={{ marginTop: '20px', textAlign: 'center', fontSize: '12px', lineHeight: 1.6 }}>
-                        <strong>Gợi ý khắc phục:</strong><br />
-                        1. Kiểm tra kết nối mạng.<br />
-                        2. Đảm bảo server backend (<code style={{ fontSize: '12px' }}>https://localhost:8080</code>) đang chạy.<br />
-                        3. Xác nhận cấu hình CORS trên server.<br />
-                        4. Kiểm tra vấn đề chứng chỉ HTTPS.<br />
-                        5. Mở Developer Console (F12) -> Network tab.
-                    </Typography.Paragraph>
-                </Card>
-            );
-        }
 
-        // Render nội dung chính
+        // `isLoading` chỉ áp dụng cho lần load đầu.
+        // Sau khi load xong (dù thành công hay lỗi API), isLoading sẽ là false và UI sẽ render.
+        // Các biểu đồ sẽ tự động hiển thị Empty nếu không có dữ liệu.
+        if (isLoading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 'calc(100vh - 150px)' }}><Spin size="large" tip="Đang tải dữ liệu..." /></div>;
+
+        // Các biến kiểm tra dữ liệu để hiển thị Empty component
         const hasRoomStatsData = Array.isArray(roomStats) && roomStats.length > 0;
         const hasTimeSeriesData = Array.isArray(timeSeriesData) && timeSeriesData.length > 0;
-        const hasPieData = Array.isArray(pieChartData) && pieChartData.length > 0; // Kiểm tra pieChartData
-        const chartDataIsError = chartDataSource?.attributes?.error;
-        const chartDataIsEmpty = chartDataSource?.attributes?.empty;
+        const hasPieData = Array.isArray(pieChartData) && pieChartData.length > 0;
+        const chartDataIsError = chartDataSource?.attributes?.error; // Lỗi khi tự tạo cây
+        const chartDataIsEmpty = chartDataSource?.attributes?.empty; // Dữ liệu rỗng hoặc không thể tạo cây
         const hasValidChartData = chartDataSource && !chartDataIsError && !chartDataIsEmpty && Array.isArray(chartDataSource.children) && chartDataSource.children.length > 0;
 
         return (
@@ -356,7 +349,6 @@ const AdminDashboard = () => {
                 <Title level={2} style={{ textAlign: 'center', marginBottom: '24px' }}>Bảng điều khiển Quản trị</Title>
                 {/* Statistics Cards */}
                 <Row gutter={[16, 16]} style={{ marginBottom: '32px' }}>
-                    {/* Sử dụng các giá trị đã destructure an toàn */}
                     <Col xs={24} sm={12} lg={8}> <Card bordered={false} hoverable><Statistic title="Máy hoạt động" value={totalWorking} /> <Statistic title="Tỉ lệ HĐ" value={parseFloat(workingPercentage)} precision={1} suffix="%" valueStyle={{ color: '#3f8600', fontSize: '14px' }} /> </Card> </Col>
                     <Col xs={24} sm={12} lg={8}> <Card bordered={false} hoverable><Statistic title="Máy hỏng" value={totalBroken} /> <Statistic title="Tỉ lệ hỏng" value={parseFloat(brokenPercentage)} precision={1} suffix="%" valueStyle={{ color: '#cf1322', fontSize: '14px' }} /> </Card> </Col>
                     <Col xs={24} sm={12} lg={8}> <Card bordered={false} hoverable><Statistic title="Tổng máy (Working + Broken)" value={totalComputers} /> </Card> </Col>
@@ -389,7 +381,6 @@ const AdminDashboard = () => {
                     <Col xs={24} lg={12}>
                         <Title level={4} style={{ marginBottom: '16px' }}>Tỉ lệ trạng thái (Tổng thể)</Title>
                         <Card bordered={false}>
-                            {/* Sử dụng pieChartData đã destructure */}
                             {hasPieData ? <ResponsiveContainer width="100%" height={350}><PieChart><Pie data={pieChartData} cx="50%" cy="50%" labelLine={false} label={renderCustomizedLabel} outerRadius={110} innerRadius={40} fill="#8884d8" dataKey="value" paddingAngle={2}>{pieChartData.map((entry, index) => ( <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="#fff" style={{transition: 'opacity 0.2s'}}/> ))}</Pie><RechartsTooltip formatter={(value, name) => [`${value} máy (${totalComputers > 0 ? ((value / totalComputers) * 100).toFixed(1) : 0}%)`, name]}/><Legend verticalAlign="bottom" height={36} iconType="circle"/></PieChart></ResponsiveContainer>
                                 : <Empty description="Không có dữ liệu tỉ lệ trạng thái." style={{height: '350px', display:'flex', alignItems:'center', justifyContent:'center'}}/>}
                         </Card>
@@ -431,7 +422,7 @@ const AdminDashboard = () => {
                             <AntButton
                                 icon={<SyncOutlined />}
                                 onClick={() => navigate('.', { replace: true })}
-                                loading={isLoading}
+                                loading={isLoading} // Sử dụng isLoading để hiển thị trạng thái loading của nút refresh
                             />
                         </AntTooltip>
                     </div>

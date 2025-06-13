@@ -1,6 +1,6 @@
 // src/pages/QuanLyGiaoVien.js
 import React, { useState, useEffect } from 'react';
-import { Table, Button as AntButton, Layout, Popover, Input, Select, Row, Col, Modal, Dropdown, Tooltip } from 'antd';
+import { Table, Button as AntButton, Layout, Popover, Input, Select, Row, Col, Modal, Dropdown, Tooltip, message } from 'antd'; // Added message import
 import {
     SettingOutlined,
     SearchOutlined,
@@ -67,6 +67,8 @@ const QuanLyGiaoVien = () => {
         handleCancelConversionModal,
         handleConvertGiaoVien,
         showConversionModal, // Hàm này được dùng trong render của cột
+        teachersWithCa, // NEW: Nhận teachersWithCa từ hook
+        caThucHanhStatus, // NEW: Nhận caThucHanhStatus từ hook
     } = useQuanLyGiaoVienLogic();
 
     // Định nghĩa cột bảng (sử dụng showConversionModal từ hook)
@@ -81,24 +83,38 @@ const QuanLyGiaoVien = () => {
             dataIndex: 'hocVi',
             key: 'hocVi',
             sorter: (a, b) => (a.hocVi || '').localeCompare(b.hocVi || ''),
-            render: (text, record) => (
-                <div
-                    className="editable-cell"
-                    // Chỉ cho phép chuyển đổi nếu giáo viên chưa phải là nhân viên
-                    onContextMenu={(e) => {
-                        e.preventDefault();
-                        if (record.maNhanVien === null) { // Kiểm tra nếu giáo viên này chưa có mã nhân viên
-                            showConversionModal(record);
-                        } else {
-                            // Optionally, inform the user that this teacher is already an employee
-                            // message.info('Giáo viên này đã được chuyển đổi thành nhân viên.');
-                        }
-                    }}
-                    style={{ cursor: record.maNhanVien === null ? 'context-menu' : 'default' }} // Change cursor if convertible
-                >
-                    {text || 'N/A'}
-                </div>
-            ),
+            render: (text, record) => {
+                // Kiểm tra xem giáo viên này đã là nhân viên hay chưa (logic cũ)
+                const isAlreadyEmployee = record.maNhanVien != null && record.maNhanVien !== '';
+
+                // NEW: Kiểm tra xem giáo viên này có ca thực hành hay không
+                // Đảm bảo record.maGiaoVien có giá trị trước khi kiểm tra trong Set
+                const hasAssignedCaThucHanh = record.maGiaoVien && teachersWithCa.has(record.maGiaoVien);
+
+                // Điều kiện để cho phép chuyển đổi: KHÔNG PHẢI là nhân viên VÀ KHÔNG CÓ ca thực hành
+                const canConvert = !isAlreadyEmployee && !hasAssignedCaThucHanh;
+
+                return (
+                    <div
+                        className="editable-cell"
+                        onContextMenu={(e) => {
+                            e.preventDefault(); // Ngăn menu ngữ cảnh mặc định của trình duyệt
+
+                            if (isAlreadyEmployee) {
+                                message.info('Giáo viên này đã được chuyển đổi thành nhân viên.');
+                            } else if (hasAssignedCaThucHanh) {
+                                message.warning('Không thể chuyển đổi vai trò. Giáo viên này đã có ca thực hành được phân công.');
+                            } else {
+                                // Nếu chưa là nhân viên và không có ca thực hành, hiển thị modal chuyển đổi
+                                showConversionModal(record);
+                            }
+                        }}
+                        style={{ cursor: canConvert ? 'context-menu' : 'default' }} // Thay đổi con trỏ
+                    >
+                        {text || 'N/A'}
+                    </div>
+                );
+            },
         },
         { title: 'Tên Khoa', dataIndex: 'tenKhoa', key: 'tenKhoa', sorter: (a, b) => (a.tenKhoa || '').localeCompare(b.tenKhoa || '') },
     ];
@@ -225,7 +241,7 @@ const QuanLyGiaoVien = () => {
                         <Table
                             columns={giaoVienColumns}
                             dataSource={giaoVienData}
-                            loading={teachersStatus === 'loading' || positionsStatus === 'loading' || conversionStatus === 'loading'}
+                            loading={teachersStatus === 'loading' || positionsStatus === 'loading' || conversionStatus === 'loading' || caThucHanhStatus === 'loading'}
                             pagination={{
                                 pageSizeOptions: ['10', '20', '50'],
                                 showSizeChanger: true,

@@ -1,10 +1,9 @@
-// src/PhongMay/LabManagement.js
-
 import React, { useState, useEffect, useReducer, useMemo, useRef } from "react";
 import { useLoaderData, useNavigate } from "react-router-dom";
 import {
     Layout, Button, Input, Select, Table, Checkbox, Dropdown, Menu,
-    Modal, QRCode, Avatar, Form, Upload, Spin, Tabs, Result, message
+    Modal, QRCode, Avatar, Form, Upload, Spin, Tabs, Result, message,
+    notification // <<< Đảm bảo đã import notification
 } from "antd";
 import {
     HomeOutlined, EditOutlined, DeleteOutlined, MessageOutlined, PlusOutlined,
@@ -16,21 +15,20 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 import * as XLSX from "xlsx";
 import * as DarkReader from "darkreader";
-import 'intro.js/introjs.css'; // Make sure path is correct
-import introJs from 'intro.js'; // Import intro.js library
+import 'intro.js/introjs.css';
+import introJs from 'intro.js';
 
-// Internal Imports (adjust paths as needed)
-import { labManagementReducer, initialState } from '../Reducer/labManagementReducer'; // Adjust path
-import { ACTIONS, BROKEN_STATUS, ACTIVE_STATUS, INACTIVE_STATUS } from './action'; // Adjust path
-// *** Import the updated handler factory ***
-import { createLabManagementHandlers } from './phongmayHandler'; // Adjust path
+// Internal Imports
+import { labManagementReducer, initialState } from '../Reducer/labManagementReducer';
+import { ACTIONS, BROKEN_STATUS, ACTIVE_STATUS, INACTIVE_STATUS } from './action'; // <<< BROKEN_STATUS vẫn cần cho phần khác của code
+import { createLabManagementHandlers } from './phongmayHandler';
 
 const { Option } = Select;
 const { Header, Content } = Layout;
 const { TabPane } = Tabs;
 const { Dragger } = Upload;
 
-// --- UI Helpers ---
+// --- UI Helpers (Giữ nguyên) ---
 const getDeviceStatusColor = (status) => {
     if (status === BROKEN_STATUS) return '#ff4d4f'; // Red for broken
     if (status === ACTIVE_STATUS) return '#52c41a'; // Green for active
@@ -38,11 +36,10 @@ const getDeviceStatusColor = (status) => {
 };
 const getDeviceIcon = (deviceName) => {
     const lowerName = deviceName?.toLowerCase() || '';
-    // Add more specific icons if needed
     if (lowerName.includes('máy lạnh') || lowerName.includes('điều hòa')) return <ToolOutlined />;
-    if (lowerName.includes('máy chiếu')) return <DesktopOutlined />; // Or a projector icon if available
-    if (lowerName.includes('quạt')) return <ToolOutlined />; // Or a fan icon
-    return <ToolOutlined />; // Default tool icon
+    if (lowerName.includes('máy chiếu')) return <DesktopOutlined />;
+    if (lowerName.includes('quạt')) return <ToolOutlined />;
+    return <ToolOutlined />;
 };
 
 const RenderGroupedItemsComponent = ({ items, isComputerTab = false, onComputerIconRightClick, onDeviceIconRightClick }) => {
@@ -51,13 +48,13 @@ const RenderGroupedItemsComponent = ({ items, isComputerTab = false, onComputerI
     const renderItem = (item) => (
         <div
             key={isComputerTab ? item.maMay : item.maThietBi}
-            style={{ textAlign: 'center', width: '100px', padding: '10px', borderRadius: '4px', userSelect: 'none', cursor: 'context-menu' }} // Prevent selection, indicate context menu
+            style={{ textAlign: 'center', width: '100px', padding: '10px', borderRadius: '4px', userSelect: 'none', cursor: 'context-menu' }}
             onContextMenu={(e) => {
-                e.preventDefault(); // Prevent default context menu
+                e.preventDefault();
                 if (isComputerTab && onComputerIconRightClick) {
-                    onComputerIconRightClick(e, item); // Pass event and item
+                    onComputerIconRightClick(e, item);
                 } else if (!isComputerTab && onDeviceIconRightClick) {
-                    onDeviceIconRightClick(e, item); // Pass event and item
+                    onDeviceIconRightClick(e, item);
                 }
             }}
         >
@@ -68,19 +65,16 @@ const RenderGroupedItemsComponent = ({ items, isComputerTab = false, onComputerI
             <div style={{ marginTop: '5px', fontSize: '0.8rem', wordWrap: 'break-word', color: '#555' }}>
                 {isComputerTab ? (item.tenMay || `Máy ${item.maMay}`) : (item.tenThietBi || `TB ${item.maThietBi}`)}
             </div>
-            {/* Display (GV) tag more prominently if needed */}
             {isComputerTab && (item.moTa?.toLowerCase().includes('gv') || item.moTa?.toLowerCase().includes('giáo viên')) && (
                 <div style={{ fontSize: '0.7rem', fontStyle: 'italic', color: '#1890ff' }}>(GV)</div>
             )}
         </div>
     );
 
-    // Group computers by Teacher (GV) and Others
     const renderComputerGroups = () => {
         const teacherComputers = items.filter(m => m.moTa?.toLowerCase().includes('gv') || m.moTa?.toLowerCase().includes('giáo viên'));
         const otherComputers = items.filter(m => !(m.moTa?.toLowerCase().includes('gv') || m.moTa?.toLowerCase().includes('giáo viên')));
 
-        // Check if grouping is necessary
         const needsGrouping = teacherComputers.length > 0 && otherComputers.length > 0;
 
         return (
@@ -107,14 +101,12 @@ const RenderGroupedItemsComponent = ({ items, isComputerTab = false, onComputerI
 
     return (
         <div style={{ padding: '10px 0' }}>
-            {/* Render grouped or single list */}
             {isComputerTab ? renderComputerGroups() : (
                 <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '20px' }}>
                     {items.map(renderItem)}
                 </div>
             )}
 
-            {/* Legend */}
             <div style={{ marginTop: '30px', paddingTop: '15px', borderTop: '1px solid #f0f0f0', textAlign: 'center', fontSize: '0.9rem', display: 'flex', justifyContent: 'center', gap: '20px', flexWrap: 'wrap', color: '#666' }}>
                  <span style={{ display: 'inline-flex', alignItems: 'center' }}>
                     {React.cloneElement(isComputerTab ? <DesktopOutlined /> : <ToolOutlined />, { style: { color: getDeviceStatusColor(ACTIVE_STATUS), marginRight: '5px', fontSize: '1.2em' } })}: {ACTIVE_STATUS}
@@ -135,19 +127,18 @@ const RenderGroupedItemsComponent = ({ items, isComputerTab = false, onComputerI
 export default function LabManagement() {
     // --- Hooks ---
     const loaderResult = useLoaderData();
-    const navigate = useNavigate(); // Crucial for handlers
-    const [form] = Form.useForm(); // For user profile modal
+    const navigate = useNavigate();
+    const [form] = Form.useForm();
     const [state, dispatch] = useReducer(labManagementReducer, initialState);
-    const [avatarImage, setAvatarImage] = useState(null); // For header avatar
+    const [avatarImage, setAvatarImage] = useState(null);
     const [isDarkMode, setIsDarkMode] = useState(false);
 
-    // Lấy userRole và username từ localStorage để component có thể truy cập nếu cần.
+    // Lấy userRole ngay từ đầu component
     const userRole = localStorage.getItem("userRole");
-    // Tạo biến flag để kiểm tra vai trò giáo viên một cách rõ ràng
-    const isTeacherRole = userRole === '2';
+    const isTeacherRole = userRole === '2'; // Cờ cho vai trò giáo viên
+    const isStaffRole = userRole === '3';   // Cờ cho vai trò staff/admin (hoặc vai trò bạn muốn hiển thị thông báo)
 
-    console.log(`[LabManagement Component] User Role: ${userRole}, Is Teacher: ${isTeacherRole}`);
-
+    console.log(`[LabManagement Component] User Role: ${userRole}, Is Teacher: ${isTeacherRole}, Is Staff: ${isStaffRole}`);
 
     // Context Menu State
     const [contextMenuVisible, setContextMenuVisible] = useState(false);
@@ -160,17 +151,32 @@ export default function LabManagement() {
     const contextMenuRef = useRef(null);
     const deviceContextMenuRef = useRef(null);
 
-    // *** Initialize Handlers using the factory, passing necessary dependencies ***
     const handlers = useMemo(() => createLabManagementHandlers({
         dispatch,
         state,
-        navigate, // Pass navigate
-        form,     // Pass form instance
-        setAvatarImage // Pass avatar setter
-    }), [dispatch, state, navigate, form, setAvatarImage]); // Add dependencies
+        navigate,
+        form,
+        setAvatarImage
+    }), [dispatch, state, navigate, form, setAvatarImage]);
 
-
-    // --- Intro.js Tour ---
+    const homeDropdownMenu = (
+        <Menu>
+            <Menu.Item key="home" onClick={() => navigate('/')}>
+                Trang chủ
+            </Menu.Item>
+            {/* Assuming these are your paths, adjust if different */}
+            <Menu.Item key="quanliphongmay" onClick={() => navigate('/phongmay')}>
+                Quản lí phòng máy
+            </Menu.Item>
+            <Menu.Item key="quanlicathuchanh" onClick={() => navigate('/cathuchanh')}>
+                Quản lí ca thực hành
+            </Menu.Item>
+            <Menu.Item key="quanlimonhoc" onClick={() => navigate('/quanlimonhoc')}>
+                Quản lí môn học
+            </Menu.Item>
+        </Menu>
+    );
+    // --- Intro.js Tour (Giữ nguyên) ---
     const startIntroTour = () => {
         const steps = [
             { element: '#search-input', intro: 'Nhập tên phòng hoặc thông tin liên quan để tìm kiếm.', position: 'bottom-start' },
@@ -198,7 +204,6 @@ export default function LabManagement() {
             nextLabel: 'Tiếp theo >',
             prevLabel: '< Quay lại',
             doneLabel: 'Hoàn tất',
-            // scrollTo: 'element', // Default behavior, usually fine
             overlayOpacity: 0.6,
             exitOnOverlayClick: true,
             showProgress: true,
@@ -207,37 +212,120 @@ export default function LabManagement() {
 
 
     // --- Effects ---
-    // Load initial data from loader
+    // Load initial data from loader and handle notifications
     useEffect(() => {
         console.log("[LabManagement] Loader Result:", loaderResult);
-        // Dữ liệu từ loader đã được xử lý (lọc theo giáo viên hoặc toàn bộ)
-        // Component này chỉ cần nhận và hiển thị dữ liệu đó.
         if (loaderResult?.error) {
-            // Handle specific auth error from loader if needed
             if (loaderResult.type === 'auth') {
                 message.error('Phiên đăng nhập hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại.', 5);
-                // Optional: Redirect immediately if loader detects auth issue
-                // navigate('/login', { replace: true });
             }
             dispatch({ type: ACTIONS.LOAD_DATA_ERROR, payload: loaderResult });
         } else if (loaderResult?.data) {
-            dispatch({ type: ACTIONS.LOAD_DATA_SUCCESS, payload: loaderResult.data });
+            // Dispatch labRooms to state as before
+            dispatch({ type: ACTIONS.LOAD_DATA_SUCCESS, payload: loaderResult.data.labRooms });
+
+            // --- Xử lý hiển thị thông báo máy/thiết bị hỏng ---
+            // Sử dụng một cờ trong sessionStorage để chỉ hiển thị thông báo một lần mỗi phiên
+            const hasShownBrokenNotifications = sessionStorage.getItem('hasShownBrokenNotificationsPhongMay');
+
+            // CHỈ hiển thị nếu:
+            // 1. Chưa hiển thị trong phiên này.
+            // 2. userRole là '3' (IsStaffRole là true).
+            // 3. Có dữ liệu phòng máy.
+            // 4. Đảm bảo computerNotes và deviceNotes tồn tại và là mảng (có thể rỗng)
+            if (!hasShownBrokenNotifications && isStaffRole && loaderResult.data.labRooms && loaderResult.data.labRooms.length > 0) {
+                const { labRooms, computerNotes, deviceNotes } = loaderResult.data;
+
+                // Khởi tạo các Map mới để lưu trữ số lượng máy/thiết bị hỏng theo loại
+                const roomBrokenComputersScheduled = new Map(); // Máy hỏng đã lên lịch sửa
+                const roomBrokenComputersNotScheduled = new Map(); // Máy hỏng chưa lên lịch sửa
+                const roomBrokenDevicesScheduled = new Map();     // Thiết bị hỏng đã lên lịch sửa
+                const roomBrokenDevicesNotScheduled = new Map();  // Thiết bị hỏng chưa lên lịch sửa
+
+                // Đếm số máy hỏng theo phòng từ computerNotes
+                if (computerNotes && Array.isArray(computerNotes)) {
+                    computerNotes.forEach(note => {
+                        // Chỉ xem xét các ghi chú cho máy hiện đang hỏng (ngày sửa là null)
+                        if (note.ngaySua === null) {
+                            const roomId = note.maPhong;
+                            if (roomId) { // Đảm bảo roomId không null/undefined
+                                if (note.noiDung?.includes('(Sẽ được sửa')) {
+                                    roomBrokenComputersScheduled.set(roomId, (roomBrokenComputersScheduled.get(roomId) || 0) + 1);
+                                } else {
+                                    roomBrokenComputersNotScheduled.set(roomId, (roomBrokenComputersNotScheduled.get(roomId) || 0) + 1);
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // Đếm số thiết bị hỏng theo phòng từ deviceNotes
+                if (deviceNotes && Array.isArray(deviceNotes)) {
+                    deviceNotes.forEach(note => {
+                        // Chỉ xem xét các ghi chú cho thiết bị hiện đang hỏng (ngày sửa là null)
+                        if (note.ngaySua === null) {
+                            const roomId = note.maPhong;
+                            if (roomId) { // Đảm bảo roomId không null/undefined
+                                if (note.noiDung?.includes('(Sẽ được sửa')) {
+                                    roomBrokenDevicesScheduled.set(roomId, (roomBrokenDevicesScheduled.get(roomId) || 0) + 1);
+                                } else {
+                                    roomBrokenDevicesNotScheduled.set(roomId, (roomBrokenDevicesNotScheduled.get(roomId) || 0) + 1);
+                                }
+                            }
+                        }
+                    });
+                }
+
+                // Duyệt qua các phòng máy và hiển thị thông báo nếu có máy/thiết bị hỏng
+                labRooms.forEach(room => {
+                    const scheduledComputers = roomBrokenComputersScheduled.get(room.maPhong) || 0;
+                    const notScheduledComputers = roomBrokenComputersNotScheduled.get(room.maPhong) || 0;
+                    const scheduledDevices = roomBrokenDevicesScheduled.get(room.maPhong) || 0;
+                    const notScheduledDevices = roomBrokenDevicesNotScheduled.get(room.maPhong) || 0;
+
+                    // Chỉ hiển thị thông báo nếu có bất kỳ máy/thiết bị nào bị hỏng (đã lên lịch hoặc chưa)
+                    if (scheduledComputers > 0 || notScheduledComputers > 0 || scheduledDevices > 0 || notScheduledDevices > 0) {
+                        let descriptionParts = [];
+
+                        if (scheduledComputers > 0 || scheduledDevices > 0) {
+                            let scheduledSubParts = [];
+                            if (scheduledComputers > 0) scheduledSubParts.push(`${scheduledComputers} máy`);
+                            if (scheduledDevices > 0) scheduledSubParts.push(`${scheduledDevices} thiết bị`);
+                            descriptionParts.push(`${scheduledSubParts.join(' và ')} hỏng (đã lên lịch sửa)`);
+                        }
+
+                        if (notScheduledComputers > 0 || notScheduledDevices > 0) {
+                            let notScheduledSubParts = [];
+                            if (notScheduledComputers > 0) notScheduledSubParts.push(`${notScheduledComputers} máy`);
+                            if (notScheduledDevices > 0) notScheduledSubParts.push(`${notScheduledDevices} thiết bị`);
+                            descriptionParts.push(`${notScheduledSubParts.join(' và ')} hỏng (chưa lên lịch sửa)`);
+                        }
+
+                        notification.info({
+                            message: `Phòng ${room.tenPhong} - Tình trạng Hỏng hóc`,
+                            description: `Hiện đang có ${descriptionParts.join('; ')}.`,
+                            placement: 'bottomRight',
+                            duration: 5,
+                            key: `broken-room-${room.maPhong}` // Đảm bảo key duy nhất cho mỗi thông báo
+                        });
+                    }
+                });
+
+                // Đặt cờ vào sessionStorage để không hiển thị lại trong phiên này
+                sessionStorage.setItem('hasShownBrokenNotificationsPhongMay', 'true');
+            }
+
         } else {
             dispatch({ type: ACTIONS.LOAD_DATA_ERROR, payload: { error: true, type: 'unknown', message: "Dữ liệu tải trang không hợp lệ." } });
         }
-    }, [loaderResult, dispatch]); // Removed navigate from here, handled by fetchApi/loader
+    }, [loaderResult, dispatch, isStaffRole]);
 
-    // Update displayed data based on pagination, sort, filters
-    useEffect(() => {
-        dispatch({ type: ACTIONS.UPDATE_DISPLAYED_DATA });
-    }, [state.pagination, state.sortInfo, state.initialLabRooms, state.filteredLabRooms, dispatch]);
-
-    // Dark Mode cleanup
+    // Dark Mode cleanup (Giữ nguyên)
     useEffect(() => {
         return () => { DarkReader.disable(); };
     }, []);
 
-    // Handle clicks outside context menus
+    // Handle clicks outside context menus (Giữ nguyên)
     useEffect(() => {
         const handleClickOutsideContextMenu = (event) => {
             if (contextMenuVisible && contextMenuRef.current && !contextMenuRef.current.contains(event.target)) {
@@ -258,7 +346,7 @@ export default function LabManagement() {
         };
     }, [contextMenuVisible, deviceContextMenuVisible]);
 
-    // Periodic token check (silent refresh handled by fetchApi)
+    // Periodic token check (silent refresh handled by fetchApi) (Giữ nguyên)
     useEffect(() => {
         const intervalId = setInterval(() => {
             if (handlers.isTokenExpired()) {
@@ -266,10 +354,10 @@ export default function LabManagement() {
             }
         }, 60000); // Check every 60 seconds
         return () => clearInterval(intervalId);
-    }, [handlers]); // Depend on handlers object
+    }, [handlers]);
 
 
-    // --- Dark Mode Handler ---
+    // --- Dark Mode Handler (Giữ nguyên) ---
     const toggleDarkMode = () => {
         setIsDarkMode((prevIsDarkMode) => {
             const nextIsDarkMode = !prevIsDarkMode;
@@ -282,24 +370,20 @@ export default function LabManagement() {
         });
     };
 
-    // --- Columns Definitions ---
+    // --- Columns Definitions (Giữ nguyên) ---
     const columns = useMemo(() => {
-        // Define isTeacherRole here to ensure it's captured in the useMemo's dependencies
-        // and re-evaluated if userRole changes.
         const currentIsTeacherRole = userRole === '2';
 
         const baseColumns = [
-            // Conditional checkbox column
             !currentIsTeacherRole ? {
                 title: (<Checkbox
-                    // Check/indeterminate logic based on *currently displayed* page data vs selected keys
                     checked={state.labRooms.length > 0 && state.labRooms.every(r => state.selectedRowKeys.includes(r.maPhong))}
                     indeterminate={state.selectedRowKeys.length > 0 && state.labRooms.some(r => state.selectedRowKeys.includes(r.maPhong)) && !state.labRooms.every(r => state.selectedRowKeys.includes(r.maPhong))}
                     onChange={(e) => {
                         const currentPageKeys = state.labRooms.map(r => r.maPhong);
                         const newSelectedKeys = e.target.checked
-                            ? [...new Set([...state.selectedRowKeys, ...currentPageKeys])] // Add current page keys to selection
-                            : state.selectedRowKeys.filter(k => !currentPageKeys.includes(k)); // Remove current page keys from selection
+                            ? [...new Set([...state.selectedRowKeys, ...currentPageKeys])]
+                            : state.selectedRowKeys.filter(k => !currentPageKeys.includes(k));
                         handlers.onSelectChange(newSelectedKeys);
                     }}
                     aria-label="Chọn tất cả trên trang này"
@@ -312,35 +396,31 @@ export default function LabManagement() {
                         : state.selectedRowKeys.filter(key => key !== record.maPhong);
                     handlers.onSelectChange(newSelectedKeys);
                 }} aria-label={`Chọn phòng ${record.tenPhong}`} />
-            } : null, // If isTeacherRole, this column is null
+            } : null,
             { title: "STT", key: "stt", width: 60, align: "center", render: (text, record, index) => (state.pagination.current - 1) * state.pagination.pageSize + index + 1 },
             { title: "Tên phòng", dataIndex: "tenPhong", key: "tenPhong", sorter: true, width: 150 },
             { title: "Mô tả", dataIndex: "moTa", key: "moTa", sorter: true, ellipsis: true },
             { title: "Số máy", dataIndex: "soMay", key: "soMay", align: "center", sorter: true, width: 100 },
             { title: "Trạng thái", dataIndex: "trangThai", key: "trangThai", sorter: true, width: 150 },
-            // Action column (always present, content depends on role)
             {
                 title: "Hành động", key: "action", align: "center", width: 120, fixed: 'right', render: (text, record) => (
                     <div className="flex justify-center gap-2">
-                        {/* If not teacher role, show Edit and Delete buttons */}
                         {!currentIsTeacherRole && (
                             <>
                                 <Button icon={<EditOutlined />} size="small" type="link" onClick={() => navigate(`/editphongmay/${record.maPhong}`)} aria-label={`Sửa phòng ${record.tenPhong}`} />
                                 <Button icon={<DeleteOutlined />} size="small" type="link" danger onClick={() => handlers.handleDelete(record)} aria-label={`Xóa phòng ${record.tenPhong}`} />
                             </>
                         )}
-                        {/* Always show MessageOutlined button for viewing status */}
                         <Button icon={<MessageOutlined />} size="small" type="link" onClick={() => handlers.showComputerStatusModal(record)} aria-label={`Xem trạng thái phòng ${record.tenPhong}`} />
                     </div>
                 )
             },
-        ].filter(Boolean); // Filter out nulls from the array (only for the checkbox column)
+        ].filter(Boolean);
         return baseColumns;
-    }, [state.labRooms, state.selectedRowKeys, state.pagination, handlers, navigate, userRole]); // Add userRole to dependencies
+    }, [state.labRooms, state.selectedRowKeys, state.pagination, handlers, navigate, userRole]);
 
-    // Columns for Computer Update Modal
+    // Columns for Computer Update Modal (Giữ nguyên)
     const computerUpdateColumns = useMemo(() => {
-        // userRole được lấy từ state.computerUpdateModal, đảm bảo tính nhất quán
         const role = state.computerUpdateModal.userRole;
         const isRole3 = role === '3';
         const roomStatusForUpdate = state.computerUpdateModal.roomStatusForUpdate;
@@ -348,21 +428,18 @@ export default function LabManagement() {
         return [
             { title: 'Tên máy', dataIndex: 'tenMay', key: 'tenMay', render: (text, record) => { const n = text || `Máy ${record.maMay}`; return (record.moTa?.toLowerCase().includes('gv')||record.moTa?.toLowerCase().includes('giáo viên'))?`${n} (GV)`:n; }},
             { title: 'Trạng thái', dataIndex: 'trangThai', key: 'trangThai', render: (status) => (<span style={{ fontWeight: 'bold', color: getDeviceStatusColor(status) }}>{status}</span>)},
-            // Conditional columns based on role and room status
-            ...(isRole3 && roomStatusForUpdate === 'Trống' ? [ // Columns for Role 3 in "Trống" room
+            ...(isRole3 && roomStatusForUpdate === 'Trống' ? [
                 { title: 'Sửa chữa (Hỏng -> Hoạt động)', key: 'fixBroken', align: 'center', width: '25%', render: (text, record) => {
-                        // Only show checkbox for BROKEN machines
                         if (record.trangThai !== BROKEN_STATUS) return <span style={{ fontStyle: 'italic', color: '#888' }}>-</span>;
                         return (<Checkbox
-                            checked={state.computerUpdateModal.attendanceKeys.includes(record.maMay)} // Use attendanceKeys for this toggle
+                            checked={state.computerUpdateModal.attendanceKeys.includes(record.maMay)}
                             onChange={() => handlers.toggleComputerAttendanceSelection(record.maMay, record.trangThai)}
                             aria-label={`Chọn sửa máy ${record.tenMay || record.maMay}`}
                         />);
                     }}
-            ] : [ // Columns for other roles or non-"Trống" rooms
+            ] : [
                 { title: 'Điểm danh (Hoạt động <-> Không)', key: 'attendance', align: 'center', width: '15%', render: (text, record) => {
                         if (record.trangThai === BROKEN_STATUS) return <span style={{ color: getDeviceStatusColor(BROKEN_STATUS), fontStyle: 'italic' }}>Hỏng</span>;
-                        // Checked logic represents the *target* state if toggled
                         return (<Checkbox
                             checked={state.computerUpdateModal.attendanceKeys.includes(record.maMay) ? record.trangThai !== ACTIVE_STATUS : record.trangThai === ACTIVE_STATUS}
                             onChange={() => handlers.toggleComputerAttendanceSelection(record.maMay, record.trangThai)}
@@ -386,29 +463,26 @@ export default function LabManagement() {
     }, [
         state.computerUpdateModal.attendanceKeys,
         state.computerUpdateModal.brokenReportKeys,
-        state.computerUpdateModal.userRole, // Phụ thuộc vào userRole từ modal state
+        state.computerUpdateModal.userRole,
         state.computerUpdateModal.roomStatusForUpdate,
-        state.statusModal.computers, // Depend on computers list for rendering names/status
-        handlers // Need handlers for onClick actions
+        state.statusModal.computers,
+        handlers
     ]);
 
-    // Columns for Device Update Modal
+    // Columns for Device Update Modal (Giữ nguyên)
     const deviceUpdateColumns = useMemo(() => {
-        // userRole được lấy trực tiếp từ localStorage.
         const role = localStorage.getItem("userRole");
         const isRole3 = role === '3';
-        // Get room status from the *statusModal* state, as device update modal doesn't store it separately
         const roomStatusForUpdate = state.statusModal.roomStatus;
 
         return [
             { title: 'Tên Thiết Bị', dataIndex: 'tenThietBi', key: 'tenThietBi', render: (text, record) => text || `TB ${record.maThietBi}` },
             { title: 'Trạng thái', dataIndex: 'trangThai', key: 'trangThai', render: (status) => (<span style={{ fontWeight: 'bold', color: getDeviceStatusColor(status) }}>{status}</span>)},
-            // Conditional columns
             ...(isRole3 && roomStatusForUpdate === 'Trống' ? [
                 { title: 'Sửa chữa (Hỏng -> Hoạt động)', key: 'fixBrokenDevice', align: 'center', width: '25%', render: (text, record) => {
                         if (record.trangThai !== BROKEN_STATUS) return <span style={{ fontStyle: 'italic', color: '#888' }}>-</span>;
                         return (<Checkbox
-                            checked={state.deviceUpdateModal.selectedKeys.includes(record.maThietBi)} // Use selectedKeys for this toggle
+                            checked={state.deviceUpdateModal.selectedKeys.includes(record.maThietBi)}
                             onChange={() => handlers.toggleDeviceUpdateSelection(record.maThietBi, record.trangThai)}
                             aria-label={`Chọn sửa thiết bị ${record.tenThietBi || record.maThietBi}`}
                         />);
@@ -439,15 +513,13 @@ export default function LabManagement() {
     }, [
         state.deviceUpdateModal.selectedKeys,
         state.deviceUpdateModal.brokenReportKeys,
-        // Không phụ thuộc vào 'role' trực tiếp mà phụ thuộc vào hàm getitem của localstore
-        // vì `localStorage.getItem("userRole")` luôn được gọi lại khi re-render useMemo
-        state.statusModal.roomStatus, // Depend on actual room status
-        state.statusModal.currentDevices, // Depend on device list
-        handlers // Need handlers for onClick
+        state.statusModal.roomStatus,
+        state.statusModal.currentDevices,
+        handlers
     ]);
 
 
-    // --- Create New Menu ---
+    // --- Create New Menu (Giữ nguyên) ---
     const menu = useMemo(() => (
         <Menu>
             <Menu.Item key="1" icon={<PlusOutlined />} onClick={() => navigate(`/addphongmay`)}>Tạo mới (form)</Menu.Item>
@@ -455,19 +527,11 @@ export default function LabManagement() {
         </Menu>
     ), [navigate]);
 
-    // --- Export Functions ---
+    // --- Export Functions (Giữ nguyên) ---
     const exportToPDF = () => {
         if (!state.labRooms || state.labRooms.length === 0) { message.warning("Không có dữ liệu để xuất PDF."); return; }
         try {
             const doc = new jsPDF();
-            // Add font supporting Vietnamese (ensure the font file is available)
-            // Example using a built-in font that might have limited support:
-            // doc.setFont('helvetica', 'normal'); // Or 'times'
-            // For full support, embed a TTF font like Noto Sans:
-            // doc.addFont('NotoSansVietnamese-Regular.ttf', 'NotoSansVietnamese', 'normal');
-            // doc.setFont('NotoSansVietnamese');
-            // Sticking to default for simplicity, may show ??? for Vietnamese chars without embedded font
-
             doc.text("Danh sách phòng máy", 14, 15);
             const tableColumn = ["STT", "Tên phòng", "Mô tả", "Số máy", "Trạng thái"];
             const tableRows = state.labRooms.map((room, index) => [
@@ -482,10 +546,8 @@ export default function LabManagement() {
                 head: [tableColumn],
                 body: tableRows,
                 startY: 20,
-                // Apply styles - use theme or define custom styles
-                theme: 'grid', // or 'striped' or 'plain'
+                theme: 'grid',
                 headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' },
-                // styles: { font: 'NotoSansVietnamese' }, // Use embedded font if added
             });
             doc.save("DanhSachPhongMay.pdf");
             message.success("Xuất PDF thành công!");
@@ -507,10 +569,8 @@ export default function LabManagement() {
             }));
             const wb = XLSX.utils.book_new();
             const ws = XLSX.utils.json_to_sheet(dataToExport);
-            // Set column widths (optional)
             ws['!cols'] = [ { wch: 5 }, { wch: 25 }, { wch: 40 }, { wch: 10 }, { wch: 20 }];
-            XLSX.utils.book_append_sheet(wb, ws, "Danh sách phòng máy");
-            XLSX.writeFile(wb, "DanhSachPhongMay.xlsx");
+            XLSX.utils.book_append_sheet(wb, ws, "DanhSachPhongMay.xlsx");
             message.success("Xuất Excel thành công!");
         } catch (error) {
             console.error("Lỗi xuất Excel:", error);
@@ -518,12 +578,12 @@ export default function LabManagement() {
         }
     };
 
-    // --- Context Menu Handlers ---
+    // --- Context Menu Handlers (Giữ nguyên) ---
     const handleComputerIconRightClick = (event, computer) => {
         setContextMenuPosition({ x: event.clientX, y: event.clientY });
         setContextMenuComputerId(computer.maMay);
         setContextMenuVisible(true);
-        setDeviceContextMenuVisible(false); // Hide other menu
+        setDeviceContextMenuVisible(false);
     };
 
     const handleContextMenuViewDetail = () => {
@@ -537,7 +597,7 @@ export default function LabManagement() {
         setDeviceContextMenuPosition({ x: event.clientX, y: event.clientY });
         setDeviceContextMenuDeviceId(device.maThietBi);
         setDeviceContextMenuVisible(true);
-        setContextMenuVisible(false); // Hide other menu
+        setContextMenuVisible(false);
     };
 
     const handleContextMenuDeviceViewDetail = () => {
@@ -548,7 +608,7 @@ export default function LabManagement() {
     };
 
 
-    // --- JSX Return ---
+    // --- JSX Return (Giữ nguyên các cấu trúc hiện có) ---
     return (
         <Layout className="lab-management-layout" style={{ minHeight: '100vh' }}>
             {/* Header */}
@@ -562,34 +622,36 @@ export default function LabManagement() {
                         type="text" shape="circle" style={{ fontSize: "20px" }}
                         aria-label={isDarkMode ? "Chuyển sang chế độ Sáng" : "Chuyển sang chế độ Tối"}
                     />
-                    {/* Pass avatarImage state to src */}
                     <Avatar id="user-avatar" size="large" icon={<UserOutlined />} src={avatarImage} onClick={handlers.checkUserAndShowModal} style={{ cursor: "pointer" }} />
                     <Button id="logout-button" icon={<LogoutOutlined />} type="text" onClick={handlers.handleLogout}>Đăng xuất</Button>
+                    {/* Sử dụng startIntroTour trực tiếp */}
                     <Button icon={<QuestionCircleOutlined />} type="primary" ghost onClick={startIntroTour}>Hướng dẫn</Button>
                 </div>
             </Header>
 
             {/* Content */}
-            <Content className="lab-management-content" style={{ padding: "24px", background: isDarkMode ? '#141414' : '#f0f2f5' /* Adjust background based on mode */ }}>
-                {/* Display loader error prominently */}
+            <Content className="lab-management-content" style={{ padding: "24px", background: isDarkMode ? '#141414' : '#f0f2f5' }}>
                 {state.loadError && state.loadError.type !== 'auth' && (
                     <Result status="error" title="Lỗi Tải Dữ Liệu" subTitle={state.loadError.message || "Đã có lỗi xảy ra khi tải dữ liệu phòng máy."} />
                 )}
 
-                {/* Only render main content if no critical load error */}
                 {!state.loadError && (
                     <div style={{ background: isDarkMode ? '#1f1f1f' : '#fff', padding: 24, borderRadius: 8, boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)' }}>
-                        {/* Breadcrumb */}
                         <nav aria-label="breadcrumb" className="flex items-center space-x-1 text-sm text-gray-500 mb-6" style={{ color: isDarkMode ? '#aaa' : '#666' }}>
-                            <a href="/" className="flex items-center hover:text-blue-600">
-                                <HomeOutlined className="h-4 w-4" /> <span className="ml-1">Trang chủ</span>
-                            </a>
+                            <Dropdown overlay={homeDropdownMenu} placement="bottomLeft" trigger={['hover']}>
+                                <a
+                                    onClick={(e) => e.preventDefault()} // Prevent default navigation of <a> tag
+                                    className="flex items-center hover:text-primary"
+                                    style={{ cursor: 'pointer' }} // Indicate it's clickable
+                                >
+                                    <HomeOutlined className="h-4 w-4" />
+                                    <span className="ml-1">Trang chủ</span>
+                                </a>
+                            </Dropdown>
                             <span>/</span> <span className="font-medium" style={{ color: isDarkMode ? '#ddd' : '#333' }}>Quản lý phòng máy</span>
                         </nav>
 
-                        {/* Search and Action Buttons Bar */}
                         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-                            {/* Search Section */}
                             <div className="flex items-center gap-2 flex-wrap">
                                 <Input
                                     id="search-input"
@@ -600,7 +662,6 @@ export default function LabManagement() {
                                     onPressEnter={() => { if (state.search && state.selectedColumn) handlers.performSearch(state.search, state.selectedColumn); }}
                                     allowClear
                                 />
-                                {/* Conditional Select */}
                                 {state.showColumnSelect && (
                                     <Select
                                         id="column-select"
@@ -617,12 +678,10 @@ export default function LabManagement() {
                                     </Select>
                                 )}
                             </div>
-                            {/* Action Buttons Section */}
                             <div className="flex items-center gap-2 flex-wrap">
                                 <Button id="qr-code-button" icon={<QrcodeOutlined />} onClick={handlers.fetchLabRoomsForQrCode}>Mã QR</Button>
                                 <Button id="export-pdf-button" onClick={exportToPDF} >Xuất PDF</Button>
                                 <Button id="export-excel-button" onClick={exportToExcel} >Xuất Excel</Button>
-                                {/* Nút "Tạo mới" chỉ hiển thị nếu KHÔNG phải vai trò giáo viên */}
                                 {!isTeacherRole && (
                                     <Dropdown id="create-new-dropdown" overlay={menu} placement="bottomRight" arrow>
                                         <Button type="primary" icon={<PlusOutlined />}>Tạo mới</Button>
@@ -633,13 +692,11 @@ export default function LabManagement() {
 
                         <h1 className="text-xl font-semibold mb-4" style={{ color: isDarkMode ? '#eee' : '#333' }}>Danh sách phòng học</h1>
 
-                        {/* Table Container */}
                         <div className="border rounded-lg overflow-x-auto mb-4" style={{ borderColor: isDarkMode ? '#444' : '#f0f0f0' }}>
                             <Table
-                                // rowSelection chỉ được kích hoạt nếu KHÔNG phải vai trò giáo viên
                                 rowSelection={!isTeacherRole ? { type: "checkbox", selectedRowKeys: state.selectedRowKeys, onChange: handlers.onSelectChange } : undefined}
                                 columns={columns}
-                                dataSource={state.labRooms} // labRooms sẽ tự động chứa dữ liệu đã được lọc bởi loader
+                                dataSource={state.labRooms}
                                 rowKey="maPhong"
                                 loading={state.tableLoading}
                                 pagination={{
@@ -650,15 +707,14 @@ export default function LabManagement() {
                                     showQuickJumper: true,
                                     pageSizeOptions: ['10', '20', '50', '100'],
                                     showTotal: (total, range) => `${range[0]}-${range[1]} của ${total} phòng`,
-                                    position: ['bottomRight'], // Position pagination
+                                    position: ['bottomRight'],
                                 }}
-                                onChange={handlers.handleTableChange} // Handles pagination and sorting
-                                scroll={{ x: 1000 }} // Enable horizontal scroll
-                                sticky // Make header sticky (optional)
+                                onChange={handlers.handleTableChange}
+                                scroll={{ x: 1000 }}
+                                sticky
                             />
                         </div>
 
-                        {/* Nút "Xóa đã chọn" chỉ hiển thị nếu KHÔNG phải vai trò giáo viên */}
                         {!isTeacherRole && state.hasSelected && (
                             <Button
                                 id="delete-selected-button"
@@ -666,7 +722,7 @@ export default function LabManagement() {
                                 onClick={handlers.confirmDeleteMultiple}
                                 disabled={state.tableLoading}
                                 icon={<DeleteOutlined />}
-                                style={{ marginTop: '10px' }} // Add some margin
+                                style={{ marginTop: '10px' }}
                             >
                                 Xóa ({state.selectedRowKeys.length}) phòng đã chọn
                             </Button>
@@ -674,7 +730,7 @@ export default function LabManagement() {
                     </div>
                 )}
 
-                {/* --- Modals --- */}
+                {/* --- Modals (Giữ nguyên) --- */}
 
                 {/* QR Code Modal */}
                 <Modal
@@ -682,7 +738,7 @@ export default function LabManagement() {
                     visible={state.qrModal.visible}
                     onCancel={handlers.handleCancelQrModal}
                     footer={[<Button key="back" onClick={handlers.handleCancelQrModal}>Đóng</Button>]}
-                    centered // Center modal vertically
+                    centered
                 >
                     <div style={{ display: "flex", justifyContent: "center", padding: "20px 0" }}>
                         {state.qrModal.loading ? <Spin size="large" /> :
@@ -696,11 +752,10 @@ export default function LabManagement() {
                     title={`Trạng thái Phòng ${state.statusModal.roomName || '...'}`}
                     visible={state.statusModal.visible}
                     onCancel={handlers.handleStatusModalClose}
-                    width={800} // Adjust width as needed
+                    width={800}
                     bodyStyle={{ maxHeight: '70vh', overflowY: 'auto' }}
                     footer={[
                         <Button key="close" onClick={handlers.handleStatusModalClose}>Đóng</Button>,
-                        // Show update button only for Computers tab and if data exists
                         state.statusModal.activeTab === 'computers' &&
                         !state.statusModal.loadingComputers &&
                         state.statusModal.computers?.length > 0 && (
@@ -717,11 +772,10 @@ export default function LabManagement() {
                                     items={state.statusModal.computers}
                                     isComputerTab={true}
                                     onComputerIconRightClick={handleComputerIconRightClick}
-                                    onDeviceIconRightClick={null} // No device handler needed here
+                                    onDeviceIconRightClick={null}
                                 />
                             )}
                         </TabPane>
-                        {/* Dynamically create tabs for Device Types */}
                         {!state.statusModal.loadingDeviceTypes && state.statusModal.deviceTypes.map(loai => (
                             <TabPane tab={loai.tenLoai || `Loại ${loai.maLoai}`} key={String(loai.maLoai)}>
                                 {state.statusModal.loadingDevices ? (
@@ -732,10 +786,9 @@ export default function LabManagement() {
                                             <RenderGroupedItemsComponent
                                                 items={state.statusModal.currentDevices}
                                                 isComputerTab={false}
-                                                onComputerIconRightClick={null} // No computer handler needed here
+                                                onComputerIconRightClick={null}
                                                 onDeviceIconRightClick={handleDeviceIconRightClick}
                                             />
-                                            {/* Button to open device update modal for this type */}
                                             <div style={{ textAlign: 'right', marginTop: '20px', paddingTop: '15px', borderTop: '1px solid #f0f0f0' }}>
                                                 <Button
                                                     key={`updateDev-${loai.maLoai}`}
@@ -750,32 +803,28 @@ export default function LabManagement() {
                                 )}
                             </TabPane>
                         ))}
-                        {/* Loading indicator for device types */}
                         {state.statusModal.loadingDeviceTypes && <TabPane tab={<Spin size="small" />} key="loading_types" disabled />}
                     </Tabs>
 
-                    {/* Custom Context Menu for Computers */}
                     {contextMenuVisible && (
                         <div
                             ref={contextMenuRef}
                             className="custom-context-menu"
                             style={{
-                                position: 'fixed', top: contextMenuPosition.y, left: contextMenuPosition.x, zIndex: 1050, // Higher z-index than modal
+                                position: 'fixed', top: contextMenuPosition.y, left: contextMenuPosition.x, zIndex: 1050,
                                 background: '#fff', border: '1px solid #d9d9d9', borderRadius: '4px',
                                 padding: '4px 0', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
                             }}
                         >
                             <div
                                 style={{ padding: '8px 16px', cursor: 'pointer' }}
-                                className="hover:bg-gray-100" // Simple hover effect
+                                className="hover:bg-gray-100"
                                 onClick={handleContextMenuViewDetail}
                             >
                                 <InfoCircleOutlined style={{ marginRight: '8px' }} /> Xem chi tiết
                             </div>
-                            {/* Add other actions here if needed */}
                         </div>
                     )}
-                    {/* Custom Context Menu for Devices */}
                     {deviceContextMenuVisible && (
                         <div
                             ref={deviceContextMenuRef}
@@ -793,7 +842,6 @@ export default function LabManagement() {
                             >
                                 <InfoCircleOutlined style={{ marginRight: '8px' }} /> Xem chi tiết
                             </div>
-                            {/* Add other actions here if needed */}
                         </div>
                     )}
                 </Modal>
@@ -808,47 +856,42 @@ export default function LabManagement() {
                     bodyStyle={{ maxHeight: '60vh', overflowY: 'auto' }}
                     footer={[
                         <Button key="cancelCU" onClick={handlers.handleComputerUpdateModalClose} disabled={state.computerUpdateModal.updating}>Hủy</Button>,
-                        // Conditionally render 'Change All Broken' button based on role/status
-                        // Nút này chỉ hiển thị nếu KHÔNG phải vai trò giáo viên (hoặc là vai trò khác mà không phải Trống)
                         !(isTeacherRole && state.computerUpdateModal.roomStatusForUpdate === 'Trống') && (
                             <Button
                                 key="changeAllBroken"
                                 onClick={handlers.handleChangeAllBroken}
-                                type={state.computerUpdateModal.isChangeAllBrokenActive ? "default" : "primary"} // Style indicates active state
-                                danger={state.computerUpdateModal.isChangeAllBrokenActive} // Use danger style when active
+                                type={state.computerUpdateModal.isChangeAllBrokenActive ? "default" : "primary"}
+                                danger={state.computerUpdateModal.isChangeAllBrokenActive}
                                 disabled={state.computerUpdateModal.updating}
                             >
                                 {state.computerUpdateModal.isChangeAllBrokenActive ? "Bỏ chọn tất cả báo hỏng" : "Chọn tất cả báo hỏng"}
                             </Button>
                         ),
-                        // *** This button now triggers the handler that might navigate ***
                         <Button
                             key="submitCU"
                             type="primary"
                             loading={state.computerUpdateModal.updating}
-                            onClick={handlers.handleCompleteComputerUpdate} // Use the correct handler
+                            onClick={handlers.handleCompleteComputerUpdate}
                         >
                             Hoàn tất cập nhật
                         </Button>,
                     ]}
-                    maskClosable={!state.computerUpdateModal.updating} // Prevent closing while updating
+                    maskClosable={!state.computerUpdateModal.updating}
                     keyboard={!state.computerUpdateModal.updating}
                 >
                     <Spin spinning={state.computerUpdateModal.updating} tip="Đang xử lý...">
-                        {/* Informational text based on role and room status */}
-                        {isTeacherRole && state.computerUpdateModal.roomStatusForUpdate === 'Trống' ? ( // Sử dụng isTeacherRole
+                        {isTeacherRole && state.computerUpdateModal.roomStatusForUpdate === 'Trống' ? (
                             <p style={{ marginBottom: '15px', fontStyle: 'italic', textAlign: 'center', color: '#888' }}>Chỉ có thể chọn các máy đang ở trạng thái '{BROKEN_STATUS}' để chuyển thành '{ACTIVE_STATUS}'.</p>
                         ) : (
                             <p style={{ marginBottom: '15px', fontStyle: 'italic', textAlign: 'center', color: '#888' }}>Tick chọn để thay đổi trạng thái điểm danh hoặc báo hỏng. Máy '{BROKEN_STATUS}' không thể thay đổi.</p>
                         )}
-                        {/* Computer Update Table */}
                         <Table
                             columns={computerUpdateColumns}
-                            dataSource={state.statusModal.computers} // Use data from status modal
+                            dataSource={state.statusModal.computers}
                             rowKey="maMay"
-                            pagination={false} // No pagination needed here
+                            pagination={false}
                             size="small"
-                            scroll={{ y: 'calc(60vh - 180px)' }} // Adjust scroll height based on content
+                            scroll={{ y: 'calc(60vh - 180px)' }}
                         />
                     </Spin>
                 </Modal>
@@ -883,7 +926,6 @@ export default function LabManagement() {
                                 <p><strong>Mô Tả:</strong> {state.computerDetailModal.computerDetail.moTa || 'Không có'}</p>
                                 <p><strong>Ngày Lắp Đặt:</strong> {state.computerDetailModal.computerDetail.ngayLapDat ? new Date(state.computerDetailModal.computerDetail.ngayLapDat).toLocaleDateString() : 'Không có'}</p>
                                 <p><strong>Ngày Cập Nhật:</strong> {state.computerDetailModal.computerDetail.ngayCapNhat ? new Date(state.computerDetailModal.computerDetail.ngayCapNhat).toLocaleDateString() : 'Không có'}</p>
-                                {/* Add more details if available */}
                             </div>
                         ) : (
                             <p>Không có dữ liệu chi tiết.</p>
@@ -906,12 +948,11 @@ export default function LabManagement() {
                             <div>
                                 <p><strong>Mã Thiết Bị:</strong> {state.deviceDetailModal.deviceDetail.maThietBi}</p>
                                 <p><strong>Tên Thiết Bị:</strong> {state.deviceDetailModal.deviceDetail.tenThietBi || '(Chưa có tên)'}</p>
-                                <p><strong>Loại:</strong> {state.deviceDetailModal.deviceDetail.loaiThietBi?.tenLoai || 'Không rõ'}</p> {/* Assuming loaiThietBi object */}
+                                <p><strong>Loại:</strong> {state.deviceDetailModal.deviceDetail.loaiThietBi?.tenLoai || 'Không rõ'}</p>
                                 <p><strong>Trạng Thái:</strong> <span style={{ color: getDeviceStatusColor(state.deviceDetailModal.deviceDetail.trangThai), fontWeight: 'bold' }}>{state.deviceDetailModal.deviceDetail.trangThai}</span></p>
                                 <p><strong>Mô Tả:</strong> {state.deviceDetailModal.deviceDetail.moTa || 'Không có'}</p>
                                 <p><strong>Ngày Lắp Đặt:</strong> {state.deviceDetailModal.deviceDetail.ngayLapDat ? new Date(state.deviceDetailModal.deviceDetail.ngayLapDat).toLocaleDateString() : 'Không có'}</p>
                                 <p><strong>Ngày Cập Nhật:</strong> {state.deviceDetailModal.deviceDetail.ngayCapNhat ? new Date(state.deviceDetailModal.deviceDetail.ngayCapNhat).toLocaleDateString() : 'Không có'}</p>
-                                {/* Add more details */}
                             </div>
                         ) : (
                             <p>Không có dữ liệu chi tiết.</p>
@@ -924,37 +965,33 @@ export default function LabManagement() {
                 <Modal
                     title="Hồ sơ người dùng"
                     visible={state.userProfileModal.visible}
-                    confirmLoading={state.userProfileModal.updating} // Only show loading on OK button during update
+                    confirmLoading={state.userProfileModal.updating}
                     onOk={handlers.handleUserProfileUpdate}
                     onCancel={handlers.handleUserProfileModalCancel}
                     okText="Cập Nhật"
                     cancelText="Đóng"
-                    maskClosable={!state.userProfileModal.updating} // Prevent close during update
+                    maskClosable={!state.userProfileModal.updating}
                     keyboard={!state.userProfileModal.updating}
                 >
-                    {/* Show loading spinner covering the form while initially loading profile data */}
                     <Spin spinning={state.userProfileModal.loading} tip="Đang tải hồ sơ...">
-                        {/* Show form only after loading is complete */}
                         {!state.userProfileModal.loading && (
                             <Form form={form} layout="vertical">
-                                <Form.Item label="Tên Đăng Nhập" name="tenDangNhap" rules={[{ required: true, message: 'Vui lòng nhập tên đăng nhập!' }]}><Input readOnly /></Form.Item> {/* Usually read-only */}
+                                <Form.Item label="Tên Đăng Nhập" name="tenDangNhap" rules={[{ required: true, message: 'Vui lòng nhập tên đăng nhập!' }]}><Input readOnly /></Form.Item>
                                 <Form.Item label="Email" name="email" rules={[{ required: true, message: 'Vui lòng nhập email!' }, { type: 'email', message: 'Email không hợp lệ!' }]}><Input /></Form.Item>
-                                {/* Avatar Upload */}
                                 <Form.Item name="image" label="Ảnh đại diện" valuePropName="fileList" getValueFromEvent={(e) => Array.isArray(e) ? e : e?.fileList}>
                                     <Dragger
                                         name="file"
                                         multiple={false}
-                                        beforeUpload={() => false} // Prevent auto-upload, handle manually
+                                        beforeUpload={() => false}
                                         listType="picture"
                                         accept="image/*"
-                                        maxCount={1} // Allow only one file
+                                        maxCount={1}
                                     >
                                         <p className="ant-upload-drag-icon"><InboxOutlined /></p>
                                         <p className="ant-upload-text">Nhấn hoặc kéo file ảnh vào đây</p>
                                         <p className="ant-upload-hint">Chỉ hỗ trợ upload một file ảnh.</p>
                                     </Dragger>
                                 </Form.Item>
-                                {/* Display Role (read-only) */}
                                 <Form.Item label="Vai trò">
                                     <Input value={state.userProfileModal.profile?.quyen?.tenQuyen || state.userProfileModal.profile?.role} readOnly />
                                 </Form.Item>

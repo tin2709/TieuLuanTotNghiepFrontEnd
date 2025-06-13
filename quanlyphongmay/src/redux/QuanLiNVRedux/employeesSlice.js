@@ -69,12 +69,12 @@ export const fetchEmployees = createAsyncThunk(
             console.error("Received employee data is not in expected format:", data);
             return rejectWithValue('Received employee data is not in expected format');
         } catch (err) {
-            console.error("Error fetching employees:", err);
-            Swal.fire({
-                icon: 'error',
-                title: 'Lỗi',
-                text: `Không thể tải dữ liệu nhân viên: ${err.message}`,
-            });
+            // console.error("Error fetching employees:", err);
+            // Swal.fire({
+            //     icon: 'error',
+            //     title: 'Lỗi',
+            //     text: `Không thể tải dữ liệu nhân viên: ${err.message}`,
+            // });
             return rejectWithValue(err.message || 'An unknown error occurred while fetching employees');
         }
     }

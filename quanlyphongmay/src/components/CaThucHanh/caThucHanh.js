@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react"; // Added useCallback
 import {
     HomeOutlined,
     PlusOutlined,
-    FileAddOutlined,
     LogoutOutlined,
     QuestionCircleOutlined,
     SunOutlined,
@@ -13,10 +12,10 @@ import {
     Input,
     Select,
     Table,
-    Dropdown, // Make sure Dropdown is imported
-    Menu,     // Make sure Menu is imported
+    Dropdown,
+    Menu,
     Layout,
-    Spin,
+    Spin, // Added Spin (though your original code already has it, just ensuring it's here)
     Alert,
 } from "antd";
 import Swal from "sweetalert2";
@@ -24,7 +23,7 @@ import * as DarkReader from "darkreader";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import * as XLSX from "xlsx";
-import font from "../../font/font";
+import font from "../../font/font"; // Assuming this path is correct
 import { useLoaderData, useNavigate } from "react-router-dom";
 import introJs from 'intro.js';
 import 'intro.js/introjs.css';
@@ -82,13 +81,13 @@ export default function CaThucHanhManagement() {
     const loaderResult = useLoaderData();
     const [search, setSearch] = useState("");
     const [caThucHanhs, setCaThucHanhs] = useState([]);
-    const [filteredCaThucHanhs, setFilteredCaThucHanhs] = useState(null);
+    const [filteredCaThucHanhs, setFilteredCaThucHanhs] = useState(null); // Used to store filtered data *before* sorting/pagination
     const [selectedColumn, setSelectedColumn] = useState('all');
-    const [initialCaThucHanhs, setInitialCaThucHanhs] = useState([]);
+    const [initialCaThucHanhs, setInitialCaThucHanhs] = useState([]); // Original, unfiltered data from loader
     const navigate = useNavigate();
-    const [isModalVisible, setIsModalVisible] = useState(false);
+    const [isModalVisible, setIsModalVisible] = useState(false); // Remains for potential import
     const [loadError, setLoadError] = useState(null);
-    const [internalLoading, setInternalLoading] = useState(false);
+    const [internalLoading, setInternalLoading] = useState(false); // For client-side operations
     const [pagination, setPagination] = useState({
         current: 1,
         pageSize: 10,
@@ -97,11 +96,21 @@ export default function CaThucHanhManagement() {
     const [sortInfo, setSortInfo] = useState({});
     const [notification, setNotification] = useState(null);
 
+    // Helper function to get nested value safely
+    const getNestedValue = useCallback((obj, path) => {
+        if (!obj || !path) return undefined;
+        // If path is a string like "parent.child", split it.
+        // If path is already an array, use it directly.
+        const pathParts = Array.isArray(path) ? path : path.split('.');
+        return pathParts.reduce((current, part) => (current && current[part] !== undefined ? current[part] : undefined), obj);
+    }, []);
+
+
     // --- Intro.js Tour ---
-    const startIntroTour = () => {
+    const startIntroTour = useCallback(() => { // Wrap with useCallback
         const steps = [
             { element: '#search-input-cathuchanh', intro: 'Nhập ngày thực hành, tên ca, tiết bắt đầu, tiết kết thúc hoặc buổi số để tìm kiếm.', position: 'bottom-start' },
-            { element: '#column-select-cathuchanh', intro: 'Chọn cột bạn muốn tìm kiếm (Ngày thực hành, Tên ca, Tiết bắt đầu, Tiết kết thúc, Buổi số).', position: 'bottom-start' },
+            { element: '#column-select-cathuchanh', intro: 'Chọn cột bạn muốn tìm kiếm (Ngày thực hành, Tên ca, Tiết bắt đầu, Tiết kết thúc, Buổi số, Tên Môn Học, Tên Phòng Máy).', position: 'bottom-start' },
             { element: '#export-pdf-button-cathuchanh', intro: 'Xuất danh sách ca thực hành ra file PDF.', position: 'bottom-start' },
             { element: '#export-excel-button-cathuchanh', intro: 'Xuất danh sách ca thực hành ra file Excel.', position: 'bottom-start' },
             { element: '#create-new-dropdown-cathuchanh', intro: 'Tạo ca thực hành mới bằng form hoặc import từ file (nếu có tính năng).', position: 'bottom-start' },
@@ -110,6 +119,9 @@ export default function CaThucHanhManagement() {
             { element: '.ant-table-thead > tr > th:nth-child(4)', intro: 'Click vào đây để sắp xếp danh sách ca thực hành theo Tiết bắt đầu.', position: 'bottom' },
             { element: '.ant-table-thead > tr > th:nth-child(5)', intro: 'Click vào đây để sắp xếp danh sách ca thực hành theo Tiết kết thúc.', position: 'bottom' },
             { element: '.ant-table-thead > tr > th:nth-child(6)', intro: 'Click vào đây để sắp xếp danh sách ca thực hành theo Buổi số.', position: 'bottom' },
+            // NEW INTRO STEPS FOR NEW COLUMNS
+            { element: '.ant-table-thead > tr > th:nth-child(7)', intro: 'Click vào đây để sắp xếp danh sách ca thực hành theo Tên Môn Học.', position: 'bottom' },
+            { element: '.ant-table-thead > tr > th:nth-child(8)', intro: 'Click vào đây để sắp xếp danh sách ca thực hành theo Tên Phòng Máy.', position: 'bottom' },
             { element: '#logout-button-cathuchanh', intro: 'Đăng xuất khỏi ứng dụng quản lý ca thực hành.', position: 'bottom-end' },
         ];
 
@@ -121,7 +133,96 @@ export default function CaThucHanhManagement() {
             scrollTo: 'element',
             overlayOpacity: 0.5,
         }).start();
-    };
+    }, []); // Empty dependency array means this function is created once
+
+
+    // Client-side sorting function
+    const sortData = useCallback((data, sortKey, sortOrder) => {
+        if (!sortKey || !sortOrder) return data;
+
+        const sortedData = [...data].sort((a, b) => {
+            const valueA = getNestedValue(a, sortKey);
+            const valueB = getNestedValue(b, sortKey);
+
+            // Handle null/undefined values for comparison consistently
+            const comparableA = valueA === null || valueA === undefined ? '' : valueA;
+            const comparableB = valueB === null || valueB === undefined ? '' : valueB;
+
+            // Handle date sorting for 'ngayThucHanh'
+            if (sortKey === 'ngayThucHanh') {
+                const dateA = comparableA ? new Date(comparableA).getTime() : 0;
+                const dateB = comparableB ? new Date(comparableB).getTime() : 0;
+                return sortOrder === "ascend" ? dateA - dateB : dateB - dateA;
+            }
+            // Handle number sorting for 'tietBatDau', 'tietKetThuc', 'buoiSo'
+            else if (typeof comparableA === "number" && typeof comparableB === "number") {
+                return sortOrder === "ascend" ? comparableA - comparableB : comparableB - comparableA;
+            }
+            // Default to string comparison for all other fields (including new ones)
+            else {
+                const stringA = String(comparableA);
+                const stringB = String(comparableB);
+                return sortOrder === "ascend"
+                    ? stringA.localeCompare(stringB)
+                    : stringB.localeCompare(stringA);
+            }
+        });
+        return sortedData;
+    }, [getNestedValue]);
+
+
+    // Client-side search/filter function
+    const performClientSearch = useCallback((searchValue, searchColumn, currentData = initialCaThucHanhs) => {
+        setInternalLoading(true);
+        let filteredData = currentData;
+
+        if (searchValue) {
+            const lowerSearchValue = searchValue.toLowerCase();
+            filteredData = currentData.filter(item => {
+                if (searchColumn === 'all') {
+                    return (item.tenCa != null && typeof item.tenCa === 'string' && item.tenCa.toLowerCase().includes(lowerSearchValue)) ||
+                        (item.ngayThucHanh != null && String(new Date(item.ngayThucHanh).toLocaleDateString('vi-VN')).includes(lowerSearchValue)) ||
+                        (item.tietBatDau != null && String(item.tietBatDau).includes(lowerSearchValue)) ||
+                        (item.tietKetThuc != null && String(item.tietKetThuc).includes(lowerSearchValue)) ||
+                        (item.buoiSo != null && String(item.buoiSo).includes(lowerSearchValue)) ||
+                        // NEW SEARCH FIELDS
+                        (item.monHoc?.tenMon != null && typeof item.monHoc.tenMon === 'string' && item.monHoc.tenMon.toLowerCase().includes(lowerSearchValue)) ||
+                        (item.phongMay?.tenPhong != null && typeof item.phongMay.tenPhong === 'string' && item.phongMay.tenPhong.toLowerCase().includes(lowerSearchValue));
+                } else {
+                    let itemValue;
+                    // Handle specific nested columns
+                    if (searchColumn === 'tenMon') {
+                        itemValue = item.monHoc?.tenMon;
+                    } else if (searchColumn === 'tenPhong') {
+                        itemValue = item.phongMay?.tenPhong;
+                    } else {
+                        // For non-nested columns, access directly
+                        itemValue = item[searchColumn];
+                    }
+
+                    if (itemValue == null) return false;
+
+                    if (typeof itemValue === 'string') {
+                        if (searchColumn === 'ngayThucHanh') {
+                            const formattedDate = new Date(itemValue).toLocaleDateString('vi-VN');
+                            return formattedDate.includes(lowerSearchValue);
+                        }
+                        return itemValue.toLowerCase().includes(lowerSearchValue);
+                    } else if (typeof itemValue === 'number') {
+                        return String(itemValue).includes(lowerSearchValue);
+                    }
+                    return false;
+                }
+            });
+        }
+        // Apply sorting to the filtered data
+        const sortedFilteredData = sortData(filteredData, sortInfo.field, sortInfo.order);
+        setFilteredCaThucHanhs(sortedFilteredData); // Store the current filtered and sorted list
+        setCaThucHanhs(sortedFilteredData); // Update table data source
+        setPagination(prev => ({ ...prev, current: 1, total: sortedFilteredData.length }));
+        setInternalLoading(false);
+    }, [initialCaThucHanhs, sortInfo.field, sortInfo.order, sortData]);
+
 
     // --- Effects ---
     useEffect(() => {
@@ -147,6 +248,7 @@ export default function CaThucHanhManagement() {
                 console.log("[Component CaThucHanh] First DTO item:", data[0]);
             }
             setInitialCaThucHanhs(data);
+            setFilteredCaThucHanhs(data); // Also initialize filtered data
             setCaThucHanhs(data);
             setLoadError(null);
             setPagination(prev => ({ ...prev, current: 1, total: data.length }));
@@ -158,6 +260,14 @@ export default function CaThucHanhManagement() {
             setPagination(prev => ({ ...prev, current: 1, total: 0 }));
         }
     }, [loaderResult, navigate]);
+
+    useEffect(() => {
+        // After initial data is set, apply initial search/sort
+        if (initialCaThucHanhs.length > 0 || search || selectedColumn !== 'all') {
+            performClientSearch(search, selectedColumn, initialCaThucHanhs);
+        }
+    }, [initialCaThucHanhs, performClientSearch, search, selectedColumn]);
+
 
     useEffect(() => {
         const eventSource = new EventSource("https://localhost:8080/subscribe");
@@ -202,8 +312,11 @@ export default function CaThucHanhManagement() {
 
         return () => {
             document.body.removeChild(script1);
-            if (document.body.contains(script2)) {
-                document.body.removeChild(script2);
+            // Check if script2 exists in body before trying to remove,
+            // as it might be removed by browser or not fully loaded
+            const existingScript2 = document.querySelector(`script[src="https://files.bpcontent.cloud/2025/03/03/16/20250303163810-YF2W2K0X.js"]`);
+            if (existingScript2) {
+                document.body.removeChild(existingScript2);
             }
         };
     }, []);
@@ -213,78 +326,6 @@ export default function CaThucHanhManagement() {
     const hideImportModal = () => setIsModalVisible(false);
     const handleImport = async (file) => { console.log("File imported:", file); /* Implement import logic for CaThucHanh */ };
 
-    // Client-side sorting function
-    const sortData = (data, sortKey, sortOrder) => {
-        if (!sortKey || !sortOrder) return data;
-
-        const sortedData = [...data].sort((a, b) => {
-            const valueA = a[sortKey] ?? (typeof a[sortKey] === 'number' ? 0 : '');
-            const valueB = b[sortKey] ?? (typeof b[sortKey] === 'number' ? 0 : '');
-
-            // Handle date sorting for 'ngayThucHanh'
-            if (sortKey === 'ngayThucHanh') {
-                const dateA = valueA ? new Date(valueA).getTime() : 0;
-                const dateB = valueB ? new Date(valueB).getTime() : 0;
-                return sortOrder === "ascend" ? dateA - dateB : dateB - dateA;
-            }
-            // Handle number sorting for 'tietBatDau', 'tietKetThuc', 'buoiSo'
-            else if (typeof valueA === "number" && typeof valueB === "number") {
-                return sortOrder === "ascend" ? valueA - valueB : valueB - valueA;
-            }
-            // Default to string comparison for 'tenCa' and other string fields
-            else if (typeof valueA === "string" && typeof valueB === "string") {
-                return sortOrder === "ascend"
-                    ? valueA.localeCompare(valueB)
-                    : valueB.localeCompare(valueA);
-            } else {
-                const stringA = String(valueA);
-                const stringB = String(valueB);
-                return sortOrder === "ascend"
-                    ? stringA.localeCompare(stringB)
-                    : stringB.localeCompare(stringA);
-            }
-        });
-        return sortedData;
-    };
-
-    // Client-side search/filter function
-    const performClientSearch = (searchValue, searchColumn) => {
-        setInternalLoading(true);
-        let filteredData = initialCaThucHanhs;
-
-        if (searchValue) {
-            filteredData = initialCaThucHanhs.filter(item => {
-                const lowerSearchValue = searchValue.toLowerCase();
-                if (searchColumn === 'all') {
-                    return (item.tenCa != null && typeof item.tenCa === 'string' && item.tenCa.toLowerCase().includes(lowerSearchValue)) ||
-                        (item.ngayThucHanh != null && String(new Date(item.ngayThucHanh).toLocaleDateString('vi-VN')).includes(lowerSearchValue)) ||
-                        (item.tietBatDau != null && String(item.tietBatDau).includes(lowerSearchValue)) ||
-                        (item.tietKetThuc != null && String(item.tietKetThuc).includes(lowerSearchValue)) ||
-                        (item.buoiSo != null && String(item.buoiSo).includes(lowerSearchValue));
-                } else {
-                    const itemValue = item[searchColumn];
-                    if (itemValue == null) return false;
-
-                    if (typeof itemValue === 'string') {
-                        // Handle date string for 'ngayThucHanh'
-                        if (searchColumn === 'ngayThucHanh') {
-                            const formattedDate = new Date(itemValue).toLocaleDateString('vi-VN');
-                            return formattedDate.includes(lowerSearchValue);
-                        }
-                        return itemValue.toLowerCase().includes(lowerSearchValue);
-                    } else if (typeof itemValue === 'number') {
-                        return String(itemValue).includes(lowerSearchValue);
-                    }
-                    return false;
-                }
-            });
-        }
-        filteredData = sortData(filteredData, sortInfo.field, sortInfo.order);
-        setFilteredCaThucHanhs(filteredData);
-        setCaThucHanhs(filteredData);
-        setPagination(prev => ({ ...prev, current: 1, total: filteredData.length }));
-        setInternalLoading(false);
-    };
 
     const handleSearch = (value) => {
         setSearch(value);
@@ -296,22 +337,41 @@ export default function CaThucHanhManagement() {
         performClientSearch(search, column);
     };
 
-    const handleTableChange = (newPagination, filters, sorter) => {
+    const handleTableChange = (newPagination, filters, sorter, extra) => {
         const { current, pageSize } = newPagination;
-        let currentData = filteredCaThucHanhs ?? initialCaThucHanhs;
-        let sortField = sortInfo.field;
-        let sortOrder = sorter.order;
+        let sortedCurrentData = filteredCaThucHanhs ?? initialCaThucHanhs; // Start with the currently filtered (or all) data
 
-        if (sorter.field && sorter.order) {
-            sortField = sorter.field;
-            sortOrder = sorter.order;
-            setSortInfo({ field: sortField, order: sortOrder });
-            currentData = sortData(currentData, sortField, sortOrder);
-            setCaThucHanhs(currentData);
-        } else if (!sorter.order && sortInfo.field) {
-            setSortInfo({});
-            setCaThucHanhs(filteredCaThucHanhs ?? initialCaThucHanhs);
+        // Check if sorter is an array or object, and extract field/order correctly
+        let currentSortField = sortInfo.field;
+        let currentSortOrder = sortInfo.order;
+
+        if (Array.isArray(sorter)) { // Handles multiple sorters (Ant Design default)
+            // For simplicity, take the first sorter if multiple are active
+            if (sorter.length > 0) {
+                currentSortField = sorter[0].field;
+                currentSortOrder = sorter[0].order;
+            } else {
+                currentSortField = null;
+                currentSortOrder = null;
+            }
+        } else if (sorter.field && sorter.order) { // Single sorter
+            currentSortField = sorter.field;
+            currentSortOrder = sorter.order;
+        } else if (!sorter.order && sortInfo.field) { // Clear sort
+            currentSortField = null;
+            currentSortOrder = null;
         }
+
+        if (currentSortField && currentSortOrder) {
+            sortedCurrentData = sortData(sortedCurrentData, currentSortField, currentSortOrder);
+            setSortInfo({ field: currentSortField, order: currentSortOrder });
+        } else if (!currentSortField && sortInfo.field) {
+            // If sort is cleared, revert to the state *before* sorting was applied to filtered data
+            setSortInfo({});
+            sortedCurrentData = filteredCaThucHanhs ?? initialCaThucHanhs; // Revert to unsorted filtered data
+        }
+
+        setCaThucHanhs(sortedCurrentData); // Update the data source for the table
         setPagination({ ...pagination, current, pageSize });
     };
 
@@ -321,17 +381,21 @@ export default function CaThucHanhManagement() {
         doc.addFileToVFS("Arial.ttf", font); // Make sure font is correctly imported and available
         doc.setFont("Arial", "normal");
 
-        const tableData = (filteredCaThucHanhs ?? caThucHanhs).map((ca, index) => [
+        const dataToExport = filteredCaThucHanhs ?? caThucHanhs; // Export filtered/displayed data
+
+        const tableData = dataToExport.map((ca, index) => [
             index + 1,
-            ca.ngayThucHanh ? new Date(ca.ngayThucHanh).toLocaleDateString('vi-VN') : '',
-            ca.tenCa || '',
-            ca.tietBatDau || '',
-            ca.tietKetThuc || '',
-            ca.buoiSo || ''
+            ca.ngayThucHanh ? new Date(ca.ngayThucHanh).toLocaleDateString('vi-VN') : 'N/A',
+            ca.tenCa || 'N/A',
+            ca.tietBatDau || 'N/A',
+            ca.tietKetThuc || 'N/A',
+            ca.buoiSo || 'N/A',
+            ca.monHoc?.tenMon || 'N/A', // NEW
+            ca.phongMay?.tenPhong || 'N/A' // NEW
         ]);
 
         doc.autoTable({
-            head: [["STT", "Ngày Thực Hành", "Tên Ca", "Tiết Bắt Đầu", "Tiết Kết Thúc", "Buổi Số"]],
+            head: [["STT", "Ngày Thực Hành", "Tên Ca", "Tiết Bắt Đầu", "Tiết Kết Thúc", "Buổi Số", "Tên Môn Học", "Tên Phòng Máy"]], // NEW HEADER
             body: tableData,
             styles: { font: "Arial", fontSize: 10 },
             headStyles: { fontStyle: "bold", fillColor: [22, 160, 133] },
@@ -345,13 +409,17 @@ export default function CaThucHanhManagement() {
     };
 
     const exportToExcel = () => {
-        const excelData = (filteredCaThucHanhs ?? caThucHanhs).map((item, index) => ({
+        const dataToExport = filteredCaThucHanhs ?? caThucHanhs; // Export filtered/displayed data
+
+        const excelData = dataToExport.map((item, index) => ({
             "STT": index + 1,
-            "Ngày Thực Hành": item.ngayThucHanh ? new Date(item.ngayThucHanh).toLocaleDateString('vi-VN') : '',
-            "Tên Ca": item.tenCa,
-            "Tiết Bắt Đầu": item.tietBatDau,
-            "Tiết Kết Thúc": item.tietKetThuc,
-            "Buổi Số": item.buoiSo,
+            "Ngày Thực Hành": item.ngayThucHanh ? new Date(item.ngayThucHanh).toLocaleDateString('vi-VN') : 'N/A',
+            "Tên Ca": item.tenCa || 'N/A',
+            "Tiết Bắt Đầu": item.tietBatDau || 'N/A',
+            "Tiết Kết Thúc": item.tietKetThuc || 'N/A',
+            "Buổi Số": item.buoiSo || 'N/A',
+            "Tên Môn Học": item.monHoc?.tenMon || 'N/A', // NEW
+            "Tên Phòng Máy": item.phongMay?.tenPhong || 'N/A', // NEW
         }));
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.json_to_sheet(excelData);
@@ -359,16 +427,13 @@ export default function CaThucHanhManagement() {
         XLSX.writeFile(wb, "DanhSachCaThucHanh.xlsx");
     };
 
-    const menu = (
-        <Menu id="create-new-dropdown-cathuchanh">
-            <Menu.Item key="1" icon={<PlusOutlined />} onClick={() => navigate(`/addCaThucHanh`)}>
-                Tạo mới bằng form
-            </Menu.Item>
-            <Menu.Item key="2" icon={<FileAddOutlined />} onClick={showImportModal}>
-                Tạo mới bằng file
-            </Menu.Item>
-        </Menu>
-    );
+    // const menu = (
+    //     <Menu id="create-new-dropdown-cathuchanh">
+    //         <Menu.Item key="1" icon={<PlusOutlined />} onClick={() => navigate(`/addCaThucHanh`)}>
+    //             Tạo mới bằng form
+    //         </Menu.Item>
+    //     </Menu>
+    // );
 
     const handleLogout = async () => {
         const token = localStorage.getItem("authToken");
@@ -399,15 +464,17 @@ export default function CaThucHanhManagement() {
             <Menu.Item key="home" onClick={() => navigate('/')}>
                 Trang chủ
             </Menu.Item>
-            {/* Assuming these are your paths, adjust if different */}
             <Menu.Item key="quanliphongmay" onClick={() => navigate('/phongmay')}>
                 Quản lí phòng máy
             </Menu.Item>
             <Menu.Item key="quanlicathuchanh" onClick={() => navigate('/cathuchanh')}>
                 Quản lí ca thực hành
             </Menu.Item>
-            <Menu.Item key="quanlimonhoc" onClick={() => navigate('/monhoc')}>
+            <Menu.Item key="quanlimonhoc" onClick={() => navigate('/quanlimonhoc')}>
                 Quản lí môn học
+            </Menu.Item>
+            <Menu.Item key="quanligiaovien" onClick={() => navigate('/giaovien')}>
+                Quản lí giáo viên
             </Menu.Item>
         </Menu>
     );
@@ -424,7 +491,7 @@ export default function CaThucHanhManagement() {
             title: "Ngày thực hành",
             dataIndex: "ngayThucHanh",
             key: "ngayThucHanh",
-            width: "20%",
+            width: "12%", // Adjusted width
             sorter: (a, b) => (a.ngayThucHanh ? new Date(a.ngayThucHanh).getTime() : 0) - (b.ngayThucHanh ? new Date(b.ngayThucHanh).getTime() : 0),
             render: (text) => text ? new Date(text).toLocaleDateString('vi-VN') : 'N/A',
         },
@@ -432,29 +499,46 @@ export default function CaThucHanhManagement() {
             title: "Tên ca",
             dataIndex: "tenCa",
             key: "tenCa",
-            width: "15%",
+            width: "12%", // Adjusted width
             sorter: (a, b) => (a.tenCa || '').localeCompare(b.tenCa || ''),
         },
         {
             title: "Tiết bắt đầu",
             dataIndex: "tietBatDau",
             key: "tietBatDau",
-            width: "15%",
+            width: "10%", // Adjusted width
             sorter: (a, b) => (a.tietBatDau || 0) - (b.tietBatDau || 0),
         },
         {
             title: "Tiết kết thúc",
             dataIndex: "tietKetThuc",
             key: "tietKetThuc",
-            width: "15%",
+            width: "10%", // Adjusted width
             sorter: (a, b) => (a.tietKetThuc || 0) - (b.tietKetThuc || 0),
         },
         {
             title: "Buổi số",
             dataIndex: "buoiSo",
             key: "buoiSo",
-            width: "15%",
+            width: "8%", // Adjusted width
             sorter: (a, b) => (a.buoiSo || 0) - (b.buoiSo || 0),
+        },
+        // NEW COLUMNS
+        {
+            title: "Tên Môn Học",
+            dataIndex: ["monHoc", "tenMon"], // Nested data access
+            key: "tenMon",
+            width: "15%",
+            sorter: (a, b) => (a.monHoc?.tenMon || '').localeCompare(b.monHoc?.tenMon || ''),
+            render: (text, record) => record.monHoc?.tenMon || 'N/A',
+        },
+        {
+            title: "Tên Phòng Máy",
+            dataIndex: ["phongMay", "tenPhong"], // Nested data access
+            key: "tenPhong",
+            width: "15%",
+            sorter: (a, b) => (a.phongMay?.tenPhong || '').localeCompare(b.phongMay?.tenPhong || ''),
+            render: (text, record) => record.phongMay?.tenPhong || 'N/A',
         },
     ];
 
@@ -485,12 +569,11 @@ export default function CaThucHanhManagement() {
             </Header>
             <Content className="lab-management-content" style={{ padding: "24px", margin: "0 16px" }}>
                 <nav className="flex items-center space-x-1 text-sm text-muted-foreground mb-4">
-                    {/* Replaced the static <a> tag with Ant Design Dropdown */}
                     <Dropdown overlay={homeDropdownMenu} placement="bottomLeft" trigger={['hover']}>
                         <a
-                            onClick={(e) => e.preventDefault()} // Prevent default navigation of <a> tag
+                            onClick={(e) => e.preventDefault()}
                             className="flex items-center hover:text-primary"
-                            style={{ cursor: 'pointer' }} // Indicate it's clickable
+                            style={{ cursor: 'pointer' }}
                         >
                             <HomeOutlined className="h-4 w-4" />
                             <span className="ml-1">Trang chủ</span>
@@ -533,6 +616,8 @@ export default function CaThucHanhManagement() {
                             <Option value="tietBatDau">Tiết Bắt Đầu</Option>
                             <Option value="tietKetThuc">Tiết Kết Thúc</Option>
                             <Option value="buoiSo">Buổi Số</Option>
+                            <Option value="tenMon">Tên Môn Học</Option> {/* NEW OPTION */}
+                            <Option value="tenPhong">Tên Phòng Máy</Option> {/* NEW OPTION */}
                         </Select>
 
                         <Input
@@ -551,15 +636,15 @@ export default function CaThucHanhManagement() {
                         <Button id="export-excel-button-cathuchanh" onClick={exportToExcel} type="default">
                             Xuất Excel
                         </Button>
-                        <Dropdown overlay={menu} placement="bottomRight" arrow>
-                            <Button
-                                id="create-new-dropdown-button-cathuchanh"
-                                type="primary"
-                                icon={<PlusOutlined />}
-                            >
-                                Tạo mới
-                            </Button>
-                        </Dropdown>
+                        {/*<Dropdown overlay={menu} placement="bottomRight" arrow>*/}
+                        {/*    <Button*/}
+                        {/*        id="create-new-dropdown-button-cathuchanh"*/}
+                        {/*        type="primary"*/}
+                        {/*        icon={<PlusOutlined />}*/}
+                        {/*    >*/}
+                        {/*        Tạo mới*/}
+                        {/*    </Button>*/}
+                        {/*</Dropdown>*/}
                     </div>
                 </div>
 
@@ -567,7 +652,7 @@ export default function CaThucHanhManagement() {
                     <Table
                         columns={columns}
                         dataSource={caThucHanhs}
-                        rowKey={(record, index) => `${record.ngayThucHanh}-${record.tenCa}-${index}`} // Composite key to ensure uniqueness for rowKey
+                        rowKey={(record) => record.maCa} // Use maCa for unique key as it's reliable
                         loading={internalLoading}
                         pagination={pagination}
                         onChange={handleTableChange}

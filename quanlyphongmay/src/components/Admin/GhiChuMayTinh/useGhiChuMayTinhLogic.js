@@ -240,7 +240,7 @@ const useGhiChuMayTinhLogic = () => {
             console.error("Error fetching Ghi Chu data:", error);
             if (error.message.includes('Unauthorized') || error.message.includes('Forbidden')) {
                 Swal.fire({ icon: 'error', title: 'Phiên Đăng Nhập Hết Hạn', text: 'Vui lòng đăng nhập lại.', confirmButtonText: 'Đăng Nhập Lại' }).then(() => navigate('/login'));
-            } else { Swal.fire('Lỗi', `Không thể tải dữ liệu ghi chú: ${error.message}`, 'error'); }
+            } else {  }
             setGhiChuData([]);
         } finally { setLoading(false); }
     }, [navigate]);

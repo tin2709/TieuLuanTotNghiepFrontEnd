@@ -1,23 +1,25 @@
-// src/loaders/phongMayLoader.js
+// src/components/Loader/phongmayLoader.js
+
+// REMOVED: import { BROKEN_STATUS } from '../components/action'; // KHÔNG CẦN CÁI NÀY TRONG LOADER
+// import { notification } from 'antd'; // Ant Design notification (will be used in component, not loader directly, but good to note)
 
 /**
  * Loader function cho route /phongmay.
  * Fetch dữ liệu danh sách phòng máy từ API, có phân biệt quyền người dùng.
+ * Thêm fetch dữ liệu ghi chú máy tính hỏng và thiết bị hỏng.
  * KHÔNG throw lỗi, thay vào đó trả về object:
- * - Thành công: { data: [...] } hoặc { data: [] } (cho 204 No Content)
+ * - Thành công: { data: { labRooms: [...], computerNotes: [...], deviceNotes: [...] } }
  * - Thất bại: { error: true, type: 'auth' | 'api' | 'network', message: '...', status?: number }
  */
 export async function labManagementLoader() {
-    console.log("⚡️ [Loader] Running labManagementLoader from separate file (No Throw Mode)...");
+    console.log("⚡️ [Loader] Running labManagementLoader (with broken notes fetch)...");
     const token = localStorage.getItem("authToken");
-    // Lấy thông tin quyền và username từ localStorage
-    const userRole = localStorage.getItem("userRole"); // Giả định 'userRole' được lưu trong localStorage
-    const username = localStorage.getItem("username"); // Giả định 'username' được lưu trong localStorage
+    const userRole = localStorage.getItem("userRole");
+    const username = localStorage.getItem("username");
 
     // 1. Kiểm tra Token
     if (!token) {
         console.warn("🔒 [Loader] No token found. Returning auth error signal.");
-        // Trả về object lỗi xác thực
         return {
             error: true,
             type: 'auth',
@@ -25,11 +27,13 @@ export async function labManagementLoader() {
         };
     }
 
-    let url;
-    let data;
+    let labRoomsData = [];
+    let computerNotes = []; // Khởi tạo mảng rỗng
+    let deviceNotes = [];   // Khởi tạo mảng rỗng
 
-    // 2. Gọi API dựa trên quyền người dùng
+    // --- Fetch Lab Rooms Data (Logic remains the same as before) ---
     try {
+        let labRoomsUrl;
         if (userRole === '2') { // Nếu userRole là 2 (Teacher)
             if (!username) {
                 console.error("❌ [Loader] User role is 2 but username not found in localStorage.");
@@ -39,10 +43,10 @@ export async function labManagementLoader() {
                     message: 'Không tìm thấy tên đăng nhập. Vui lòng đăng nhập lại.'
                 };
             }
-            url = `https://localhost:8080/DSCaThucHanhTheoGiaoVienTen?hoTenGiaoVien=${encodeURIComponent(username)}&token=${token}`;
-            console.log(`📞 [Loader] Fetching for Teacher (userRole 2): ${url}`);
+            labRoomsUrl = `https://localhost:8080/DSCaThucHanhTheoGiaoVienTen?hoTenGiaoVien=${encodeURIComponent(username)}&token=${token}`;
+            console.log(`📞 [Loader] Fetching for Teacher (userRole 2): ${labRoomsUrl}`);
 
-            const response = await fetch(url);
+            const response = await fetch(labRoomsUrl);
 
             if (!response.ok) {
                 console.error(`❌ [Loader] API Error for Teacher: ${response.status} ${response.statusText}`);
@@ -63,26 +67,23 @@ export async function labManagementLoader() {
 
             if (response.status === 204) {
                 console.log("✅ [Loader] Received 204 No Content for Teacher API. Returning empty data.");
-                data = [];
+                labRoomsData = [];
             } else {
                 const caThucHanhList = await response.json();
-                console.log("✅ [Loader] CaThucHanh data fetched successfully for teacher.");
-
-                // Trích xuất và loại bỏ trùng lặp các phòng máy
-                const uniquePhongMayMap = new Map(); // Dùng Map để lưu trữ unique phongMay theo maPhong
+                const uniquePhongMayMap = new Map();
                 caThucHanhList.forEach(ca => {
                     if (ca.phongMay && !uniquePhongMayMap.has(ca.phongMay.maPhong)) {
                         uniquePhongMayMap.set(ca.phongMay.maPhong, ca.phongMay);
                     }
                 });
-                data = Array.from(uniquePhongMayMap.values()); // Chuyển các giá trị của Map thành mảng
+                labRoomsData = Array.from(uniquePhongMayMap.values());
             }
 
         } else { // Nếu userRole là 3 hoặc bất kỳ vai trò nào khác (Admin, Staff, etc.)
-            url = `https://localhost:8080/DSPhongMay?token=${token}`;
-            console.log(`📞 [Loader] Fetching for Admin/Other (userRole ${userRole}): ${url}`);
+            labRoomsUrl = `https://localhost:8080/DSPhongMay?token=${token}`;
+            console.log(`📞 [Loader] Fetching for Admin/Other (userRole ${userRole}): ${labRoomsUrl}`);
 
-            const response = await fetch(url);
+            const response = await fetch(labRoomsUrl);
 
             if (!response.ok) {
                 console.error(`❌ [Loader] API Error for Admin/Other: ${response.status} ${response.statusText}`);
@@ -103,26 +104,60 @@ export async function labManagementLoader() {
 
             if (response.status === 204) {
                 console.log("✅ [Loader] Received 204 No Content for DSPhongMay. Returning empty data.");
-                data = [];
+                labRoomsData = [];
             } else {
-                data = await response.json();
-                console.log("✅ [Loader] Data fetched successfully for Admin/Other.");
+                labRoomsData = await response.json();
             }
         }
-
-        // 3. Trả về dữ liệu thành công
-        return { data: data };
-
     } catch (error) {
-        // 4. Xử lý lỗi mạng hoặc lỗi JavaScript khác trong quá trình fetch
-        console.error("💥 [Loader] Network or other fetch error:", error);
-        // Trả về object lỗi mạng/chung
+        console.error("💥 [Loader] Network or other fetch error for main lab rooms data:", error);
         return {
             error: true,
             type: 'network',
-            message: "Lỗi mạng hoặc không thể kết nối tới máy chủ. Vui lòng kiểm tra kết nối và thử lại."
+            message: "Lỗi mạng hoặc không thể kết nối tới máy chủ khi tải danh sách phòng máy. Vui lòng kiểm tra kết nối và thử lại."
         };
     }
-}
 
-// export async function anotherLoader() { ... }
+    // --- Fetch Broken Notes Data (Computer) ---
+    // Endpoint: @GetMapping("/DSGhiChuMayTinh")
+    try {
+        const computerNotesUrl = `https://localhost:8080/DSGhiChuMayTinh?token=${token}`;
+        console.log(`📞 [Loader] Fetching computer notes: ${computerNotesUrl}`);
+        const response = await fetch(computerNotesUrl);
+        if (response.ok && response.status !== 204) {
+            computerNotes = await response.json();
+            console.log("✅ [Loader] Computer notes fetched successfully.");
+        } else {
+            console.warn(`⚠️ [Loader] No computer notes or error (${response.status}) from API.`);
+        }
+    } catch (error) {
+        console.error("💥 [Loader] Network or other fetch error for computer notes:", error);
+        // Không block loader chính, chỉ log lỗi và trả về mảng rỗng cho computerNotes
+    }
+
+    // --- Fetch Broken Notes Data (Device) ---
+    // Endpoint: @GetMapping("/DSGhiChuThietBi")
+    try {
+        const deviceNotesUrl = `https://localhost:8080/DSGhiChuThietBi?token=${token}`;
+        console.log(`📞 [Loader] Fetching device notes: ${deviceNotesUrl}`);
+        const response = await fetch(deviceNotesUrl);
+        if (response.ok && response.status !== 204) {
+            deviceNotes = await response.json();
+            console.log("✅ [Loader] Device notes fetched successfully.");
+        } else {
+            console.warn(`⚠️ [Loader] No device notes or error (${response.status}) from API.`);
+        }
+    } catch (error) {
+        console.error("💥 [Loader] Network or other fetch error for device notes:", error);
+        // Không block loader chính, chỉ log lỗi và trả về mảng rỗng cho deviceNotes
+    }
+
+    // Return combined data
+    return {
+        data: {
+            labRooms: labRoomsData,
+            computerNotes: computerNotes,
+            deviceNotes: deviceNotes
+        }
+    };
+}

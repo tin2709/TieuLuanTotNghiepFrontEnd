@@ -189,6 +189,7 @@ export default function AddMayTinh() {
                         >
                             <Option value="Đang hoạt động">Đang hoạt động</Option> {/* Corrected Value */}
                             <Option value="Đã hỏng">Đã hỏng</Option>     {/* Corrected Value */}
+                            <Option value="Không hoạt động">Không hoạt động</Option>
                         </Select>
                     </Form.Item>
                     <Form.Item

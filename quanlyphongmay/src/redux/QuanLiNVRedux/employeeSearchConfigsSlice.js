@@ -1,88 +1,116 @@
 // src/redux/QuanLiNVRedux/employeeSearchConfigsSlice.js
-import { createSlice, nanoid } from '@reduxjs/toolkit';
-import Swal from 'sweetalert2';
+import { createSlice } from '@reduxjs/toolkit';
 
-// Định nghĩa một tên đặc biệt cho cấu hình tải tất cả
-export const LOAD_ALL_EMPLOYEES_CONFIG_NAME = '__LOAD_ALL_EMPLOYEES__';
+// A unique constant for loading all employees (clearing search)
+export const LOAD_ALL_EMPLOYEES_CONFIG_NAME = 'LOAD_ALL_EMPLOYEES_CONFIG';
 
-const initialState = {
-    // Sử dụng key riêng để lưu vào localStorage cho nhân viên
-    savedSearchConfigs: JSON.parse(localStorage.getItem('savedEmployeeSearchConfigs')) || [],
+// Helper function to load state from localStorage
+const loadState = () => {
+    try {
+        const serializedState = localStorage.getItem('employeeSearchConfigs');
+        if (serializedState === null) {
+            return undefined; // Let reducer initialize state
+        }
+        return JSON.parse(serializedState);
+    } catch (e) {
+        console.warn("Could not load employee search configs from localStorage", e);
+        return undefined;
+    }
+};
+
+// Helper function to save state to localStorage
+const saveState = (state) => {
+    try {
+        const serializedState = JSON.stringify(state);
+        localStorage.setItem('employeeSearchConfigs', serializedState);
+    } catch (e) {
+        console.warn("Could not save employee search configs to localStorage", e);
+    }
+};
+
+const initialState = loadState() || {
+    // Current search configuration being used by the UI
     currentSearchConfig: {
-        name: '',
-        field: null,
-        operator: null,
         keyword: '',
+        field: 'tenNV', // Default search field
+        operator: 'LIKE', // Default operator
+        name: 'Mặc định' // Name for the current (unsaved/default) config
     },
-    searchConfigList: (JSON.parse(localStorage.getItem('savedEmployeeSearchConfigs')) || []).map(config => config.name),
+    // List of names of saved search configurations (for dropdown display)
+    searchConfigList: [],
+    // Object mapping names to their actual search configurations
+    savedSearchConfigs: {},
 };
 
 const employeeSearchConfigsSlice = createSlice({
     name: 'employeeSearchConfigs',
     initialState,
     reducers: {
+        // Updates the current search parameters
         setCurrentSearch: (state, action) => {
-            state.currentSearchConfig = { ...state.currentSearchConfig, ...action.payload };
+            state.currentSearchConfig = {
+                ...state.currentSearchConfig,
+                ...action.payload
+            };
+            // If keyword is changed, it's no longer a saved config
+            if (action.payload.keyword !== undefined || action.payload.field !== undefined || action.payload.operator !== undefined) {
+                state.currentSearchConfig.name = 'Mặc định';
+            }
+            saveState(state);
         },
+        // Saves the current search configuration with a given name
         saveCurrentSearchConfig: (state, action) => {
             const { name } = action.payload;
-            const newConfig = {
-                id: nanoid(),
-                name,
-                field: state.currentSearchConfig.field,
-                operator: state.currentSearchConfig.operator,
-                keyword: state.currentSearchConfig.keyword,
-            };
+            const { keyword, field, operator } = state.currentSearchConfig;
 
-            const existingConfigIndex = state.savedSearchConfigs.findIndex(config => config.name === name);
-            if (existingConfigIndex !== -1) {
-                state.savedSearchConfigs[existingConfigIndex] = newConfig;
-            } else {
-                state.savedSearchConfigs.push(newConfig);
+            // Store the current config under the new name
+            state.savedSearchConfigs[name] = { keyword, field, operator };
+
+            // Add the name to the list if it's new
+            if (!state.searchConfigList.includes(name)) {
+                state.searchConfigList.push(name);
+                state.searchConfigList.sort(); // Keep sorted
             }
-            state.searchConfigList = state.savedSearchConfigs.map(config => config.name);
-            localStorage.setItem('savedEmployeeSearchConfigs', JSON.stringify(state.savedSearchConfigs)); // Cập nhật key localStorage
-            Swal.fire('Đã lưu!', `Cấu hình tìm kiếm "${name}" đã được lưu.`, 'success');
+            // Update the name of the current search config
+            state.currentSearchConfig.name = name;
+            saveState(state);
         },
+        // Loads a saved search configuration into currentSearchConfig
         loadSearchConfig: (state, action) => {
-            const configNameToLoad = action.payload;
+            const configName = action.payload;
 
-            // Xử lý trường hợp tải cấu hình "Tải tất cả"
-            if (configNameToLoad === LOAD_ALL_EMPLOYEES_CONFIG_NAME) {
+            if (configName === LOAD_ALL_EMPLOYEES_CONFIG_NAME) {
+                // Special case: Load all (clear search)
                 state.currentSearchConfig = {
-                    name: LOAD_ALL_EMPLOYEES_CONFIG_NAME,
-                    field: null,
-                    operator: null,
-                    keyword: '', // Quan trọng: keyword rỗng để tải tất cả
+                    keyword: '',
+                    field: 'tenNV',
+                    operator: 'LIKE',
+                    name: LOAD_ALL_EMPLOYEES_CONFIG_NAME
                 };
-                return;
-            }
-
-            // Xử lý tải cấu hình người dùng đã lưu
-            const configToLoad = state.savedSearchConfigs.find(config => config.name === configNameToLoad);
-            if (configToLoad) {
+            } else if (state.savedSearchConfigs[configName]) {
+                // Load a specific saved config
                 state.currentSearchConfig = {
-                    name: configToLoad.name,
-                    field: configToLoad.field,
-                    operator: configToLoad.operator,
-                    keyword: configToLoad.keyword,
+                    ...state.savedSearchConfigs[configName],
+                    name: configName
                 };
-            } else {
-                Swal.fire('Lỗi!', `Không tìm thấy cấu hình "${configNameToLoad}".`, 'error');
             }
+            saveState(state);
         },
+        // Removes a saved search configuration
         removeSearchConfig: (state, action) => {
-            const configNameToRemove = action.payload;
-            state.savedSearchConfigs = state.savedSearchConfigs.filter(config => config.name !== configNameToRemove);
-            state.searchConfigList = state.savedSearchConfigs.map(config => config.name);
-            localStorage.setItem('savedEmployeeSearchConfigs', JSON.stringify(state.savedSearchConfigs)); // Cập nhật key localStorage
-            if (state.currentSearchConfig.name === configNameToRemove) {
-                state.currentSearchConfig = { name: '', field: null, operator: null, keyword: '' };
+            const configName = action.payload;
+            delete state.savedSearchConfigs[configName];
+            state.searchConfigList = state.searchConfigList.filter(name => name !== configName);
+            // If the removed config was the currently loaded one, clear current search
+            if (state.currentSearchConfig.name === configName) {
+                state.currentSearchConfig = { keyword: '', field: 'tenNV', operator: 'LIKE', name: 'Mặc định' };
             }
-            Swal.fire('Đã xóa!', `Cấu hình tìm kiếm "${configNameToRemove}" đã được xóa.`, 'success');
+            saveState(state);
         },
+        // Clears the current search configuration
         clearCurrentSearch: (state) => {
-            state.currentSearchConfig = { name: '', field: null, operator: null, keyword: '' };
+            state.currentSearchConfig = { keyword: '', field: 'tenNV', operator: 'LIKE', name: 'Mặc định' };
+            saveState(state);
         }
     },
 });
@@ -92,7 +120,7 @@ export const {
     saveCurrentSearchConfig,
     loadSearchConfig,
     removeSearchConfig,
-    clearCurrentSearch,
+    clearCurrentSearch
 } = employeeSearchConfigsSlice.actions;
 
 export default employeeSearchConfigsSlice.reducer;
