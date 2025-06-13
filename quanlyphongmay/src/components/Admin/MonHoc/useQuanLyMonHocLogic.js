@@ -157,7 +157,6 @@ const useMonHocManager = () => {
             setPagination(p => ({ ...p, total: initialData.length, current: 1 }));
         } else if (loaderData?.error) {
             if (loaderData.type === 'auth') Swal.fire('Phiên Hết Hạn', loaderData.message, 'error').then(() => navigate('/login'));
-            else Swal.fire('Lỗi Tải Dữ Liệu', loaderData.message || 'Không thể tải danh sách môn học.', 'error');
         } else {
             debouncedFetchData('', 1, pagination.pageSize);
         }

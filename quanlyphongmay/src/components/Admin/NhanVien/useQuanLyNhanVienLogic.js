@@ -5,8 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 
 // Import actions và thunks từ Redux slices mới
-import { fetchEmployees, convertEmployee } from '../redux/QuanLiNVRedux/employeesSlice';
-import { fetchKhoaOptions } from '../redux/QuanLiNVRedux/khoaOptionsSlice';
+import { fetchEmployees, convertEmployee } from '../../../redux/QuanLiNVRedux/employeesSlice';
+import { fetchKhoaOptions } from '../../../redux/QuanLiNVRedux/khoaOptionsSlice';
 import {
     setCurrentSearch,
     saveCurrentSearchConfig,
@@ -14,7 +14,7 @@ import {
     removeSearchConfig,
     clearCurrentSearch,
     LOAD_ALL_EMPLOYEES_CONFIG_NAME // Import hằng số riêng cho nhân viên
-} from '../redux/QuanLiNVRedux/employeeSearchConfigsSlice';
+} from '../../../redux/QuanLiNVRedux/employeeSearchConfigsSlice'; // Make sure this path is correct
 
 // --- Debounce Function ---
 function debounce(func, wait) {
@@ -36,6 +36,7 @@ const useQuanLyNhanVienLogic = () => {
     // Lấy dữ liệu từ Redux store
     const { data: nhanVienData, status: employeesStatus, conversionStatus } = useSelector((state) => state.employees);
     const { options: khoaOptions, status: khoaOptionsStatus } = useSelector((state) => state.khoaOptions);
+    // Correctly select from the new slice state:
     const { currentSearchConfig, searchConfigList, savedSearchConfigs } = useSelector((state) => state.employeeSearchConfigs);
 
     // State cục bộ cho UI
@@ -45,20 +46,24 @@ const useQuanLyNhanVienLogic = () => {
     const [hocVi, setHocVi] = useState('');
     const [selectedKhoaMaKhoa, setSelectedKhoaMaKhoa] = useState(null);
 
+    // NEW: State để lưu trữ các maTaiKhoanSuaLoi có lịch sửa chữa
+    const [employeesWithRepairTasks, setEmployeesWithRepairTasks] = useState(new Set());
+    const [repairTasksStatus, setRepairTasksStatus] = useState('idle'); // 'idle', 'loading', 'succeeded', 'failed'
+
 
     // Giá trị searchKeyword được tạo ra từ currentSearchConfig
     const searchKeyword = useMemo(() => {
-        // Chỉ tạo keyword nếu có đủ field, operator và keyword (hoặc operator là IS_NULL/IS_NOT_NULL)
+        // Only generate keyword if there's enough info for a search
         if (currentSearchConfig.field && currentSearchConfig.operator) {
-            // Check if operator requires a keyword value
             const operatorRequiresKeyword = !['IS_NULL', 'IS_NOT_NULL'].includes(currentSearchConfig.operator);
             if (operatorRequiresKeyword && currentSearchConfig.keyword) {
                 return `${currentSearchConfig.field}:${currentSearchConfig.operator}:${currentSearchConfig.keyword}`;
             } else if (!operatorRequiresKeyword) {
-                return `${currentSearchConfig.field}:${currentSearchConfig.operator}:`; // For IS_NULL/IS_NOT_NULL, keyword is empty
+                // For IS_NULL/IS_NOT_NULL, keyword part is empty
+                return `${currentSearchConfig.field}:${currentSearchConfig.operator}:`;
             }
         }
-        return ''; // Trả về rỗng nếu không đủ điều kiện
+        return ''; // Return empty string if no valid search config
     }, [currentSearchConfig]);
 
 
@@ -76,7 +81,6 @@ const useQuanLyNhanVienLogic = () => {
         { value: 'LIKE', label: 'Like' },
         { value: 'STARTS_WITH', label: 'Starts With' },
         { value: 'ENDS_WITH', label: 'Ends With' },
-        // Giữ các toán tử này nếu backend hỗ trợ cho kiểu dữ liệu text/number
         { value: 'GT', label: 'Greater Than' }, // Greater Than
         { value: 'LT', label: 'Less Than' },    // Less Than
         { value: 'IN', label: 'In' },
@@ -93,6 +97,66 @@ const useQuanLyNhanVienLogic = () => {
         [dispatch, searchKeyword]
     );
 
+    // NEW: Function to fetch repair tasks for computers and equipment
+    const fetchRepairTasks = useCallback(async () => {
+        setRepairTasksStatus('loading');
+        const token = localStorage.getItem("authToken");
+        if (!token) {
+            setRepairTasksStatus('failed');
+            console.error("No token found for fetching repair tasks.");
+            return;
+        }
+
+        try {
+            const [computerResponse, equipmentResponse] = await Promise.all([
+                fetch(`https://localhost:8080/DSGhiChuMayTinh?token=${token}`),
+                fetch(`https://localhost:8080/DSGhiChuThietBi?token=${token}`)
+            ]);
+
+            let maTaiKhoanSuaLoiSet = new Set();
+
+            // Process computer repair notes
+            if (computerResponse.ok) {
+                const computerData = await computerResponse.json();
+                if (Array.isArray(computerData)) {
+                    computerData.forEach(item => {
+                        if (item.maTaiKhoanSuaLoi) {
+                            maTaiKhoanSuaLoiSet.add(item.maTaiKhoanSuaLoi);
+                        }
+                    });
+                }
+            } else {
+                console.error(`Failed to fetch computer repair notes: ${computerResponse.status}`);
+            }
+
+            // Process equipment repair notes
+            if (equipmentResponse.ok) {
+                const equipmentData = await equipmentResponse.json();
+                if (Array.isArray(equipmentData)) {
+                    equipmentData.forEach(item => {
+                        if (item.maTaiKhoanSuaLoi) {
+                            maTaiKhoanSuaLoiSet.add(item.maTaiKhoanSuaLoi);
+                        }
+                    });
+                }
+            } else {
+                console.error(`Failed to fetch equipment repair notes: ${equipmentResponse.status}`);
+            }
+
+            setEmployeesWithRepairTasks(maTaiKhoanSuaLoiSet);
+            setRepairTasksStatus('succeeded');
+        } catch (error) {
+            console.error("Failed to fetch repair tasks data:", error);
+            setRepairTasksStatus('failed');
+            // Swal.fire({
+            //     icon: 'error',
+            //     title: 'Lỗi tải lịch sửa chữa',
+            //     text: 'Không thể tải dữ liệu lịch sửa chữa. Tính năng kiểm tra lịch có thể không hoạt động đúng.',
+            // });
+        }
+    }, []);
+
+
     // Effects để fetch dữ liệu
     useEffect(() => {
         debouncedFetchEmployees();
@@ -100,7 +164,9 @@ const useQuanLyNhanVienLogic = () => {
 
     useEffect(() => {
         dispatch(fetchKhoaOptions());
-    }, [dispatch]);
+        fetchRepairTasks(); // NEW: Fetch repair tasks when component mounts
+    }, [dispatch, fetchRepairTasks]); // Add fetchRepairTasks to dependency array
+
 
     // --- Search Handlers ---
     const handleLoadAllEmployees = useCallback(() => {
@@ -108,11 +174,16 @@ const useQuanLyNhanVienLogic = () => {
     }, [dispatch]);
 
     const handleSearchInputChange = useCallback((e) => {
-        dispatch(setCurrentSearch({ keyword: e.target.value }));
+        // Clear operator and field if keyword is cleared
+        if (e.target.value === '') {
+            dispatch(clearCurrentSearch());
+        } else {
+            dispatch(setCurrentSearch({ keyword: e.target.value }));
+        }
     }, [dispatch]);
 
     const handleSearchFieldChange = useCallback((value) => {
-        // Reset keyword nếu trường thay đổi, để tránh lỗi logic với các loại input khác nhau (text/number)
+        // Reset keyword if field changes, to avoid logic errors with different input types (text/number)
         dispatch(setCurrentSearch({ field: value, keyword: '' }));
     }, [dispatch]);
 
@@ -125,30 +196,38 @@ const useQuanLyNhanVienLogic = () => {
     }, [dispatch]);
 
     const handleSaveSearchConfig = useCallback(async () => {
-        if (!currentSearchConfig.field || !currentSearchConfig.operator || !currentSearchConfig.keyword) {
-            Swal.fire('Thiếu thông tin!', 'Vui lòng nhập đầy đủ tiêu chí tìm kiếm trước khi lưu.', 'warning');
+        // Validation: Ensure there's a keyword, field, and operator (unless operator is IS_NULL/IS_NOT_NULL)
+        const operatorRequiresKeyword = !['IS_NULL', 'IS_NOT_NULL'].includes(currentSearchConfig.operator);
+        if (!currentSearchConfig.field || !currentSearchConfig.operator || (operatorRequiresKeyword && !currentSearchConfig.keyword)) {
+            Swal.fire('Thiếu thông tin!', 'Vui lòng nhập đầy đủ tiêu chí tìm kiếm hoặc chọn toán tử phù hợp trước khi lưu.', 'warning');
             return;
         }
 
         const { value: configName } = await Swal.fire({
             title: 'Đặt tên cho cấu hình tìm kiếm',
             input: 'text',
-            inputValue: currentSearchConfig.name || `Tìm kiếm ${currentSearchConfig.field}`,
+            inputValue: currentSearchConfig.name === 'Mặc định' || currentSearchConfig.name === LOAD_ALL_EMPLOYEES_CONFIG_NAME
+                ? `Tìm kiếm ${currentSearchConfig.field || ''}`
+                : currentSearchConfig.name, // Pre-fill with existing name or a default
             showCancelButton: true,
             inputValidator: (value) => {
                 if (!value) {
                     return 'Bạn cần nhập tên cho cấu hình!';
                 }
-                if (searchConfigList.includes(value) && value !== currentSearchConfig.name) {
+                // Check for duplicate names, excluding itself if editing an existing config
+                // We use savedSearchConfigs keys for this check
+                if (Object.keys(savedSearchConfigs).includes(value) && value !== currentSearchConfig.name) {
                     return 'Tên cấu hình này đã tồn tại!';
                 }
             }
         });
 
         if (configName) {
+            // Dispatch action to save the current search config with the given name
             dispatch(saveCurrentSearchConfig({ name: configName }));
+            Swal.fire('Thành công!', `Cấu hình tìm kiếm "${configName}" đã được lưu.`, 'success');
         }
-    }, [currentSearchConfig, searchConfigList, dispatch]);
+    }, [currentSearchConfig, savedSearchConfigs, dispatch]); // Use savedSearchConfigs for validation
 
     const handleLoadSearchConfig = useCallback((configName) => {
         dispatch(loadSearchConfig(configName));
@@ -167,6 +246,7 @@ const useQuanLyNhanVienLogic = () => {
         }).then((result) => {
             if (result.isConfirmed) {
                 dispatch(removeSearchConfig(configName));
+                Swal.fire('Đã xóa!', `Cấu hình tìm kiếm "${configName}" đã được xóa.`, 'success');
             }
         });
     }, [dispatch]);
@@ -229,7 +309,7 @@ const useQuanLyNhanVienLogic = () => {
 
         if (result.isConfirmed) {
             dispatch(convertEmployee({
-                maNV: selectedNhanVienForConversion.maNV,
+                maNV: selectedNhanVienForConversion.maNhanVien, // Use maNhanVien as per data structure
                 hoTen: selectedNhanVienForConversion.hoTen,
                 soDienThoai: selectedNhanVienForConversion.soDienThoai,
                 email: selectedNhanVienForConversion.email,
@@ -237,18 +317,21 @@ const useQuanLyNhanVienLogic = () => {
                 taiKhoanMaTK: selectedNhanVienForConversion.taiKhoanMaTK,
                 khoaMaKhoa: selectedKhoaMaKhoa,
             })).then((actionResult) => {
-                // Kiểm tra actionResult.meta.requestStatus để biết thành công hay thất bại
                 if (actionResult.meta.requestStatus === 'fulfilled') {
                     setIsConversionModalVisible(false);
                     setHocVi('');
                     setSelectedKhoaMaKhoa(null);
                     setSelectedNhanVienForConversion(null);
-                    // fetchEmployees đã được dispatch trong thunk convertEmployee, không cần gọi lại ở đây
+                    Swal.fire('Thành công!', 'Chuyển đổi vai trò thành công!', 'success');
+                    // NEW: Cập nhật lại danh sách lịch sửa chữa sau khi chuyển đổi thành công
+                    fetchRepairTasks();
+                } else if (actionResult.meta.requestStatus === 'rejected') {
+                    // Assuming error message is already handled in thunk
+                    Swal.fire('Thất bại!', actionResult.payload || 'Chuyển đổi vai trò thất bại.', 'error');
                 }
-                // Nếu thất bại, Swal đã được gọi trong thunk, không cần làm gì thêm ở đây
             });
         }
-    }, [hocVi, selectedKhoaMaKhoa, selectedNhanVienForConversion, dispatch]);
+    }, [hocVi, selectedKhoaMaKhoa, selectedNhanVienForConversion, dispatch, fetchRepairTasks]); // Add fetchRepairTasks to dependency array
 
     return {
         // State từ Redux
@@ -259,6 +342,7 @@ const useQuanLyNhanVienLogic = () => {
         khoaOptionsStatus,
         currentSearchConfig,
         searchConfigList,
+        // savedSearchConfigs, // Not directly used by UI, but useful for debugging
         LOAD_ALL_EMPLOYEES_CONFIG_NAME, // Export hằng số
 
         // State cục bộ
@@ -270,6 +354,8 @@ const useQuanLyNhanVienLogic = () => {
         setHocVi,
         selectedKhoaMaKhoa,
         setSelectedKhoaMaKhoa,
+        employeesWithRepairTasks, // NEW: Export employeesWithRepairTasks
+        repairTasksStatus,       // NEW: Export repairTasksStatus
 
         // Cấu hình tìm kiếm
         searchFieldsOptions,

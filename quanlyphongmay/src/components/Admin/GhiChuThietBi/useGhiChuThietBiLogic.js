@@ -313,11 +313,7 @@ const useGhiChuThietBiLogic = () => {
                     confirmButtonText: 'Đăng Nhập Lại'
                 }).then(() => navigate('/login'));
             } else {
-                Swal.fire(
-                    'Lỗi',
-                    `Không thể tải dữ liệu ghi chú thiết bị: ${error.message}`,
-                    'error'
-                );
+
             }
             setGhiChuData([]);
         } finally {

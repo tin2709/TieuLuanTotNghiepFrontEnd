@@ -295,7 +295,7 @@ const HomePage = () => {
 
                     {/* Language Switcher Dropdown */}
                     <Dropdown menu={languageMenu} trigger={['click']} placement="bottomRight" className="language-switcher">
-                        <Button type="text" icon={<Space>{currentLangOption.flag} <DownOutlined /></Space>}>
+                        <Button type="text"  icon={<Space>{currentLangOption.flag} <DownOutlined /></Space>}>
                             {currentLangOption.label}
                         </Button>
                     </Dropdown>

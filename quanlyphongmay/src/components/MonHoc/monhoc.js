@@ -98,7 +98,23 @@ export default function MonHocManagement() {
     const [sortInfo, setSortInfo] = useState({});
     // const [hasSelected, setHasSelected] = useState(false); // Removed
     const [notification, setNotification] = useState(null);
-
+    const homeDropdownMenu = (
+        <Menu>
+            <Menu.Item key="home" onClick={() => navigate('/')}>
+                Trang chủ
+            </Menu.Item>
+            {/* Assuming these are your paths, adjust if different */}
+            <Menu.Item key="quanliphongmay" onClick={() => navigate('/phongmay')}>
+                Quản lí phòng máy
+            </Menu.Item>
+            <Menu.Item key="quanlicathuchanh" onClick={() => navigate('/cathuchanh')}>
+                Quản lí ca thực hành
+            </Menu.Item>
+            <Menu.Item key="quanlimonhoc" onClick={() => navigate('/quanlimonhoc')}>
+                Quản lí môn học
+            </Menu.Item>
+        </Menu>
+    );
     // --- Intro.js Tour ---
     const startIntroTour = () => {
         const steps = [
@@ -467,10 +483,16 @@ export default function MonHocManagement() {
             </Header>
             <Content className="lab-management-content" style={{ padding: "24px", margin: "0 16px" }}>
                 <nav className="flex items-center space-x-1 text-sm text-muted-foreground mb-4">
-                    <a href="/" className="flex items-center hover:text-primary">
-                        <HomeOutlined className="h-4 w-4" />
-                        <span className="ml-1">Trang chủ</span>
-                    </a>
+                    <Dropdown overlay={homeDropdownMenu} placement="bottomLeft" trigger={['hover']}>
+                        <a
+                            onClick={(e) => e.preventDefault()} // Prevent default navigation of <a> tag
+                            className="flex items-center hover:text-primary"
+                            style={{ cursor: 'pointer' }} // Indicate it's clickable
+                        >
+                            <HomeOutlined className="h-4 w-4" />
+                            <span className="ml-1">Trang chủ</span>
+                        </a>
+                    </Dropdown>
                 </nav>
 
                 {loadError && (

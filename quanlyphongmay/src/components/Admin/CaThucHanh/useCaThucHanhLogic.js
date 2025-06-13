@@ -213,7 +213,6 @@ const useCaThucHanhManager = () => {
         } catch (error) {
             console.error("Fetch CaThucHanh error:", error);
             if (error.message.includes('Unauthorized')) Swal.fire('Lỗi', 'Phiên hết hạn hoặc không có quyền.', 'error').then(() => navigate('/login'));
-            else Swal.fire('Lỗi', `Không tải được dữ liệu Ca Thực Hành: ${error.message}`, 'error');
             setCaThucHanhData([]); setSelectedRowKeys([]);
         } finally { setLoading(false); }
     }, [navigate, pagination.pageSize]);

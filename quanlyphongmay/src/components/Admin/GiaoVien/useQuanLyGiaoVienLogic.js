@@ -43,6 +43,10 @@ const useQuanLyGiaoVienLogic = () => {
     const [isConversionModalVisible, setIsConversionModalVisible] = useState(false);
     const [selectedGiaoVienForConversion, setSelectedGiaoVienForConversion] = useState(null);
     const [selectedChucVu, setSelectedChucVu] = useState(null);
+    // NEW: State để lưu trữ các maGiaoVien có ca thực hành
+    const [teachersWithCa, setTeachersWithCa] = useState(new Set());
+    const [caThucHanhStatus, setCaThucHanhStatus] = useState('idle'); // 'idle', 'loading', 'succeeded', 'failed'
+
 
     // Giá trị searchKeyword được tạo ra từ currentSearchConfig
     const searchKeyword = useMemo(() => {
@@ -69,23 +73,66 @@ const useQuanLyGiaoVienLogic = () => {
         { value: 'ENDS_WITH', label: 'Ends With' },
     ]), []);
 
-    // Debounced fetch
-    const debouncedFetch = useCallback(
+    // Debounced fetch for teachers
+    const debouncedFetchTeachers = useCallback(
         debounce(() => {
             dispatch(fetchTeachers(searchKeyword));
         }, 1000),
         [dispatch, searchKeyword]
     );
 
+    // NEW: Function to fetch DSCaThucHanh
+    const fetchCaThucHanhTeachers = useCallback(async () => {
+        setCaThucHanhStatus('loading');
+        const token = localStorage.getItem("authToken");
+        if (!token) {
+            setCaThucHanhStatus('failed');
+            console.error("No token found for fetching CaThucHanh.");
+            return;
+        }
+
+        try {
+            const url = `https://localhost:8080/DSCaThucHanh?token=${token}`;
+            const response = await fetch(url);
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `API error: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const maGiaoVienSet = new Set();
+            if (Array.isArray(data)) {
+                data.forEach(ca => {
+                    if (ca.giaoVien && ca.giaoVien.maGiaoVien) {
+                        maGiaoVienSet.add(ca.giaoVien.maGiaoVien);
+                    }
+                });
+            }
+            setTeachersWithCa(maGiaoVienSet);
+            setCaThucHanhStatus('succeeded');
+        } catch (error) {
+            console.error("Failed to fetch CaThucHanh data:", error);
+            setCaThucHanhStatus('failed');
+            // Swal.fire({
+            //     icon: 'error',
+            //     title: 'Lỗi tải Ca Thực Hành',
+            //     text: 'Không thể tải dữ liệu ca thực hành. Tính năng kiểm tra ca có thể không hoạt động đúng.',
+            // });
+        }
+    }, []);
+
+
     // Effect để fetch dữ liệu khi searchKeyword thay đổi
     useEffect(() => {
-        debouncedFetch();
-    }, [searchKeyword, debouncedFetch]);
+        debouncedFetchTeachers();
+    }, [searchKeyword, debouncedFetchTeachers]);
 
-    // Effect để fetch danh sách chức vụ khi component mount
+    // Effect để fetch danh sách chức vụ và ca thực hành khi component mount
     useEffect(() => {
         dispatch(fetchPositionOptions());
-    }, [dispatch]);
+        fetchCaThucHanhTeachers(); // NEW: Fetch ca thực hành khi mount
+    }, [dispatch, fetchCaThucHanhTeachers]);
 
     // --- Search Handlers ---
     const handleLoadAllTeachers = useCallback(() => {
@@ -211,7 +258,7 @@ const useQuanLyGiaoVienLogic = () => {
                 email: selectedGiaoVienForConversion.email,
                 soDienThoai: selectedGiaoVienForConversion.soDienThoai,
                 maCV: selectedChucVu,
-                taiKhoanMaTK: selectedGiaoVienForConversion.taiKhoanMaTK,
+                taiKhoanMaTK: selectedGiaoVienForConversion.taiKhoanMaTK, // Corrected typo here
             })).then((actionResult) => {
                 // Kiểm tra actionResult.meta.requestStatus để biết thành công hay thất bại
                 if (actionResult.meta.requestStatus === 'fulfilled') {
@@ -219,11 +266,13 @@ const useQuanLyGiaoVienLogic = () => {
                     setSelectedChucVu(null);
                     setSelectedGiaoVienForConversion(null);
                     // fetchTeachers đã được dispatch trong thunk convertTeacher, không cần gọi lại ở đây
+                    // NEW: Cập nhật lại danh sách ca thực hành sau khi chuyển đổi thành công
+                    fetchCaThucHanhTeachers();
                 }
                 // Nếu thất bại, Swal đã được gọi trong thunk, không cần làm gì thêm ở đây
             });
         }
-    }, [selectedGiaoVienForConversion, selectedChucVu, dispatch]);
+    }, [selectedGiaoVienForConversion, selectedChucVu, dispatch, fetchCaThucHanhTeachers]); // Add fetchCaThucHanhTeachers to dependency array
 
     // Trả về tất cả state và hàm cần thiết cho component UI
     return {
@@ -245,6 +294,8 @@ const useQuanLyGiaoVienLogic = () => {
         selectedGiaoVienForConversion,
         selectedChucVu,
         setSelectedChucVu,
+        teachersWithCa, // NEW: Export teachersWithCa
+        caThucHanhStatus, // NEW: Export caThucHanhStatus
 
         // Cấu hình tìm kiếm
         searchFieldsOptions,
